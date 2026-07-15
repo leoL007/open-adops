@@ -84,24 +84,6 @@ OPENADOPS_MODEL=your-model-name npm start
 
 OpenAdOps 会自动识别常见的中英文字段别名，并允许用户在计算前修正每一项映射。可查看[演示 CSV](./public/data/openadops-demo.csv)。
 
-## 工作原理
-
-```mermaid
-flowchart LR
-  A[浏览器工作台] --> B[确定性指标计算]
-  B --> C[本地项目状态]
-  B --> D[报告输出]
-  A --> E{分析模式}
-  E -->|Mock| F[浏览器本地演示引擎]
-  E -->|Codex| G[本地 Node Bridge]
-  G --> H[codex exec]
-  H --> I[Ads Skills]
-  I --> J[JSON Schema 校验]
-  J --> A
-```
-
-浏览器不会存储 API Key。本地服务通过参数数组、临时会话、只读沙箱和强制 JSON Schema 调用 Codex；同一时间只运行一个 Codex 分析任务。
-
 ## 验证
 
 ```bash

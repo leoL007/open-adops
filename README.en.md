@@ -84,24 +84,6 @@ CSV import requires `Spend` plus at least one of `Media Installs` or `AF Install
 
 OpenAdOps auto-detects common English and Chinese field aliases and lets the user correct each mapping before calculation. See [the demo CSV](./public/data/openadops-demo.csv).
 
-## Architecture
-
-```mermaid
-flowchart LR
-  A[Browser workspace] --> B[Deterministic analytics]
-  B --> C[Local project state]
-  B --> D[Reports]
-  A --> E{Analysis mode}
-  E -->|Mock| F[Browser-local demo engine]
-  E -->|Codex| G[Local Node bridge]
-  G --> H[codex exec]
-  H --> I[Ads skills]
-  I --> J[JSON Schema validation]
-  J --> A
-```
-
-The browser never stores an API key. The local service calls Codex with an argument array, an ephemeral session, a read-only sandbox, and a required JSON Schema. Only one Codex analysis job runs at a time.
-
 ## Validation
 
 ```bash
