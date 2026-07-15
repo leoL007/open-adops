@@ -51,7 +51,7 @@ cd open-adops
 npm start
 ```
 
-浏览器打开 <http://127.0.0.1:4173>。项目只使用 Node.js 原生模块，不需要运行 `npm install`。
+启动成功后，在浏览器访问本地工作台：`http://127.0.0.1:4173`。项目只使用 Node.js 原生模块，不需要运行 `npm install`。
 
 快速检查运行环境：
 

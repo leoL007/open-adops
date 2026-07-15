@@ -51,7 +51,7 @@ cd open-adops
 npm start
 ```
 
-Open <http://127.0.0.1:4173>. No `npm install` is required; the project uses Node.js built-in modules only.
+After startup, open the local workspace at `http://127.0.0.1:4173`. No `npm install` is required; the project uses Node.js built-in modules only.
 
 Run a quick environment check:
 
