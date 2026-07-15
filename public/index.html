@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="AdPilot 海外 App 投放全链路工作台 MVP" />
+    <title>AdPilot｜海外 App 投放工作台</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand-block">
+          <div class="brand-mark">AP</div>
+          <div>
+            <div class="brand-name">AdPilot</div>
+            <div class="brand-subtitle">App UA Workbench</div>
+          </div>
+        </div>
+
+        <nav class="primary-nav" aria-label="主导航">
+          <a href="#overview" data-route="overview"><span>01</span>项目总览</a>
+          <a href="#strategy" data-route="strategy"><span>02</span>投放策略</a>
+          <a href="#creative" data-route="creative"><span>03</span>素材计划</a>
+          <a href="#launch" data-route="launch"><span>04</span>广告搭建</a>
+          <a href="#optimize" data-route="optimize"><span>05</span>投放优化</a>
+          <a href="#report" data-route="report"><span>06</span>报告输出</a>
+        </nav>
+
+        <div class="sidebar-note">
+          <div class="status-dot"></div>
+          <div>
+            <strong>Local-first MVP</strong>
+            <span>数据保存在当前浏览器</span>
+          </div>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <div class="project-switcher">
+            <label for="projectSelect">当前项目</label>
+            <select id="projectSelect" aria-label="选择项目"></select>
+            <span id="demoBadge" class="demo-badge" hidden>演示数据</span>
+          </div>
+          <div class="topbar-actions">
+            <div class="ai-mode-control" title="Mock 不消耗模型额度；Codex 会调用本地 CLI">
+              <span>分析模式</span>
+              <select id="aiMode">
+                <option value="mock">Mock 演示</option>
+                <option value="codex">Codex Ads · gpt-5.6-sol</option>
+              </select>
+            </div>
+            <button class="button button-secondary" id="newProjectButton" type="button">＋ 新建项目</button>
+          </div>
+        </header>
+
+        <main id="app" class="page" aria-live="polite"></main>
+      </section>
+    </div>
+
+    <dialog id="projectDialog" class="dialog">
+      <form method="dialog" id="projectForm">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">NEW PROJECT</p>
+            <h2>建立投放项目</h2>
+          </div>
+          <button type="button" class="icon-button" data-close-dialog aria-label="关闭">×</button>
+        </div>
+        <div class="form-grid two-columns">
+          <label class="field field-wide">
+            <span>项目名称</span>
+            <input name="name" required placeholder="例如：Finance App · SEA Q3" />
+          </label>
+          <label class="field">
+            <span>产品行业</span>
+            <select name="industry">
+              <option value="工具">工具 App</option>
+              <option value="金融">金融 App</option>
+              <option value="游戏">游戏 App</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>主要目标</span>
+            <select name="goal">
+              <option value="Install">Install</option>
+              <option value="Registration">Registration</option>
+              <option value="Purchase">Purchase / ROAS</option>
+            </select>
+          </label>
+          <fieldset class="field field-wide platform-field">
+            <legend>投放媒体</legend>
+            <label><input type="checkbox" name="platforms" value="Google Ads" checked /> Google Ads</label>
+            <label><input type="checkbox" name="platforms" value="Meta Ads" checked /> Meta Ads</label>
+            <label><input type="checkbox" name="platforms" value="TikTok Ads" checked /> TikTok Ads</label>
+          </fieldset>
+          <label class="field field-wide">
+            <span>目标市场</span>
+            <input name="markets" placeholder="JP, US, GB" />
+          </label>
+          <label class="field">
+            <span>月预算</span>
+            <input name="budget" type="number" min="0" placeholder="50000" />
+          </label>
+          <label class="field">
+            <span>币种</span>
+            <select name="currency">
+              <option value="USD">USD</option>
+              <option value="CNY">CNY</option>
+              <option value="JPY">JPY</option>
+              <option value="EUR">EUR</option>
+              <option value="GBP">GBP</option>
+            </select>
+          </label>
+        </div>
+        <div class="dialog-actions">
+          <button type="button" class="button button-ghost" data-close-dialog>取消</button>
+          <button type="submit" class="button button-primary">创建并进入</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
