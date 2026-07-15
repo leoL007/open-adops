@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["executive_summary", "findings", "creative_tests", "next_actions"],
+  "properties": {
+    "executive_summary": {
+      "type": "string"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "evidence", "diagnosis", "action", "priority", "confidence", "validation"],
+        "properties": {
+          "title": { "type": "string" },
+          "evidence": { "type": "string" },
+          "diagnosis": { "type": "string" },
+          "action": { "type": "string" },
+          "priority": { "type": "string", "enum": ["high", "medium", "low"] },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+          "validation": { "type": "string" }
+        }
+      }
+    },
+    "creative_tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["angle", "hook", "platform", "variable", "success_metric"],
+        "properties": {
+          "angle": { "type": "string" },
+          "hook": { "type": "string" },
+          "platform": { "type": "string" },
+          "variable": { "type": "string" },
+          "success_metric": { "type": "string" }
+        }
+      }
+    },
+    "next_actions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action", "owner", "timing", "success_metric"],
+        "properties": {
+          "action": { "type": "string" },
+          "owner": { "type": "string" },
+          "timing": { "type": "string" },
+          "success_metric": { "type": "string" }
+        }
+      }
+    }
+  }
+}

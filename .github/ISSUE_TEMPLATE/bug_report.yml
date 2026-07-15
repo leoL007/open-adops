@@ -1,0 +1,29 @@
+name: Bug report
+description: Report a reproducible OpenAdOps problem without sharing sensitive ad-account data.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for helping improve OpenAdOps. Remove customer names, account IDs, credentials, and raw exports.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include the page, action, and visible error.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      placeholder: "1. Open...\n2. Import...\n3. Click..."
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: macOS / Windows / Linux, Node version, browser
+    validations:
+      required: true
