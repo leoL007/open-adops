@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { validateAnalysis } from "../src/analysis-validator.mjs";
-import { buildMockAnalysis } from "../src/mock-analysis.mjs";
+import { buildMockAnalysis } from "../public/lib/mock-analysis.js";
 
 test("deterministic mock output passes the same structural validation", () => {
   const result = buildMockAnalysis(

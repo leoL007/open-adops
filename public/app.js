@@ -1,6 +1,8 @@
 import { FIELD_LABELS, calculateMetrics, detectMapping, formatMetric, mapRows, parseCsv } from "./lib/analytics.js";
+import { buildMockAnalysis } from "./lib/mock-analysis.js";
 
-const STORAGE_KEY = "adpilot:mvp:v1";
+const STORAGE_KEY = "openadops:v1";
+const LEGACY_STORAGE_KEY = "adpilot:mvp:v1";
 const ROUTES = new Set(["overview", "strategy", "creative", "launch", "optimize", "report"]);
 const app = document.querySelector("#app");
 const projectSelect = document.querySelector("#projectSelect");
@@ -52,7 +54,7 @@ function createDemoProject() {
     attribution: "AppsFlyer",
     stage: "测试期",
     sellingPoints: "3 秒完成图片清理；操作简单；输出质量稳定；适合高频日常编辑场景。",
-    notes: "所有数值均为工作台演示数据，不代表 Hypic 或任何真实客户表现。",
+    notes: "所有数值均为工作台演示数据，不代表任何真实产品或客户表现。",
     isDemo: true,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -79,7 +81,7 @@ function createDemoProject() {
       }
     },
     data: {
-      fileName: "adpilot_demo.csv",
+      fileName: "openadops-demo.csv",
       importedAt: new Date().toISOString(),
       metrics: demoMetrics(),
       isDemo: true
@@ -95,8 +97,13 @@ function initialState() {
 
 function loadState() {
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (stored?.projects?.length) return stored;
+    const current = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (current?.projects?.length) return current;
+    const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY));
+    if (legacy?.projects?.length) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
+      return legacy;
+    }
   } catch {
     // Fall through to a fresh local demo state.
   }
@@ -104,6 +111,15 @@ function loadState() {
 }
 
 let state = loadState();
+const isStaticDemo = location.hostname.endsWith("github.io") || location.protocol === "file:";
+if (isStaticDemo) {
+  state.aiMode = "mock";
+  const codexOption = aiModeSelect.querySelector('option[value="codex"]');
+  if (codexOption) {
+    codexOption.disabled = true;
+    codexOption.textContent = "Codex CLI · run locally";
+  }
+}
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -223,7 +239,7 @@ function emptyState(title, description, targetRoute, buttonLabel) {
 }
 
 function analysisToolbar(stage) {
-  const mode = state.aiMode === "codex" ? "Codex Ads · gpt-5.6-sol" : "Mock 演示（不消耗额度）";
+  const mode = state.aiMode === "codex" ? "Codex CLI · configured model" : "Browser-local Mock（无需账号）";
   return `<div class="analysis-toolbar">
     <div><strong>结构化 AI 判断</strong><span>${escapeHtml(mode)} · 结果需通过 JSON Schema</span></div>
     <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : state.aiMode === "codex" ? "调用 Codex Ads" : "运行 Mock 演示"}</button>
@@ -417,7 +433,7 @@ function renderReport(project) {
   const actions = `<button class="button button-secondary" data-export-report>导出 HTML</button><button class="button button-primary" data-print-report>打印 / PDF</button>`;
   return `${pageHeader("REPORT CENTER", "报告输出", "把项目输入、数据证据、诊断和下一步动作压缩为管理层可读的一页报告。", actions)}
     <article class="report-preview">
-      <div class="report-cover"><div><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h2>${escapeHtml(project.name)}<br />投放阶段复盘与下一步计划</h2></div><div class="report-meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))}<br />${escapeHtml(project.markets || "市场待设置")} · ${dateText(new Date().toISOString())}<br />${project.isDemo ? "演示数据，不代表真实客户表现" : "AdPilot 本地工作台生成"}</div></div>
+      <div class="report-cover"><div><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h2>${escapeHtml(project.name)}<br />投放阶段复盘与下一步计划</h2></div><div class="report-meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))}<br />${escapeHtml(project.markets || "市场待设置")} · ${dateText(new Date().toISOString())}<br />${project.isDemo ? "演示数据，不代表真实客户表现" : "OpenAdOps 本地工作台生成"}</div></div>
       <section class="report-section"><h3>01 · 核心指标</h3>${metricCards(project)}</section>
       <section class="report-section"><h3>02 · 管理层摘要</h3><div class="summary-callout">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。建议先在“投放优化”导入数据并运行分析。")}</div></section>
       <section class="report-section"><h3>03 · 关键判断</h3>${result ? result.findings.map((item) => `<article class="finding-card"><div class="finding-top"><h3>${escapeHtml(item.title)}</h3><span class="priority-badge ${attr(item.priority)}">${priorityText(item.priority)}</span></div><div class="finding-body"><div class="evidence-box"><span>Evidence</span><p>${escapeHtml(item.evidence)}</p></div><div class="action-box"><span>Action</span><p>${escapeHtml(item.action)}</p></div></div><p class="finding-diagnosis">${escapeHtml(item.diagnosis)} · 验证：${escapeHtml(item.validation)}</p></article>`).join("") : emptyState("还没有关键判断", "AI 失败时不会生成假结果；请在其他阶段重新运行。", "optimize", "去优化页")}</section>
@@ -475,7 +491,7 @@ function attachPageListeners() {
   document.querySelectorAll("[data-run-ai]").forEach((button) => button.addEventListener("click", () => runAnalysis(button.dataset.runAi)));
   document.querySelectorAll("[data-map-field]").forEach((select) => select.addEventListener("change", () => { importSession.mapping[select.dataset.mapField] = select.value; }));
   document.querySelector("[data-apply-import]")?.addEventListener("click", applyImport);
-  document.querySelector("[data-load-demo]")?.addEventListener("click", () => prepareImport("adpilot_demo.csv", DEMO_CSV, true));
+  document.querySelector("[data-load-demo]")?.addEventListener("click", () => prepareImport("openadops-demo.csv", DEMO_CSV, true));
   document.querySelector("#csvInput")?.addEventListener("change", handleFileInput);
   document.querySelector("[data-export-report]")?.addEventListener("click", exportReport);
   document.querySelector("[data-print-report]")?.addEventListener("click", () => window.print());
@@ -553,13 +569,23 @@ async function runAnalysis(stage) {
   render();
   try {
     const project = activeProject();
-    const response = await fetch("/api/analyze", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ mode: state.aiMode, stage, project, metrics: metricsForAi(project) })
-    });
-    const payload = await response.json();
-    if (!response.ok || !payload.ok) throw new Error(payload.error || "分析失败");
+    let payload;
+    if (state.aiMode === "mock") {
+      payload = {
+        ok: true,
+        source: "mock",
+        model: "browser-local-mock",
+        result: buildMockAnalysis(project, metricsForAi(project))
+      };
+    } else {
+      const response = await fetch("./api/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: state.aiMode, stage, project, metrics: metricsForAi(project) })
+      });
+      payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "分析失败");
+    }
     updateProject((target) => {
       if (!target.ai) target.ai = {};
       target.ai[stage] = {
@@ -601,7 +627,7 @@ function reportDocument(project) {
   ];
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escapeHtml(project.name)}投放报告</title><style>
   body{margin:0;background:#f3f4f6;color:#1b2430;font-family:Arial,"PingFang SC",sans-serif}main{width:1040px;margin:32px auto;padding:50px;background:#fff;box-sizing:border-box}.eyebrow{color:#e77436;font-size:11px;font-weight:700;letter-spacing:.12em}h1{font-size:34px;margin:8px 0 38px}h2{font-size:18px;margin:34px 0 14px}.meta{color:#77808b;font-size:12px}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric,.finding{border:1px solid #e5e8ec;border-radius:10px;padding:16px}.metric span{display:block;color:#77808b;font-size:11px}.metric strong{display:block;margin-top:9px;font-size:21px}.summary{border-left:3px solid #e77436;background:#fff1e8;padding:17px;line-height:1.7}.finding{margin-top:10px}.finding h3{margin:0 0 9px;font-size:15px}.finding p{font-size:12px;line-height:1.7;color:#5f6b79}.actions{width:100%;border-collapse:collapse}.actions th,.actions td{padding:11px;border-bottom:1px solid #e5e8ec;text-align:left;font-size:11px}.notice{margin-top:34px;color:#8c96a3;font-size:10px}@media print{body{background:#fff}main{width:auto;margin:0;padding:24px}}
-  </style></head><body><main><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h1>${escapeHtml(project.name)}<br>投放阶段复盘与下一步计划</h1><p class="meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))} · ${escapeHtml(project.markets)} · ${dateText(new Date().toISOString())}</p><h2>核心指标</h2><div class="metrics">${metricRows.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><h2>管理层摘要</h2><div class="summary">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。")}</div><h2>关键判断</h2>${result?.findings?.map((item) => `<section class="finding"><h3>${escapeHtml(item.title)}</h3><p><strong>证据：</strong>${escapeHtml(item.evidence)}</p><p><strong>判断：</strong>${escapeHtml(item.diagnosis)}</p><p><strong>动作：</strong>${escapeHtml(item.action)}</p><p><strong>验证：</strong>${escapeHtml(item.validation)}</p></section>`).join("") || "<p>暂无。</p>"}<h2>下一步动作</h2><table class="actions"><thead><tr><th>动作</th><th>负责人</th><th>时间</th><th>成功指标</th></tr></thead><tbody>${result?.next_actions?.map((item) => `<tr><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.timing)}</td><td>${escapeHtml(item.success_metric)}</td></tr>`).join("") || ""}</tbody></table><p class="notice">数据来源：${escapeHtml(project.data?.fileName || "未导入")} · 归因口径：${escapeHtml(project.attribution)} · ${project.isDemo ? "演示数据，不代表任何真实客户表现。" : "由 AdPilot 本地工作台生成。"}</p></main></body></html>`;
+  </style></head><body><main><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h1>${escapeHtml(project.name)}<br>投放阶段复盘与下一步计划</h1><p class="meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))} · ${escapeHtml(project.markets)} · ${dateText(new Date().toISOString())}</p><h2>核心指标</h2><div class="metrics">${metricRows.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><h2>管理层摘要</h2><div class="summary">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。")}</div><h2>关键判断</h2>${result?.findings?.map((item) => `<section class="finding"><h3>${escapeHtml(item.title)}</h3><p><strong>证据：</strong>${escapeHtml(item.evidence)}</p><p><strong>判断：</strong>${escapeHtml(item.diagnosis)}</p><p><strong>动作：</strong>${escapeHtml(item.action)}</p><p><strong>验证：</strong>${escapeHtml(item.validation)}</p></section>`).join("") || "<p>暂无。</p>"}<h2>下一步动作</h2><table class="actions"><thead><tr><th>动作</th><th>负责人</th><th>时间</th><th>成功指标</th></tr></thead><tbody>${result?.next_actions?.map((item) => `<tr><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.timing)}</td><td>${escapeHtml(item.success_metric)}</td></tr>`).join("") || ""}</tbody></table><p class="notice">数据来源：${escapeHtml(project.data?.fileName || "未导入")} · 归因口径：${escapeHtml(project.attribution)} · ${project.isDemo ? "演示数据，不代表任何真实客户表现。" : "由 OpenAdOps 本地工作台生成。"}</p></main></body></html>`;
 }
 
 function exportReport() {

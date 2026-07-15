@@ -6,14 +6,14 @@ import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildMockAnalysis } from "./src/mock-analysis.mjs";
+import { buildMockAnalysis } from "./public/lib/mock-analysis.js";
 import { validateAnalysis } from "./src/analysis-validator.mjs";
 
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(APP_ROOT, "public");
 const SCHEMA_PATH = path.join(APP_ROOT, "schemas", "analysis.schema.json");
 const PORT = Number(process.env.PORT || 4173);
-const MODEL = process.env.ADPILOT_MODEL || "gpt-5.6-sol";
+const MODEL = process.env.OPENADOPS_MODEL || process.env.ADPILOT_MODEL || "";
 const CODEX_BIN = process.env.CODEX_BIN || "codex";
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 let activeAiJob = false;
@@ -110,22 +110,10 @@ function parseModelOutput(text) {
 
 function runCodexAnalysis(payload) {
   return new Promise((resolve, reject) => {
-    const outputPath = path.join(tmpdir(), `adpilot-analysis-${randomUUID()}.json`);
-    const args = [
-      "exec",
-      "--ephemeral",
-      "--sandbox",
-      "read-only",
-      "--color",
-      "never",
-      "--model",
-      MODEL,
-      "--output-schema",
-      SCHEMA_PATH,
-      "--output-last-message",
-      outputPath,
-      "-"
-    ];
+    const outputPath = path.join(tmpdir(), `openadops-analysis-${randomUUID()}.json`);
+    const args = ["exec", "--ephemeral", "--sandbox", "read-only", "--color", "never"];
+    if (MODEL) args.push("--model", MODEL);
+    args.push("--output-schema", SCHEMA_PATH, "--output-last-message", outputPath, "-");
     const child = spawn(CODEX_BIN, args, {
       cwd: APP_ROOT,
       env: { ...process.env, NO_COLOR: "1" },
@@ -249,7 +237,7 @@ async function serveStatic(pathname, response) {
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
   if (request.method === "GET" && url.pathname === "/api/health") {
-    sendJson(response, 200, { ok: true, app: "AdPilot MVP", model: MODEL, aiBusy: activeAiJob });
+    sendJson(response, 200, { ok: true, app: "OpenAdOps", model: MODEL || "codex-default", aiBusy: activeAiJob });
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/analyze") {
@@ -264,8 +252,8 @@ const server = http.createServer(async (request, response) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`AdPilot MVP: http://127.0.0.1:${PORT}`);
-  console.log(`AI model: ${MODEL} | mode: Codex CLI bridge + Mock`);
+  console.log(`OpenAdOps: http://127.0.0.1:${PORT}`);
+  console.log(`AI model: ${MODEL || "Codex configured default"} | mode: Codex CLI bridge + browser-local Mock`);
 });
 
 export { buildAnalysisPrompt, server };

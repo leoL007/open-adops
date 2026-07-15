@@ -1,68 +1,127 @@
-# AdPilot MVP
+<div align="center">
 
-面向海外 App 投放优化师的本地全链路工作台：投放策略 → 素材计划 → 广告搭建 → 投放优化 → 报告输出。
+# OpenAdOps
 
-## 启动
+### Turn ad exports into defensible decisions.
 
-要求：Node.js 20+，本机已登录 Codex CLI。
+OpenAdOps is a local-first AI workspace that turns Google Ads, Meta Ads, TikTok Ads, and AppsFlyer exports into campaign strategy, creative tests, optimization actions, and client-ready reports.
+
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
+[![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
+
+[English](./README.md) · [简体中文](./README.zh-CN.md) · [Roadmap](./ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
+
+</div>
+
+![OpenAdOps overview](./assets/openadops-overview.jpg)
+
+## Why OpenAdOps
+
+Paid-media work is fragmented across dashboards, spreadsheets, screenshots, and chat threads. A generic chat can draft an answer, but it does not preserve the operating context or guarantee the metric math.
+
+OpenAdOps keeps the workflow in one project:
+
+1. **Plan** — goals, markets, media roles, budgets, and test hypotheses.
+2. **Create** — platform-aware creative angles, hooks, variables, and success metrics.
+3. **Launch** — campaign architecture, naming, budgets, and pre-flight checks.
+4. **Optimize** — deterministic KPI calculation plus evidence-backed AI recommendations.
+5. **Report** — management-ready HTML and print/PDF output.
+
+## What makes it different
+
+- **Code does the math.** CSV parsing, field mapping, aggregation, CPI, AF-CPI, CTR, CVR, CPA, ROAS, and retention are deterministic.
+- **AI does the judgment.** Strategy, diagnosis, creative tests, and next actions are returned as schema-validated JSON.
+- **Evidence stays attached.** Every finding separates evidence, diagnosis, action, confidence, and validation.
+- **Local-first by design.** Projects live in browser storage; raw CSV rows are not sent to the AI bridge.
+- **Safe failure behavior.** A failed AI request produces an explicit error instead of a fabricated recommendation.
+- **Useful without an account.** The browser-local Mock demo works on GitHub Pages and does not require Codex or an API key.
+
+## 60-second start
+
+### Try the browser demo
+
+Open the [live Mock demo](https://leol007.github.io/open-adops/). It runs entirely in the browser with clearly labeled demo data.
+
+### Run locally
 
 ```bash
-cd /Users/leo/Documents/Hypic/adpilot-mvp
+git clone https://github.com/leoL007/open-adops.git
+cd open-adops
 npm start
 ```
 
-浏览器打开：<http://127.0.0.1:4173>
+Open <http://127.0.0.1:4173>. No `npm install` is required; the project uses Node.js built-in modules only.
 
-不需要 `npm install`，MVP 仅使用 Node.js 原生模块。
-
-## 使用方式
-
-1. 首次打开会自动建立一个明确标记为“演示数据”的工具类 App 示例项目。
-2. 在“投放策略”填写目标、预算、卖点与测试逻辑。
-3. 在“投放优化”导入媒体或 AppsFlyer CSV，确认字段映射后计算。
-4. 默认使用 Mock 模式验收流程，不消耗模型额度。
-5. 切换为 `Codex Ads · gpt-5.6-sol` 后，可主动调用真实分析。
-6. 在“报告输出”下载独立 HTML，或通过浏览器打印为 PDF。
-
-CSV 至少需要：花费，以及“媒体安装”或“AF 安装”之一。建议同时提供：媒体、国家、Campaign、展示、点击、收入、D1 留存人数。
-
-示例 CSV：[public/data/adpilot-demo.csv](./public/data/adpilot-demo.csv)
-
-## AI Bridge
-
-浏览器不会保存 API Key。`server.mjs` 通过参数数组调用本机 `codex exec`：
-
-- 默认模型：`gpt-5.6-sol`
-- 沙箱：`read-only`
-- 会话：`--ephemeral`
-- 输出：`--output-schema schemas/analysis.schema.json`
-- 同时只允许一个 AI 任务
-- 失败时返回明确错误，不生成或写入假结果
-
-如需切换模型：
+Run a quick environment check:
 
 ```bash
-ADPILOT_MODEL=gpt-5.6-sol npm start
+npm run doctor
 ```
 
-如 `codex` 不在 PATH：
+## AI modes
+
+| Mode | Requirements | What happens |
+| --- | --- | --- |
+| Browser-local Mock | None | Generates deterministic, clearly labeled demo recommendations without a server AI call. |
+| Codex CLI | Signed-in Codex CLI | Sends project context and aggregated metrics through the local Node bridge to `codex exec`. |
+
+OpenAdOps uses the model configured in Codex by default. Override it only when needed:
 
 ```bash
-CODEX_BIN=/absolute/path/to/codex npm start
+OPENADOPS_MODEL=your-model-name npm start
 ```
 
-## 测试
+For deeper paid-media reasoning, install a compatible Ads skill such as [Claude Ads](https://github.com/AgriciDaniel/claude-ads) for your agent runtime. OpenAdOps remains usable in Mock mode without it.
+
+## CSV input
+
+CSV import requires `Spend` plus at least one of `Media Installs` or `AF Installs`. Recommended fields:
+
+| Dimension fields | Metric fields |
+| --- | --- |
+| Date, Platform, Country, Campaign, Ad group / Ad set, Creative | Spend, Impressions, Clicks, Media Installs, AF Installs, Conversions, Revenue, D1 Retained |
+
+OpenAdOps auto-detects common English and Chinese field aliases and lets the user correct each mapping before calculation. See [the demo CSV](./public/data/openadops-demo.csv).
+
+## Architecture
+
+```mermaid
+flowchart LR
+  A[Browser workspace] --> B[Deterministic analytics]
+  B --> C[Local project state]
+  B --> D[Reports]
+  A --> E{Analysis mode}
+  E -->|Mock| F[Browser-local demo engine]
+  E -->|Codex| G[Local Node bridge]
+  G --> H[codex exec]
+  H --> I[Ads skills]
+  I --> J[JSON Schema validation]
+  J --> A
+```
+
+The browser never stores an API key. The local service calls Codex with an argument array, an ephemeral session, a read-only sandbox, and a required JSON Schema. Only one Codex analysis job runs at a time.
+
+## Validation
 
 ```bash
 npm test
 ```
 
-测试覆盖 CSV 解析、字段识别、CPI/AF-CPI 分离计算，以及 AI 结果结构校验。测试只运行 Mock，不调用真实模型。
+Tests cover quoted CSV parsing, field detection, media CPI versus AppsFlyer CPI, metric aggregation, Mock output, and analysis-schema validation. The test suite never calls a real model.
 
-## V1 边界
+## Current scope
 
-- 支持 CSV，不直接读取 XLSX；可先从 Excel 导出 CSV。
-- 数据和项目保存在当前浏览器 `localStorage`，不支持多人协作或跨设备同步。
-- 仅生成策略与建议，不会连接或修改真实广告账户。
-- Codex 分析会发送项目文本与聚合指标，不发送原始 CSV 明细。
-- 归因窗口、事件定义与业务利润口径仍需优化师人工确认。
+- Direct CSV import; XLSX can be exported to CSV first.
+- Local browser persistence; no multi-user sync yet.
+- Strategy and recommendation generation only; no live ad-account mutations.
+- Google Ads, Meta Ads, TikTok Ads, and AppsFlyer-oriented App UA workflow.
+- Attribution windows, event definitions, and profit assumptions still require operator confirmation.
+
+## Project status
+
+OpenAdOps is an early public release built in the open. See the [roadmap](./ROADMAP.md), open a [feature request](https://github.com/leoL007/open-adops/issues/new?template=feature_request.yml), or contribute a platform/data adapter.
+
+## License
+
+[MIT](./LICENSE). OpenAdOps is an independent open-source project and is not affiliated with Google, Meta, TikTok, AppsFlyer, or OpenAI.

@@ -1,11 +1,29 @@
 {
-  "name": "adpilot-mvp",
+  "name": "open-adops",
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "description": "Local-first AI workspace for paid-media strategy, optimization, and reporting.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leoL007/open-adops.git"
+  },
+  "homepage": "https://leol007.github.io/open-adops/",
+  "keywords": [
+    "paid-media",
+    "ad-operations",
+    "ai-marketing",
+    "google-ads",
+    "meta-ads",
+    "tiktok-ads",
+    "appsflyer",
+    "codex"
+  ],
   "scripts": {
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
+    "doctor": "node scripts/doctor.mjs",
     "test": "node --test"
   },
   "engines": {

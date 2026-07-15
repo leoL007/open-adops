@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a paid-media workflow, platform adapter, or reporting improvement.
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Operator problem
+      description: What recurring task or decision is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What should OpenAdOps produce or make easier?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Data import and mapping
+        - Strategy
+        - Creative testing
+        - Campaign launch
+        - Optimization
+        - Reporting
+        - AI provider or skill integration
+    validations:
+      required: true
