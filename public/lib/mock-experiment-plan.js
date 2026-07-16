@@ -1,11 +1,16 @@
-import { enrichExperimentPlan } from "./experiments.js";
+import {
+  canonicalExperimentPlatform,
+  enrichExperimentPlan,
+  experimentMetricContext
+} from "./experiments.js";
 
 function text(value) {
   return String(value || "").trim();
 }
 
 function platformMethod(platform) {
-  if (platform === "Google Ads") {
+  const canonical = canonicalExperimentPlatform(platform);
+  if (canonical === "google") {
     return {
       testType: "Google Ads App asset experiment",
       confidence: 95,
@@ -16,7 +21,7 @@ function platformMethod(platform) {
       ]
     };
   }
-  if (platform === "Meta Ads") {
+  if (canonical === "meta") {
     return {
       testType: "Meta Ads Manager A/B test",
       confidence: 95,
@@ -27,26 +32,30 @@ function platformMethod(platform) {
       ]
     };
   }
+  if (canonical === "tiktok") {
+    return {
+      testType: "TikTok Ads Manager Split Testing",
+      confidence: 90,
+      setup: [
+        "在 TikTok Ads Manager 创建 Split Test，确保两个组互斥曝光。",
+        "Control 与 Variant 使用相同受众、预算、版位和优化事件，只测试一个变量。",
+        "优先测试前 2–3 秒 Hook，并保存广告审核与实验状态截图。"
+      ]
+    };
+  }
   return {
-    testType: "TikTok Ads Manager Split Testing",
-    confidence: 90,
+    testType: "Platform-native controlled experiment",
+    confidence: 95,
     setup: [
-      "在 TikTok Ads Manager 创建 Split Test，确保两个组互斥曝光。",
-      "Control 与 Variant 使用相同受众、预算、版位和优化事件，只测试一个变量。",
-      "优先测试前 2–3 秒 Hook，并保存广告审核与实验状态截图。"
+      "优先使用媒体后台提供的原生实验能力，并保存随机分流与实验状态证据。",
+      "如果媒体不支持原生实验，不把手工复制广告组描述成随机实验。",
+      "Control 与 Variant 保持预算、受众、版位、优化事件和其他素材变量一致。"
     ]
   };
 }
 
-function metricContext(project, platform) {
-  const metrics = project.data?.metrics;
-  const platformMetrics = metrics?.byPlatform?.find((item) => item.name === platform);
-  const selected = platformMetrics || metrics?.summary;
-  const period = platformMetrics?.period || metrics?.period;
-  const baseline = Number(selected?.cvr) > 0 ? Number((selected.cvr * 100).toFixed(2)) : null;
-  const activeDays = Number(period?.activeDays) || 0;
-  const dailyUnits = activeDays > 0 && Number(selected?.clicks) > 0 ? Math.round(selected.clicks / activeDays) : null;
-  return { baseline, dailyUnits };
+function metricContext(project, platform, metricName) {
+  return experimentMetricContext(project.data?.metrics, platform, metricName);
 }
 
 function sourceBriefs(project, launchPack) {
@@ -91,7 +100,8 @@ export function buildMockExperimentPlan(project = {}, launchPack = null) {
 
   const experiments = candidates.map((brief, index) => {
     const method = platformMethod(brief.platform);
-    const metric = metricContext(project, brief.platform);
+    const primaryMetric = text(brief.metric) || "待定义主指标";
+    const metric = metricContext(project, brief.platform, primaryMetric);
     return {
       id: `experiment-${index + 1}`,
       name: `${brief.platform} · ${brief.angle} · Test ${String(index + 1).padStart(2, "0")}`,
@@ -102,7 +112,7 @@ export function buildMockExperimentPlan(project = {}, launchPack = null) {
       category: "creative",
       hypothesis: {
         change: `将 Control 的现有开场替换为“${brief.hook}”，其他变量保持一致`,
-        metric: "MMP 转化率",
+        metric: primaryMetric,
         direction: "increase",
         expected_lift_percent: null,
         because: text(brief.hypothesis) || `当前素材 Brief 将“${brief.variable}”列为首要不确定性。`
@@ -112,9 +122,9 @@ export function buildMockExperimentPlan(project = {}, launchPack = null) {
         control: "当前已批准的基准素材 / 资产组合",
         variant: `${brief.angle}：${brief.hook}`,
         single_variable: brief.variable,
-        primary_metric: "MMP 转化率",
-        metric_type: "rate",
-        guardrail_metrics: [text(brief.metric) || "CPA / CPI", "花费与审核状态", "安装后质量或业务后台事件"],
+        primary_metric: primaryMetric,
+        metric_type: metric.metricType,
+        guardrail_metrics: ["花费与审核状态", "安装后质量或业务后台事件"],
         control_percent: 50,
         variant_percent: 50,
         baseline_rate_percent: metric.baseline,

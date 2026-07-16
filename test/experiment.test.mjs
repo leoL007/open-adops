@@ -1,6 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateExperimentFeasibility, enrichExperimentPlan } from "../public/lib/experiments.js";
+import {
+  applyExperimentMetricContext,
+  calculateExperimentFeasibility,
+  enrichExperimentPlan,
+  experimentConclusionComplete,
+  normalizeExperimentDesign
+} from "../public/lib/experiments.js";
 import { buildMockExperimentPlan } from "../public/lib/mock-experiment-plan.js";
 import { buildMockLaunchPack } from "../public/lib/mock-launch-pack.js";
 import { validateExperimentPlan } from "../src/experiment-validator.mjs";
@@ -38,6 +44,31 @@ test("experiment calculator refuses false precision for cost metrics", () => {
   assert.equal(result.status, "not_calculable");
 });
 
+test("experiment design normalizes editable duration boundaries", () => {
+  assert.deepEqual(
+    normalizeExperimentDesign({ ...baseDesign, minimum_days: null, maximum_days: 2 }),
+    { ...baseDesign, minimum_days: 7, maximum_days: 7 }
+  );
+  assert.deepEqual(
+    normalizeExperimentDesign({ ...baseDesign, minimum_days: 7.6, maximum_days: 2 }),
+    { ...baseDesign, minimum_days: 8, maximum_days: 8 }
+  );
+});
+
+test("concluded experiments require durable evidence and learning", () => {
+  const complete = {
+    result: {
+      outcome: "winner",
+      evidence: "TikTok Split Test result screenshot",
+      learning: "Direct result proof improved registration rate.",
+      next_action: "Apply the winner and test the next hook."
+    }
+  };
+  assert.equal(experimentConclusionComplete(complete), true);
+  assert.equal(experimentConclusionComplete({ result: { ...complete.result, evidence: "" } }), false);
+  assert.equal(experimentConclusionComplete({ result: { ...complete.result, outcome: "pending" } }), false);
+});
+
 test("mock Experiment Ledger uses platform-native methods and validates", () => {
   const project = {
     name: "Nova Utility",
@@ -69,6 +100,96 @@ test("mock Experiment Ledger uses platform-native methods and validates", () => 
   assert.match(plan.experiments.find((item) => item.platform === "Meta Ads").design.test_type, /A\/B test/);
   assert.match(plan.experiments.find((item) => item.platform === "TikTok Ads").design.test_type, /Split Testing/);
   assert.equal(plan.experiments.every((item) => item.design.control_percent + item.design.variant_percent === 100), true);
+});
+
+test("mock Experiment Ledger normalizes platform labels and sizes the actual rate metric", () => {
+  const project = {
+    name: "Finance App",
+    platforms: ["Google Ads"],
+    creativePlan: [{
+      platform: "Google Ads",
+      angle: "Trust",
+      hook: "See the process first",
+      variable: "Opening proof",
+      metric: "注册率"
+    }],
+    data: {
+      metrics: {
+        period: { activeDays: 2 },
+        summary: { clicks: 9000, conversions: 2700, cvr: 0.3 },
+        byPlatform: [{
+          name: "googleadwords_int",
+          clicks: 1000,
+          impressions: 10000,
+          conversions: 50,
+          cvr: 0.2,
+          ctr: 0.1,
+          period: { activeDays: 2 }
+        }]
+      }
+    }
+  };
+  const plan = buildMockExperimentPlan(project);
+  const experiment = plan.experiments[0];
+  assert.equal(experiment.design.primary_metric, "注册率");
+  assert.equal(experiment.design.metric_type, "rate");
+  assert.equal(experiment.design.baseline_rate_percent, 5);
+  assert.equal(experiment.design.daily_eligible_units, 500);
+  assert.match(experiment.design.test_type, /Google Ads/);
+});
+
+test("mock Experiment Ledger does not borrow account averages for an unmatched platform", () => {
+  const project = {
+    name: "Tool App",
+    platforms: ["Google Ads"],
+    creativePlan: [{
+      platform: "Google Ads",
+      angle: "Outcome",
+      hook: "Show the output",
+      variable: "First frame",
+      metric: "CVR"
+    }],
+    data: {
+      metrics: {
+        period: { activeDays: 2 },
+        summary: { clicks: 10000, cvr: 0.25 },
+        byPlatform: [{ name: "Facebook Ads", clicks: 10000, cvr: 0.25, period: { activeDays: 2 } }]
+      }
+    }
+  };
+  const experiment = buildMockExperimentPlan(project).experiments[0];
+  assert.equal(experiment.design.baseline_rate_percent, null);
+  assert.equal(experiment.design.daily_eligible_units, null);
+  assert.equal(experiment.feasibility.status, "not_calculable");
+});
+
+test("AI experiment metric inputs are replaced by deterministic matching data", () => {
+  const plan = buildMockExperimentPlan({
+    name: "Finance App",
+    platforms: ["Google Ads"],
+    creativePlan: [{
+      platform: "Google Ads",
+      angle: "Trust",
+      hook: "Show proof",
+      variable: "Opening",
+      metric: "注册率"
+    }]
+  });
+  plan.experiments[0].design.baseline_rate_percent = 99;
+  plan.experiments[0].design.daily_eligible_units = 99999;
+  const normalized = applyExperimentMetricContext(plan, {
+    period: { activeDays: 2 },
+    summary: { clicks: 9000, conversions: 2700, cvr: 0.3 },
+    byPlatform: [{
+      name: "googleadwords_int",
+      clicks: 1000,
+      conversions: 50,
+      cvr: 0.2,
+      period: { activeDays: 2 }
+    }]
+  });
+  assert.equal(normalized.experiments[0].design.baseline_rate_percent, 5);
+  assert.equal(normalized.experiments[0].design.daily_eligible_units, 500);
 });
 
 test("mock Experiment Ledger keeps unavailable traffic inputs empty", () => {

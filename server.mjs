@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildMockAnalysis } from "./public/lib/mock-analysis.js";
-import { enrichExperimentPlan } from "./public/lib/experiments.js";
+import { applyExperimentMetricContext, enrichExperimentPlan } from "./public/lib/experiments.js";
 import { buildMockExperimentPlan } from "./public/lib/mock-experiment-plan.js";
 import { buildMockIntake } from "./public/lib/mock-intake.js";
 import { buildMockLaunchPack } from "./public/lib/mock-launch-pack.js";
@@ -244,7 +244,7 @@ function buildExperimentPrompt({ project, launchPack, metrics }) {
 1. 严格输出给定 JSON Schema，不输出 Markdown；生成 1–4 个高价值实验。
 2. 每个实验只能改变一个主要变量，先测试素材概念、Hook、Offer 或落地页等高影响不确定性，再测试微小设置。
 3. hypothesis 必须写清 change、metric、direction 和 because；没有证据时 expected_lift_percent 必须为 null。
-4. baseline_rate_percent 和 daily_eligible_units 只能来自输入 metrics；没有数据时必须为 null，不得编造。
+4. baseline_rate_percent 和 daily_eligible_units 只能来自同一媒体、同一主指标的输入 metrics；summary.cvr 特指安装转化率，不得用于注册、购买或其他深层事件。没有匹配的 byPlatform 数据或分母时必须为 null。
 5. mde_percent 是本次实验希望能够检测到的最小相对变化，可作为 10–30% 的计划阈值，但不是表现承诺。
 6. Google App 素材优先使用 App asset experiment；Meta 使用 Ads Manager A/B test；TikTok 使用 Split Testing。不要把手工复制广告组描述成随机实验。
 7. Control 与 Variant 分流合计必须为 100；默认 50/50。TikTok 原生 Split Testing 使用 90% confidence，其余实验计划默认 95%，power 固定 80%。
@@ -362,7 +362,7 @@ function runCodexExperimentPlan(payload) {
     schemaPath: EXPERIMENT_SCHEMA_PATH,
     validate: validateExperimentPlan,
     jobName: "experiments",
-    transform: enrichExperimentPlan
+    transform: (result) => enrichExperimentPlan(applyExperimentMetricContext(result, payload.metrics))
   });
 }
 

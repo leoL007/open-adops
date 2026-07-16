@@ -1,5 +1,5 @@
 import { FIELD_LABELS, calculateMetrics, detectMapping, formatMetric, mapRows, parseCsv } from "./lib/analytics.js";
-import { enrichExperimentPlan, experimentPlanSummary } from "./lib/experiments.js";
+import { enrichExperimentPlan, experimentConclusionComplete, experimentPlanSummary } from "./lib/experiments.js";
 import { buildMockAnalysis } from "./lib/mock-analysis.js";
 import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
@@ -945,22 +945,33 @@ function attachPageListeners() {
       const field = input.dataset.experimentField;
       const value = input.type === "number" ? (input.value === "" ? null : Number(input.value)) : input.value;
       if (field === "status" && value === "concluded") {
-        const result = experiment.result;
-        if (result.outcome === "pending" || !result.learning.trim() || !result.next_action.trim() || !result.evidence.trim()) {
+        if (!experimentConclusionComplete(experiment)) {
           input.value = experiment.status;
           showToast("结束实验前，请先填写结论、证据、学习和下一步动作。", "error");
           return;
         }
       }
+      let reopened = false;
       updateProject((project) => {
         const plan = project.experiments?.plan?.result;
         const target = plan?.experiments?.find((item) => item.id === input.dataset.experimentId);
         if (!target) return;
         setNested(target, field, value);
+        if (field.startsWith("result.") && target.status === "concluded" && !experimentConclusionComplete(target)) {
+          target.status = "running";
+          reopened = true;
+        }
         project.experiments.plan.result = enrichExperimentPlan(plan);
       });
       render();
-      showToast(field.startsWith("design.") ? "样本与周期已重新计算" : "实验账本已更新");
+      showToast(
+        reopened
+          ? "结论资料不完整，实验已恢复为“进行中”。"
+          : field.startsWith("design.")
+            ? "样本与周期已重新计算"
+            : "实验账本已更新",
+        reopened ? "error" : "success"
+      );
     });
   });
   document.querySelectorAll("[data-go-route]").forEach((button) => button.addEventListener("click", () => { location.hash = button.dataset.goRoute; }));

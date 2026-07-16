@@ -17,6 +17,106 @@ function rounded(value, digits = 2) {
   return Math.round((Number(value) + Number.EPSILON) * factor) / factor;
 }
 
+function normalizedText(value) {
+  return String(value || "").trim().toLowerCase().replace(/[\s_\-./()（）]+/g, "");
+}
+
+export function canonicalExperimentPlatform(value) {
+  const compact = normalizedText(value);
+  if (compact.includes("googleadwords") || compact.includes("googleads") || compact === "google" || compact === "adwords") return "google";
+  if (compact.includes("facebook") || compact.includes("metaads") || compact === "meta") return "meta";
+  if (compact.includes("tiktok") || compact.includes("bytedance")) return "tiktok";
+  return compact;
+}
+
+export function inferExperimentMetric(metricName) {
+  const compact = normalizedText(metricName);
+  if (compact.includes("ctr") || compact.includes("clickthroughrate") || compact.includes("点击率")) {
+    return { metricType: "rate", rate: "ctr", denominator: "impressions" };
+  }
+  if (compact.includes("cvr") || compact.includes("installrate") || compact.includes("安装率")) {
+    return { metricType: "rate", rate: "install", denominator: "clicks" };
+  }
+  if (
+    compact.includes("conversionrate")
+    || compact.includes("registrationrate")
+    || compact.includes("purchaserate")
+    || compact.includes("signuprate")
+    || compact.includes("注册率")
+    || compact.includes("购买率")
+    || compact.includes("付费率")
+    || compact.includes("转化率")
+    || compact.includes("事件率")
+  ) {
+    return { metricType: "rate", rate: "conversion", denominator: "clicks" };
+  }
+  if (["cpi", "cpa", "cpc", "cpm"].some((token) => compact.includes(token)) || compact.includes("成本") || compact.includes("单价")) {
+    return { metricType: "cost", rate: null, denominator: null };
+  }
+  if (compact.includes("roas") || compact.includes("revenue") || compact.includes("收入") || compact.includes("营收") || compact.includes("回收")) {
+    return { metricType: "revenue", rate: null, denominator: null };
+  }
+  if (compact.endsWith("rate") || compact.endsWith("率")) {
+    return { metricType: "rate", rate: null, denominator: null };
+  }
+  return { metricType: "count", rate: null, denominator: null };
+}
+
+export function experimentMetricContext(metrics = {}, platform, metricName) {
+  const platformKey = canonicalExperimentPlatform(platform);
+  const platformMetrics = metrics?.byPlatform?.find((item) => canonicalExperimentPlatform(item.name) === platformKey);
+  const definition = inferExperimentMetric(metricName);
+  if (!platformMetrics || definition.metricType !== "rate" || !definition.rate || !definition.denominator) {
+    return { baseline: null, dailyUnits: null, metricType: definition.metricType };
+  }
+
+  const period = platformMetrics.period || metrics.period;
+  const activeDays = Number(period?.activeDays) || 0;
+  const denominator = Number(platformMetrics[definition.denominator]) || 0;
+  const rate = definition.rate === "ctr"
+    ? Number(platformMetrics.ctr)
+    : definition.rate === "install"
+      ? Number(platformMetrics.cvr)
+      : denominator > 0
+        ? Number(platformMetrics.conversions) / denominator
+        : 0;
+  return {
+    baseline: rate > 0 ? rounded(rate * 100, 2) : null,
+    dailyUnits: activeDays > 0 && denominator > 0 ? Math.round(denominator / activeDays) : null,
+    metricType: definition.metricType
+  };
+}
+
+export function applyExperimentMetricContext(plan = {}, metrics = {}) {
+  return {
+    ...plan,
+    experiments: Array.isArray(plan.experiments)
+      ? plan.experiments.map((experiment) => {
+          const context = experimentMetricContext(metrics, experiment.platform, experiment.design?.primary_metric);
+          return {
+            ...experiment,
+            design: {
+              ...experiment.design,
+              metric_type: context.metricType,
+              baseline_rate_percent: context.baseline,
+              daily_eligible_units: context.dailyUnits
+            }
+          };
+        })
+      : []
+  };
+}
+
+export function normalizeExperimentDesign(design = {}) {
+  const minimumDays = Math.max(1, Math.round(finiteNumber(design.minimum_days) || 7));
+  const maximumDays = Math.max(minimumDays, Math.round(finiteNumber(design.maximum_days) || 28));
+  return {
+    ...design,
+    minimum_days: minimumDays,
+    maximum_days: maximumDays
+  };
+}
+
 export function calculateExperimentFeasibility(design = {}) {
   if (design.metric_type !== "rate") {
     return {
@@ -90,18 +190,30 @@ export function calculateRelativeChange(controlValue, variantValue) {
   return rounded(((variant - control) / Math.abs(control)) * 100, 2);
 }
 
+export function experimentConclusionComplete(experiment = {}) {
+  const result = experiment.result || {};
+  return result.outcome !== "pending"
+    && Boolean(String(result.evidence || "").trim())
+    && Boolean(String(result.learning || "").trim())
+    && Boolean(String(result.next_action || "").trim());
+}
+
 export function enrichExperimentPlan(plan = {}) {
   return {
     ...plan,
     experiments: Array.isArray(plan.experiments)
-      ? plan.experiments.map((experiment) => ({
-          ...experiment,
-          feasibility: calculateExperimentFeasibility(experiment.design),
-          result: {
-            ...experiment.result,
-            relative_change_percent: calculateRelativeChange(experiment.result?.control_value, experiment.result?.variant_value)
-          }
-        }))
+      ? plan.experiments.map((experiment) => {
+          const design = normalizeExperimentDesign(experiment.design);
+          return {
+            ...experiment,
+            design,
+            feasibility: calculateExperimentFeasibility(design),
+            result: {
+              ...experiment.result,
+              relative_change_percent: calculateRelativeChange(experiment.result?.control_value, experiment.result?.variant_value)
+            }
+          };
+        })
       : []
   };
 }
