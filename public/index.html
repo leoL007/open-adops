@@ -10,7 +10,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <title>OpenAdOps｜Local-first AI workspace for paid media</title>
     <link rel="icon" href="./og.png" type="image/png" />
-    <link rel="stylesheet" href="./styles.css?v=0.4.0" />
+    <link rel="stylesheet" href="./styles.css?v=0.4.1" />
   </head>
   <body>
     <div class="app-shell">
@@ -51,17 +51,38 @@
             <span id="demoBadge" class="demo-badge" hidden>演示数据</span>
           </div>
           <div class="topbar-actions">
-            <span class="app-version" id="appVersion">v0.4.0</span>
+            <span class="app-version" id="appVersion">v0.4.1</span>
             <div class="ai-mode-control" title="Mock 不消耗模型额度；Codex 会调用本地 CLI">
               <span>分析模式</span>
               <select id="aiMode">
                 <option value="mock">Mock 演示</option>
-                <option value="codex">Codex CLI · configured model</option>
+                <option value="codex">Codex CLI · smart routing</option>
               </select>
             </div>
             <button class="button button-secondary" id="newProjectButton" type="button">＋ 新建项目</button>
           </div>
         </header>
+
+        <section id="aiJobPanel" class="ai-job-panel" hidden aria-live="polite">
+          <div class="ai-job-pulse" aria-hidden="true"></div>
+          <div class="ai-job-copy">
+            <strong id="aiJobLabel">Codex 正在生成</strong>
+            <span id="aiJobMeta">正在准备模型路由…</span>
+          </div>
+          <div class="ai-job-time">
+            <strong id="aiJobElapsed">00:00</strong>
+            <span id="aiJobExpected">预计耗时计算中</span>
+          </div>
+          <button id="aiCancelButton" class="button button-ghost button-small" type="button">取消生成</button>
+        </section>
+
+        <section id="aiErrorPanel" class="ai-error-panel" hidden role="alert">
+          <div>
+            <strong>本次没有写入结果</strong>
+            <span id="aiErrorMessage"></span>
+          </div>
+          <button id="aiErrorDismiss" class="icon-button" type="button" aria-label="关闭错误提示">×</button>
+        </section>
 
         <main id="app" class="page" aria-live="polite"></main>
       </section>
@@ -130,6 +151,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js?v=0.4.0"></script>
+    <script type="module" src="./app.js?v=0.4.1"></script>
   </body>
 </html>

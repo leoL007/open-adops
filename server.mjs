@@ -11,6 +11,7 @@ import { applyExperimentMetricContext, enrichExperimentPlan } from "./public/lib
 import { buildMockExperimentPlan } from "./public/lib/mock-experiment-plan.js";
 import { buildMockIntake } from "./public/lib/mock-intake.js";
 import { buildMockLaunchPack } from "./public/lib/mock-launch-pack.js";
+import { publicAiRoutes, resolveAiRoute } from "./src/ai-router.mjs";
 import { validateAnalysis } from "./src/analysis-validator.mjs";
 import { validateExperimentPlan } from "./src/experiment-validator.mjs";
 import { validateIntake } from "./src/intake-validator.mjs";
@@ -23,14 +24,9 @@ const INTAKE_SCHEMA_PATH = path.join(APP_ROOT, "schemas", "intake.schema.json");
 const LAUNCH_PACK_SCHEMA_PATH = path.join(APP_ROOT, "schemas", "launch-pack.schema.json");
 const EXPERIMENT_SCHEMA_PATH = path.join(APP_ROOT, "schemas", "experiment-plan.schema.json");
 const PORT = Number(process.env.PORT || 4173);
-const MODEL = process.env.OPENADOPS_MODEL || process.env.ADPILOT_MODEL || "";
 const CODEX_BIN = process.env.CODEX_BIN || "codex";
-const requestedReasoningEffort = String(process.env.OPENADOPS_REASONING_EFFORT || "").toLowerCase();
-const REASONING_EFFORT = new Set(["low", "medium", "high", "xhigh"]).has(requestedReasoningEffort) ? requestedReasoningEffort : "";
-const requestedTimeout = Number(process.env.OPENADOPS_TIMEOUT_MS);
-const CODEX_TIMEOUT_MS = Number.isFinite(requestedTimeout) && requestedTimeout >= 30000 ? requestedTimeout : 4 * 60 * 1000;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
-let activeAiJob = false;
+let activeAiJob = null;
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -268,12 +264,35 @@ function parseModelOutput(text) {
   }
 }
 
-function runCodexStructured({ prompt, schemaPath, validate, jobName, transform = (value) => value }) {
+function aiError(message, code = "AI_FAILED") {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function activeJobPayload() {
+  if (!activeAiJob) return null;
+  return {
+    id: activeAiJob.id,
+    routeKey: activeAiJob.routeKey,
+    label: activeAiJob.label,
+    model: activeAiJob.model,
+    effort: activeAiJob.effort,
+    timeoutMs: activeAiJob.timeoutMs,
+    expectedSeconds: activeAiJob.expectedSeconds,
+    startedAt: activeAiJob.startedAt,
+    attempt: activeAiJob.attempt,
+    fallbackUsed: activeAiJob.fallbackUsed,
+    status: activeAiJob.status
+  };
+}
+
+function runCodexStructured({ prompt, schemaPath, validate, jobName, route, job, transform = (value) => value }) {
   return new Promise((resolve, reject) => {
     const outputPath = path.join(tmpdir(), `openadops-${jobName}-${randomUUID()}.json`);
     const args = ["exec", "--ephemeral", "--sandbox", "read-only", "--color", "never"];
-    if (MODEL) args.push("--model", MODEL);
-    if (REASONING_EFFORT) args.push("--config", `model_reasoning_effort="${REASONING_EFFORT}"`);
+    args.push("--model", route.model);
+    args.push("--config", `model_reasoning_effort="${route.effort}"`);
     args.push("--output-schema", schemaPath, "--output-last-message", outputPath, "-");
     const child = spawn(CODEX_BIN, args, {
       cwd: APP_ROOT,
@@ -284,6 +303,7 @@ function runCodexStructured({ prompt, schemaPath, validate, jobName, transform =
     let stdout = "";
     let stderr = "";
     let settled = false;
+    let timeout;
 
     const cleanup = async () => {
       if (existsSync(outputPath)) await unlink(outputPath).catch(() => {});
@@ -291,11 +311,20 @@ function runCodexStructured({ prompt, schemaPath, validate, jobName, transform =
     const finish = async (error, result) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timeout);
+      if (timeout) clearTimeout(timeout);
+      if (job.child === child) job.child = null;
+      if (job.cancel === cancel) job.cancel = null;
       await cleanup();
       if (error) reject(error);
       else resolve(result);
     };
+    const cancel = () => {
+      job.cancelRequested = true;
+      child.kill("SIGTERM");
+      finish(aiError("已取消本次 Codex 生成。本次没有写入结果。", "CANCELLED"));
+    };
+    job.child = child;
+    job.cancel = cancel;
 
     child.stdout.on("data", (chunk) => {
       stdout = (stdout + chunk.toString()).slice(-20000);
@@ -303,34 +332,99 @@ function runCodexStructured({ prompt, schemaPath, validate, jobName, transform =
     child.stderr.on("data", (chunk) => {
       stderr = (stderr + chunk.toString()).slice(-20000);
     });
-    child.on("error", (error) => finish(new Error(`无法启动 Codex CLI：${error.message}`)));
+    child.on("error", (error) => finish(aiError(`无法启动 Codex CLI：${error.message}`, "START_FAILED")));
     child.on("close", async (code) => {
+      if (settled) return;
+      if (job.cancelRequested) {
+        finish(aiError("已取消本次 Codex 生成。本次没有写入结果。", "CANCELLED"));
+        return;
+      }
       if (code !== 0) {
-        finish(new Error(`Codex 分析失败（退出码 ${code}）：${stderr.trim() || stdout.trim() || "无错误详情"}`));
+        finish(aiError(`Codex 分析失败（退出码 ${code}）：${stderr.trim() || stdout.trim() || "无错误详情"}`, "CODEX_FAILED"));
         return;
       }
       try {
         const raw = await readFile(outputPath, "utf8");
         const result = transform(parseModelOutput(raw));
         const validation = validate(result);
-        if (!validation.valid) throw new Error(`结构校验失败：${validation.errors.join("；")}`);
+        if (!validation.valid) throw aiError(`结构校验失败：${validation.errors.join("；")}`, "STRUCTURE_ERROR");
         finish(null, result);
       } catch (error) {
-        finish(new Error(`无法读取结构化分析结果：${error.message}`));
+        finish(aiError(`无法读取结构化分析结果：${error.message}`, error.code === "STRUCTURE_ERROR" ? "STRUCTURE_ERROR" : "PARSE_ERROR"));
       }
     });
 
-    const timeout = setTimeout(() => {
+    timeout = setTimeout(() => {
       child.kill("SIGTERM");
-      finish(new Error(`Codex 分析超过 ${Math.round(CODEX_TIMEOUT_MS / 60000)} 分钟，已停止。本次没有写入结果。`));
-    }, CODEX_TIMEOUT_MS);
+      finish(aiError(`Codex 分析超过 ${Math.round(route.timeoutMs / 60000)} 分钟，已停止。本次没有写入结果。`, "TIMEOUT"));
+    }, route.timeoutMs);
 
     child.stdin.end(prompt);
   });
 }
 
+async function runRoutedCodex({ routeKey, prompt, schemaPath, validate, jobName, transform }) {
+  const route = resolveAiRoute(routeKey);
+  const job = {
+    id: randomUUID(),
+    routeKey,
+    label: route.label,
+    model: route.model,
+    effort: route.effort,
+    timeoutMs: route.timeoutMs,
+    expectedSeconds: route.expectedSeconds,
+    startedAt: new Date().toISOString(),
+    attempt: 1,
+    fallbackUsed: false,
+    status: "running",
+    cancelRequested: false,
+    child: null,
+    cancel: null
+  };
+  activeAiJob = job;
+
+  try {
+    let result;
+    try {
+      result = await runCodexStructured({ prompt, schemaPath, validate, jobName, route, job, transform });
+    } catch (error) {
+      if (error.code !== "STRUCTURE_ERROR" || !route.fallback || job.cancelRequested) throw error;
+      job.attempt = 2;
+      job.fallbackUsed = true;
+      job.status = "retrying";
+      job.model = route.fallback.model;
+      job.effort = route.fallback.effort;
+      job.timeoutMs = route.fallback.timeoutMs;
+      result = await runCodexStructured({
+        prompt,
+        schemaPath,
+        validate,
+        jobName: `${jobName}-fallback`,
+        route: route.fallback,
+        job,
+        transform
+      });
+    }
+
+    return {
+      result,
+      meta: {
+        routeKey,
+        label: route.label,
+        model: job.model,
+        reasoningEffort: job.effort,
+        durationMs: Date.now() - Date.parse(job.startedAt),
+        fallbackUsed: job.fallbackUsed
+      }
+    };
+  } finally {
+    if (activeAiJob?.id === job.id) activeAiJob = null;
+  }
+}
+
 function runCodexAnalysis(payload) {
-  return runCodexStructured({
+  return runRoutedCodex({
+    routeKey: "analysis",
     prompt: buildAnalysisPrompt(payload),
     schemaPath: SCHEMA_PATH,
     validate: validateAnalysis,
@@ -339,7 +433,13 @@ function runCodexAnalysis(payload) {
 }
 
 function runCodexIntake(payload) {
-  return runCodexStructured({
+  const routeKey = payload.profile === "deep"
+    ? "intakeDeep"
+    : payload.intent === "questions"
+      ? "intakeQuestions"
+      : "intakeStrategy";
+  return runRoutedCodex({
+    routeKey,
     prompt: buildIntakePrompt(payload),
     schemaPath: INTAKE_SCHEMA_PATH,
     validate: validateIntake,
@@ -348,7 +448,8 @@ function runCodexIntake(payload) {
 }
 
 function runCodexLaunchPack(payload) {
-  return runCodexStructured({
+  return runRoutedCodex({
+    routeKey: "launchPack",
     prompt: buildLaunchPackPrompt(payload),
     schemaPath: LAUNCH_PACK_SCHEMA_PATH,
     validate: validateLaunchPack,
@@ -357,7 +458,8 @@ function runCodexLaunchPack(payload) {
 }
 
 function runCodexExperimentPlan(payload) {
-  return runCodexStructured({
+  return runRoutedCodex({
+    routeKey: "experiments",
     prompt: buildExperimentPrompt(payload),
     schemaPath: EXPERIMENT_SCHEMA_PATH,
     validate: validateExperimentPlan,
@@ -398,14 +500,11 @@ async function handleAnalyze(request, response) {
     return;
   }
 
-  activeAiJob = true;
   try {
-    const result = await runCodexAnalysis(payload);
-    sendJson(response, 200, { ok: true, source: "codex", model: MODEL || "configured default", result });
+    const { result, meta } = await runCodexAnalysis(payload);
+    sendJson(response, 200, { ok: true, source: "codex", ...meta, result });
   } catch (error) {
-    sendJson(response, 502, { ok: false, error: error.message });
-  } finally {
-    activeAiJob = false;
+    sendJson(response, error.code === "CANCELLED" ? 499 : 502, { ok: false, code: error.code, error: error.message });
   }
 }
 
@@ -441,14 +540,11 @@ async function handleIntake(request, response) {
     return;
   }
 
-  activeAiJob = true;
   try {
-    const result = await runCodexIntake(payload);
-    sendJson(response, 200, { ok: true, source: "codex", model: MODEL || "configured default", result });
+    const { result, meta } = await runCodexIntake(payload);
+    sendJson(response, 200, { ok: true, source: "codex", ...meta, result });
   } catch (error) {
-    sendJson(response, 502, { ok: false, error: error.message });
-  } finally {
-    activeAiJob = false;
+    sendJson(response, error.code === "CANCELLED" ? 499 : 502, { ok: false, code: error.code, error: error.message });
   }
 }
 
@@ -484,14 +580,11 @@ async function handleLaunchPack(request, response) {
     return;
   }
 
-  activeAiJob = true;
   try {
-    const result = await runCodexLaunchPack(payload);
-    sendJson(response, 200, { ok: true, source: "codex", model: MODEL || "configured default", result });
+    const { result, meta } = await runCodexLaunchPack(payload);
+    sendJson(response, 200, { ok: true, source: "codex", ...meta, result });
   } catch (error) {
-    sendJson(response, 502, { ok: false, error: error.message });
-  } finally {
-    activeAiJob = false;
+    sendJson(response, error.code === "CANCELLED" ? 499 : 502, { ok: false, code: error.code, error: error.message });
   }
 }
 
@@ -527,14 +620,11 @@ async function handleExperimentPlan(request, response) {
     return;
   }
 
-  activeAiJob = true;
   try {
-    const result = await runCodexExperimentPlan(payload);
-    sendJson(response, 200, { ok: true, source: "codex", model: MODEL || "configured default", result });
+    const { result, meta } = await runCodexExperimentPlan(payload);
+    sendJson(response, 200, { ok: true, source: "codex", ...meta, result });
   } catch (error) {
-    sendJson(response, 502, { ok: false, error: error.message });
-  } finally {
-    activeAiJob = false;
+    sendJson(response, error.code === "CANCELLED" ? 499 : 502, { ok: false, code: error.code, error: error.message });
   }
 }
 
@@ -566,7 +656,26 @@ async function serveStatic(pathname, response) {
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
   if (request.method === "GET" && url.pathname === "/api/health") {
-    sendJson(response, 200, { ok: true, app: "OpenAdOps", model: MODEL || "codex-default", aiBusy: activeAiJob });
+    sendJson(response, 200, {
+      ok: true,
+      app: "OpenAdOps",
+      routing: "task-aware",
+      routes: publicAiRoutes(),
+      aiBusy: Boolean(activeAiJob),
+      activeJob: activeJobPayload()
+    });
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/cancel") {
+    if (!activeAiJob) {
+      sendJson(response, 409, { ok: false, error: "当前没有正在运行的 Codex 任务。" });
+      return;
+    }
+    const cancelled = activeJobPayload();
+    activeAiJob.cancelRequested = true;
+    activeAiJob.status = "cancelling";
+    activeAiJob.cancel?.();
+    sendJson(response, 202, { ok: true, cancelled });
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/analyze") {
@@ -594,7 +703,7 @@ const server = http.createServer(async (request, response) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`OpenAdOps: http://127.0.0.1:${PORT}`);
-  console.log(`AI model: ${MODEL || "Codex configured default"} | mode: Codex CLI bridge + browser-local Mock`);
+  console.log("AI routing: Terra low/medium for routine work · GPT-5.6 high for deep review and Launch Pack");
 });
 
-export { buildAnalysisPrompt, buildExperimentPrompt, buildIntakePrompt, buildLaunchPackPrompt, server };
+export { activeJobPayload, buildAnalysisPrompt, buildExperimentPrompt, buildIntakePrompt, buildLaunchPackPrompt, server };

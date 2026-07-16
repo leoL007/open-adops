@@ -2,6 +2,23 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.4.1] - 2026-07-16
+
+### Added
+
+- Task-aware Codex routing: Terra low/medium for routine intake, analysis, and experiments; GPT-5.6 high for deep Strategy review and Launch Pack generation.
+- One-click deep Strategy v0 review alongside the faster default Strategy generation.
+- Live generation status with active model, reasoning effort, elapsed time, expected duration, and cancel control.
+- Persistent AI failure messages that remain visible until dismissed.
+- Automatic GPT-5.6 medium retry when a Terra result fails structural validation.
+- Generation metadata stored with each result, including model, effort, duration, route, and fallback state.
+
+### Changed
+
+- OpenAdOps no longer inherits the global Codex model and reasoning effort by default.
+- Per-task timeouts now match task complexity instead of using one four-minute limit for every request.
+- Local health status now exposes routing configuration and the active AI job without exposing customer input.
+
 ## [0.4.0] - 2026-07-16
 
 ### Added

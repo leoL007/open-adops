@@ -24,8 +24,28 @@ const versionBadge = document.querySelector("#appVersion");
 const projectDialog = document.querySelector("#projectDialog");
 const projectForm = document.querySelector("#projectForm");
 const toast = document.querySelector("#toast");
+const aiJobPanel = document.querySelector("#aiJobPanel");
+const aiJobLabel = document.querySelector("#aiJobLabel");
+const aiJobMeta = document.querySelector("#aiJobMeta");
+const aiJobElapsed = document.querySelector("#aiJobElapsed");
+const aiJobExpected = document.querySelector("#aiJobExpected");
+const aiCancelButton = document.querySelector("#aiCancelButton");
+const aiErrorPanel = document.querySelector("#aiErrorPanel");
+const aiErrorMessage = document.querySelector("#aiErrorMessage");
+const aiErrorDismiss = document.querySelector("#aiErrorDismiss");
 let importSession = null;
 let aiBusy = false;
+let currentAiJob = null;
+let aiJobTimer = null;
+let aiJobTicks = 0;
+let aiRoutes = {
+  intakeQuestions: { label: "生成客户追问", model: "gpt-5.6-terra", effort: "low", expectedSeconds: [30, 90] },
+  intakeStrategy: { label: "快速生成 Strategy v0", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
+  intakeDeep: { label: "深度复核 Strategy v0", model: "gpt-5.6", effort: "high", expectedSeconds: [120, 300] },
+  analysis: { label: "投放数据诊断", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
+  launchPack: { label: "生成 Launch Pack", model: "gpt-5.6", effort: "high", expectedSeconds: [120, 300] },
+  experiments: { label: "生成 Experiment Ledger", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] }
+};
 
 const BRIEF_FIELD_META = Object.fromEntries(INTAKE_BRIEF_FIELDS.map(([key, label]) => [key, { label, multiline: ["audience", "creative_supply", "compliance", "constraints"].includes(key) }]));
 
@@ -232,6 +252,136 @@ function showToast(message, type = "success") {
   }, 3600);
 }
 
+function formatDuration(milliseconds) {
+  const seconds = Math.max(0, Math.round(Number(milliseconds || 0) / 1000));
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes} 分 ${String(seconds % 60).padStart(2, "0")} 秒`;
+}
+
+function formatClock(milliseconds) {
+  const seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+function modelShortName(model) {
+  if (model === "gpt-5.6-terra") return "Terra";
+  if (model === "gpt-5.6") return "GPT-5.6";
+  return model || "Codex";
+}
+
+function effortLabel(effort) {
+  return ({ low: "Low", medium: "Medium", high: "High", xhigh: "Extra High" })[effort] || effort || "Default";
+}
+
+function expectedLabel(expectedSeconds = []) {
+  const [minimum, maximum] = expectedSeconds;
+  if (!minimum || !maximum) return "预计耗时视任务而定";
+  const format = (seconds) => seconds < 60 ? `${seconds} 秒` : `${Math.round(seconds / 60)} 分钟`;
+  return `通常 ${format(minimum)}–${format(maximum)}`;
+}
+
+function routeSummary(routeKey) {
+  const config = aiRoutes[routeKey] || {};
+  return `${modelShortName(config.model)} · ${effortLabel(config.effort)}`;
+}
+
+function runRecordLabel(record) {
+  if (!record) return "";
+  if (record.source !== "codex") return "Mock 演示结果";
+  const details = [modelShortName(record.model)];
+  if (record.reasoningEffort) details.push(effortLabel(record.reasoningEffort));
+  if (record.durationMs) details.push(formatDuration(record.durationMs));
+  if (record.fallbackUsed) details.push("自动复核");
+  return `Codex · ${details.join(" · ")}`;
+}
+
+function renderAiJobPanel() {
+  if (!currentAiJob) {
+    aiJobPanel.hidden = true;
+    return;
+  }
+  const config = aiRoutes[currentAiJob.routeKey] || {};
+  const live = currentAiJob.live || {};
+  aiJobPanel.hidden = false;
+  aiJobLabel.textContent = config.label || "Codex 正在生成";
+  aiJobMeta.textContent = `${modelShortName(live.model || config.model)} · ${effortLabel(live.effort || config.effort)}${live.fallbackUsed ? " · 结构校验自动复核中" : ""} · 本地 Codex CLI`;
+  aiJobElapsed.textContent = formatClock(Date.now() - currentAiJob.startedAt);
+  aiJobExpected.textContent = expectedLabel(config.expectedSeconds);
+  aiCancelButton.disabled = currentAiJob.cancelling;
+  aiCancelButton.textContent = currentAiJob.cancelling ? "正在取消…" : "取消生成";
+}
+
+async function syncActiveAiJob() {
+  if (!currentAiJob || isStaticDemo) return;
+  try {
+    const response = await fetch("./api/health", { cache: "no-store" });
+    const payload = await response.json();
+    if (response.ok && payload.activeJob && currentAiJob) {
+      currentAiJob.live = payload.activeJob;
+      renderAiJobPanel();
+    }
+  } catch {
+    // The local timer can continue even if a single status poll fails.
+  }
+}
+
+function beginAiJob(routeKey) {
+  clearPersistentError();
+  currentAiJob = { routeKey, startedAt: Date.now(), cancelling: false };
+  aiJobTicks = 0;
+  clearInterval(aiJobTimer);
+  renderAiJobPanel();
+  aiJobTimer = setInterval(() => {
+    aiJobTicks += 1;
+    renderAiJobPanel();
+    if (aiJobTicks % 2 === 0) syncActiveAiJob();
+  }, 1000);
+}
+
+function finishAiJob() {
+  clearInterval(aiJobTimer);
+  aiJobTimer = null;
+  currentAiJob = null;
+  renderAiJobPanel();
+}
+
+function showPersistentError(message) {
+  aiErrorMessage.textContent = message;
+  aiErrorPanel.hidden = false;
+}
+
+function clearPersistentError() {
+  aiErrorMessage.textContent = "";
+  aiErrorPanel.hidden = true;
+}
+
+async function loadAiRuntime() {
+  if (isStaticDemo) return;
+  try {
+    const response = await fetch("./api/health", { cache: "no-store" });
+    const payload = await response.json();
+    if (response.ok && payload.routes) aiRoutes = { ...aiRoutes, ...payload.routes };
+  } catch {
+    // Local defaults remain usable if the health endpoint is temporarily unavailable.
+  }
+}
+
+async function cancelAiJob() {
+  if (!currentAiJob || currentAiJob.cancelling) return;
+  currentAiJob.cancelling = true;
+  renderAiJobPanel();
+  try {
+    const response = await fetch("./api/cancel", { method: "POST" });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) throw new Error(payload.error || "取消失败");
+  } catch (error) {
+    currentAiJob.cancelling = false;
+    renderAiJobPanel();
+    showPersistentError(`无法取消：${error.message}`);
+  }
+}
+
 function updateProjectById(projectId, mutator) {
   const project = state.projects.find((item) => item.id === projectId);
   if (!project) return false;
@@ -316,7 +466,7 @@ function emptyState(title, description, targetRoute, buttonLabel) {
 }
 
 function analysisToolbar(stage) {
-  const mode = state.aiMode === "codex" ? "Codex CLI · configured model" : "Browser-local Mock（无需账号）";
+  const mode = state.aiMode === "codex" ? `Codex CLI · ${routeSummary("analysis")}` : "Browser-local Mock（无需账号）";
   return `<div class="analysis-toolbar">
     <div><strong>结构化 AI 判断</strong><span>${escapeHtml(mode)} · 结果需通过 JSON Schema</span></div>
     <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : state.aiMode === "codex" ? "调用 Codex Ads" : "运行 Mock 演示"}</button>
@@ -327,7 +477,7 @@ function aiResult(project, stage) {
   const record = project.ai?.[stage];
   if (!record?.result) return emptyState("还没有分析结果", "先完善项目信息或导入数据，再运行结构化分析。Mock 模式用于演示界面，不会占用模型额度。", "", "");
   const result = record.result;
-  const sourceText = record.source === "codex" ? `Codex · ${record.model}` : "Mock 演示结果";
+  const sourceText = runRecordLabel(record);
   return `<div class="ai-result">
     <div class="summary-callout"><strong>${escapeHtml(sourceText)}</strong><br />${escapeHtml(result.executive_summary)}</div>
     ${result.findings.map((item) => `<article class="finding-card">
@@ -378,7 +528,7 @@ function renderIntakeResult(project) {
   const draft = result.strategy_draft;
   const questions = result.clarification_questions || [];
   const versions = project.intake?.versions || [];
-  const sourceLabel = record.source === "codex" ? `Codex · ${record.model}` : "Browser-local Mock";
+  const sourceLabel = runRecordLabel(record);
 
   return `<div class="intake-result-stack">
     <section class="intake-summary">
@@ -437,7 +587,9 @@ function renderIntake(project) {
   const intake = project.intake || createIntake();
   const result = intakeRecord(project)?.result;
   const actions = result ? `<button class="button button-secondary" data-export-intake>导出 Markdown</button><button class="button button-primary" data-save-intake-version>保存版本</button>` : "";
-  const mode = state.aiMode === "codex" ? "本地 Codex CLI · 使用当前配置模型" : "Browser-local Mock · 不消耗模型额度";
+  const mode = state.aiMode === "codex"
+    ? `智能路由 · 追问 ${routeSummary("intakeQuestions")} / 快速策略 ${routeSummary("intakeStrategy")}`
+    : "Browser-local Mock · 不消耗模型额度";
   return `${pageHeader("STAGE 00 · OFFER INTAKE", "需求接收台", "把客户 Offer、零散策略和会议记录整理成可追溯 Brief，再生成带假设的 Strategy v0。", actions)}
     <section class="card intake-source-card mb-16">
       <div class="card-header"><div><h2>原始资料</h2><p>资料不完整也可以开始；未知信息会被显式标记，不会由 AI 偷偷补齐</p></div><span class="card-label">LOCAL PROJECT DATA</span></div>
@@ -446,7 +598,7 @@ function renderIntake(project) {
         <label class="source-panel strategy"><span><strong>客户已有策略</strong><em>${textLength(intake.clientStrategy)} 字</em></span><select data-intake-field="strategyAuthority"><option value="reference" ${intake.strategyAuthority !== "mandatory" ? "selected" : ""}>仅供参考，可调整</option><option value="mandatory" ${intake.strategyAuthority === "mandatory" ? "selected" : ""}>必须执行的约束</option></select><textarea data-intake-field="clientStrategy" placeholder="粘贴客户给出的媒体、预算或素材建议；没有可以留空。">${escapeHtml(intake.clientStrategy)}</textarea></label>
         <label class="source-panel notes"><span><strong>我的补充</strong><em>${textLength(intake.operatorNotes)} 字</em></span><textarea data-intake-field="operatorNotes" placeholder="补充会议记录、自己的判断、待确认问题与不能忽略的限制……">${escapeHtml(intake.operatorNotes)}</textarea></label>
       </div>
-      <div class="intake-runbar"><div><strong>AI 处理方式</strong><span>${escapeHtml(mode)} · 原始资料只在你主动运行时提交给本地 Bridge</span></div><div class="inline-actions"><button class="button button-secondary" data-run-intake="questions" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在整理…" : "生成客户追问"}</button><button class="button button-primary" data-run-intake="strategy" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "调用 Codex 生成 Strategy v0" : "生成 Mock Strategy v0"}</button></div></div>
+      <div class="intake-runbar"><div><strong>AI 处理方式</strong><span>${escapeHtml(mode)} · 原始资料只在你主动运行时提交给本地 Bridge</span></div><div class="inline-actions"><button class="button button-secondary" data-run-intake="questions" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在处理…" : "生成客户追问"}</button><button class="button button-primary" data-run-intake="strategy" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "快速生成 Strategy v0" : "生成 Mock Strategy v0"}</button><button class="button button-ghost" data-run-intake="deep" ${aiBusy ? "disabled" : ""}>${aiBusy ? "请稍候…" : "深度复核"}</button></div></div>
     </section>
     ${renderIntakeResult(project)}`;
 }
@@ -590,7 +742,7 @@ function renderLaunchPackResult(project) {
 
   const readiness = pack.readiness;
   const versions = project.launch?.versions || [];
-  const sourceLabel = record.source === "codex" ? `Codex · ${record.model}` : "Browser-local Mock";
+  const sourceLabel = runRecordLabel(record);
   const statusOptions = (current) => ["ready", "needs_confirmation", "blocker"].map((status) => `<option value="${status}" ${status === current ? "selected" : ""}>${launchStatusText(status)}</option>`).join("");
   return `<div class="launch-pack-stack">
     <section class="launch-readiness ${attr(readiness.status)}">
@@ -641,7 +793,7 @@ function renderLaunchPackResult(project) {
 function renderLaunch(project) {
   const record = launchPackRecord(project);
   const actions = record?.result ? `<button class="button button-ghost" data-export-launch-pack>导出 Markdown</button><button class="button button-secondary" data-export-launch-html>导出 HTML</button><button class="button button-primary" data-save-launch-version>保存版本</button>` : "";
-  const mode = state.aiMode === "codex" ? "本地 Codex CLI · 使用当前配置模型" : "Browser-local Mock · 不消耗模型额度";
+  const mode = state.aiMode === "codex" ? `本地 Codex CLI · ${routeSummary("launchPack")}` : "Browser-local Mock · 不消耗模型额度";
   return `${pageHeader("STAGE 03 · LAUNCH PACK", "投前作战包", "把 Strategy v0 变成可交给投放、素材、数据和客户负责人的执行文件。", actions)}
     <section class="card launch-runbar mb-16"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 只生成计划，不会连接或修改真实广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "调用 Codex 生成 Launch Pack" : "生成 Mock Launch Pack"}</button></section>
     ${renderLaunchPackResult(project)}`;
@@ -780,7 +932,7 @@ function renderExperimentPlanResult(project) {
 
   const summary = experimentPlanSummary(plan);
   const versions = project.experiments?.versions || [];
-  const source = record.source === "codex" ? `Codex · ${record.model}` : "Browser-local Mock";
+  const source = runRecordLabel(record);
   return `<div class="experiment-workspace">
     <section class="experiment-hero">
       <div><span class="card-label">${escapeHtml(source)} · ${dateText(record.generatedAt)}</span><h2>${escapeHtml(plan.title)}</h2><p>${escapeHtml(plan.executive_summary)}</p></div>
@@ -818,7 +970,7 @@ function renderExperimentPlanResult(project) {
 function renderExperiments(project) {
   const record = experimentPlanRecord(project);
   const actions = record?.result ? `<button class="button button-ghost" data-export-experiments>导出 Markdown</button><button class="button button-secondary" data-export-experiment-html>导出 HTML</button><button class="button button-primary" data-save-experiment-version>保存版本</button>` : "";
-  const mode = state.aiMode === "codex" ? "本地 Codex CLI · 使用 ads-test 方法" : "Browser-local Mock · 不消耗模型额度";
+  const mode = state.aiMode === "codex" ? `本地 Codex CLI · ${routeSummary("experiments")} · 使用 ads-test 方法` : "Browser-local Mock · 不消耗模型额度";
   return `${pageHeader("STAGE 04 · EXPERIMENT LEDGER", "实验台", "把素材与投放想法变成有假设、样本门槛、停止条件和学习记录的测试队列。", actions)}
     <section class="card experiment-runbar mb-16"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 只规划和记录，不会在媒体后台创建实验</span></div><button class="button button-primary" data-run-experiments ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "调用 Codex 生成实验账本" : "生成 Mock 实验账本"}</button></section>
     ${renderExperimentPlanResult(project)}`;
@@ -870,7 +1022,7 @@ function renderReport(project) {
       <section class="report-section"><h3>03 · 关键判断</h3>${result ? result.findings.map((item) => `<article class="finding-card"><div class="finding-top"><h3>${escapeHtml(item.title)}</h3><span class="priority-badge ${attr(item.priority)}">${priorityText(item.priority)}</span></div><div class="finding-body"><div class="evidence-box"><span>Evidence</span><p>${escapeHtml(item.evidence)}</p></div><div class="action-box"><span>Action</span><p>${escapeHtml(item.action)}</p></div></div><p class="finding-diagnosis">${escapeHtml(item.diagnosis)} · 验证：${escapeHtml(item.validation)}</p></article>`).join("") : emptyState("还没有关键判断", "AI 失败时不会生成假结果；请在其他阶段重新运行。", "optimize", "去优化页")}</section>
       <section class="report-section"><h3>04 · 实验与学习</h3>${experimentLearningTable(project)}</section>
       <section class="report-section"><h3>05 · 下一步动作</h3>${actionTable(result)}</section>
-      <section class="report-section"><h3>06 · 口径说明</h3><div class="project-facts"><div class="fact-row"><span>数据来源</span><strong>${escapeHtml(project.data?.fileName || "未导入")}</strong></div><div class="fact-row"><span>归因口径</span><strong>${escapeHtml(project.attribution)}</strong></div><div class="fact-row"><span>分析来源</span><strong>${record ? escapeHtml(record.source === "codex" ? `${record.model} + Codex Ads` : "Mock 演示") : "未运行"}</strong></div><div class="fact-row"><span>项目备注</span><strong>${escapeHtml(project.notes || "无")}</strong></div></div></section>
+      <section class="report-section"><h3>06 · 口径说明</h3><div class="project-facts"><div class="fact-row"><span>数据来源</span><strong>${escapeHtml(project.data?.fileName || "未导入")}</strong></div><div class="fact-row"><span>归因口径</span><strong>${escapeHtml(project.attribution)}</strong></div><div class="fact-row"><span>分析来源</span><strong>${record ? escapeHtml(runRecordLabel(record)) : "未运行"}</strong></div><div class="fact-row"><span>项目备注</span><strong>${escapeHtml(project.notes || "无")}</strong></div></div></section>
     </article>`;
 }
 
@@ -1094,11 +1246,32 @@ function metricsForAi(project) {
   };
 }
 
+function aiRecordMeta(payload) {
+  return {
+    source: payload.source,
+    model: payload.model,
+    reasoningEffort: payload.reasoningEffort || "",
+    durationMs: Number(payload.durationMs || 0),
+    fallbackUsed: Boolean(payload.fallbackUsed),
+    routeKey: payload.routeKey || ""
+  };
+}
+
+function completionMessage(label, payload) {
+  if (payload.source !== "codex") return label;
+  const details = [modelShortName(payload.model)];
+  if (payload.reasoningEffort) details.push(effortLabel(payload.reasoningEffort));
+  if (payload.durationMs) details.push(formatDuration(payload.durationMs));
+  if (payload.fallbackUsed) details.push("已自动复核");
+  return `${label} · ${details.join(" · ")}`;
+}
+
 async function runAnalysis(stage) {
   if (aiBusy) return;
   const project = activeProject();
   const projectId = project.id;
   aiBusy = true;
+  if (state.aiMode === "codex") beginAiJob("analysis");
   render();
   try {
     let payload;
@@ -1121,8 +1294,7 @@ async function runAnalysis(stage) {
     updateProjectById(projectId, (target) => {
       if (!target.ai) target.ai = {};
       target.ai[stage] = {
-        source: payload.source,
-        model: payload.model,
+        ...aiRecordMeta(payload),
         generatedAt: new Date().toISOString(),
         result: payload.result
       };
@@ -1136,25 +1308,31 @@ async function runAnalysis(stage) {
         }));
       }
     });
-    showToast(payload.source === "codex" ? `Codex 分析完成 · ${payload.model}` : "Mock 演示结果已生成");
+    showToast(completionMessage(payload.source === "codex" ? "Codex 分析完成" : "Mock 演示结果已生成", payload));
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
+    showPersistentError(error.message);
   } finally {
+    finishAiJob();
     aiBusy = false;
     render();
   }
 }
 
-async function runIntake(intent) {
+async function runIntake(action) {
   if (aiBusy) return;
   const project = activeProject();
   const projectId = project.id;
   const intake = project.intake || createIntake();
+  const intent = action === "questions" ? "questions" : "strategy";
+  const profile = action === "deep" ? "deep" : "fast";
+  const routeKey = action === "questions" ? "intakeQuestions" : action === "deep" ? "intakeDeep" : "intakeStrategy";
   if (![intake.rawOffer, intake.clientStrategy, intake.operatorNotes].some((value) => String(value || "").trim())) {
     showToast("请至少粘贴一段客户资料或自己的补充说明。", "error");
     return;
   }
   aiBusy = true;
+  if (state.aiMode === "codex") beginAiJob(routeKey);
   render();
   try {
     let payload;
@@ -1169,7 +1347,7 @@ async function runIntake(intent) {
       const response = await fetch("./api/intake", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: state.aiMode, intent, project, intake })
+        body: JSON.stringify({ mode: state.aiMode, intent, profile, project, intake })
       });
       payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "需求整理失败");
@@ -1177,17 +1355,20 @@ async function runIntake(intent) {
     updateProjectById(projectId, (target) => {
       if (!target.intake) target.intake = createIntake();
       target.intake.analysis = {
-        source: payload.source,
-        model: payload.model,
+        ...aiRecordMeta(payload),
         intent,
+        profile,
         generatedAt: new Date().toISOString(),
         result: payload.result
       };
     });
-    showToast(intent === "questions" ? "客户追问清单已生成" : payload.source === "codex" ? `Strategy v0 已生成 · ${payload.model}` : "Mock Strategy v0 已生成");
+    const label = intent === "questions" ? "客户追问清单已生成" : action === "deep" ? "Strategy v0 深度复核完成" : "Strategy v0 已生成";
+    showToast(completionMessage(label, payload));
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
+    showPersistentError(error.message);
   } finally {
+    finishAiJob();
     aiBusy = false;
     render();
   }
@@ -1216,6 +1397,7 @@ async function runLaunchPack() {
     return;
   }
   aiBusy = true;
+  if (state.aiMode === "codex") beginAiJob("launchPack");
   render();
   try {
     let payload;
@@ -1238,8 +1420,7 @@ async function runLaunchPack() {
     updateProjectById(projectId, (target) => {
       if (!target.launch) target.launch = createLaunch();
       target.launch.pack = {
-        source: payload.source,
-        model: payload.model,
+        ...aiRecordMeta(payload),
         generatedAt: new Date().toISOString(),
         result: payload.result
       };
@@ -1252,10 +1433,12 @@ async function runLaunchPack() {
         metric: item.success_metric
       }));
     });
-    showToast(payload.source === "codex" ? `Launch Pack 已生成 · ${payload.model}` : "Mock Launch Pack 已生成");
+    showToast(completionMessage("Launch Pack 已生成", payload));
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
+    showPersistentError(error.message);
   } finally {
+    finishAiJob();
     aiBusy = false;
     render();
   }
@@ -1271,6 +1454,7 @@ async function runExperimentPlan() {
     return;
   }
   aiBusy = true;
+  if (state.aiMode === "codex") beginAiJob("experiments");
   render();
   try {
     let payload;
@@ -1293,16 +1477,17 @@ async function runExperimentPlan() {
     updateProjectById(projectId, (target) => {
       if (!target.experiments) target.experiments = createExperiments();
       target.experiments.plan = {
-        source: payload.source,
-        model: payload.model,
+        ...aiRecordMeta(payload),
         generatedAt: new Date().toISOString(),
         result: enrichExperimentPlan(payload.result)
       };
     });
-    showToast(payload.source === "codex" ? `实验账本已生成 · ${payload.model}` : "Mock 实验账本已生成");
+    showToast(completionMessage("实验账本已生成", payload));
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
+    showPersistentError(error.message);
   } finally {
+    finishAiJob();
     aiBusy = false;
     render();
   }
@@ -1532,7 +1717,7 @@ function launchPackMarkdown(project) {
     "",
     `- 就绪度：${pack.readiness.score}/100 · ${launchStatusText(pack.readiness.status)}`,
     `- 生成时间：${dateText(project.launch.pack.generatedAt)}`,
-    `- 生成来源：${project.launch.pack.source === "codex" ? `Codex · ${project.launch.pack.model}` : "Browser-local Mock"}`,
+    `- 生成来源：${runRecordLabel(project.launch.pack)}`,
     "",
     "## 上线阻塞项",
     "",
@@ -1672,7 +1857,7 @@ function experimentMarkdown(project) {
     `- 周期可行：${summary.ready}`,
     `- 进行中：${summary.running}`,
     `- 已沉淀学习：${summary.learnings}`,
-    `- 生成来源：${record.source === "codex" ? `Codex · ${record.model}` : "Browser-local Mock"}`,
+    `- 生成来源：${runRecordLabel(record)}`,
     "",
     "## 学习议程",
     "",
@@ -1751,7 +1936,7 @@ function experimentDocument(project) {
   const cards = plan.experiments.map((item, index) => `<article class="experiment"><header><span>${String(index + 1).padStart(2, "0")} · ${escapeHtml(item.platform)}</span><h2>${escapeHtml(item.name)}</h2><div><em>${escapeHtml(experimentPriorityText(item.priority))}</em><em>${escapeHtml(experimentStatusText(item.status))}</em><em>${escapeHtml(feasibilityText(item.feasibility.status))}</em></div></header><blockquote><b>IF</b> ${escapeHtml(item.hypothesis.change)} <b>THEN</b> ${escapeHtml(item.hypothesis.metric)} 将${item.hypothesis.direction === "increase" ? "提升" : "下降"} <b>BECAUSE</b> ${escapeHtml(item.hypothesis.because)}</blockquote><section class="variants"><div><span>CONTROL · ${item.design.control_percent}%</span><strong>${escapeHtml(item.design.control)}</strong></div><i>${escapeHtml(item.design.single_variable)}</i><div><span>VARIANT · ${item.design.variant_percent}%</span><strong>${escapeHtml(item.design.variant)}</strong></div></section><section class="facts"><div><span>主指标</span><strong>${escapeHtml(item.design.primary_metric)}</strong></div><div><span>每版本样本</span><strong>${item.feasibility.required_sample_per_variant === null ? "—" : formatMetric(item.feasibility.required_sample_per_variant)}</strong></div><div><span>预计周期</span><strong>${item.feasibility.estimated_duration_days === null ? "—" : `${item.feasibility.estimated_duration_days} 天`}</strong></div><div><span>实验方法</span><strong>${escapeHtml(item.design.test_type)}</strong></div></section><p class="rationale">${escapeHtml(item.feasibility.rationale)}</p><section class="rules"><div><span>WIN</span><p>${escapeHtml(item.decision_rules.win)}</p></div><div><span>LOSE</span><p>${escapeHtml(item.decision_rules.lose)}</p></div><div><span>INCONCLUSIVE</span><p>${escapeHtml(item.decision_rules.inconclusive)}</p></div></section><section class="result"><div><span>结果</span><strong>${escapeHtml(experimentOutcomeText(item.result.outcome))}</strong></div><p><b>证据：</b>${escapeHtml(item.result.evidence || "待补充")}</p><p><b>学习：</b>${escapeHtml(item.result.learning || "待补充")}</p><p><b>下一步：</b>${escapeHtml(item.result.next_action || "待补充")}</p></section></article>`).join("");
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(plan.title)}</title><style>
   :root{--ink:#17212b;--muted:#687382;--line:#dfe4e8;--paper:#fff;--bg:#edf0f2;--accent:#e86f34;--soft:#fff0e8;--blue:#315d96;--green:#247a55}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,Arial,"PingFang SC",sans-serif}main{width:min(1120px,calc(100% - 32px));margin:32px auto;background:var(--paper);padding:56px}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--accent)}h1{font-size:42px;line-height:1.1;margin:10px 0 18px}.lead{max-width:850px;color:var(--muted);line-height:1.8}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:30px 0}.summary div{padding:18px;border:1px solid var(--line);border-radius:12px}.summary strong,.summary span{display:block}.summary strong{font-size:28px}.summary span{margin-top:5px;color:var(--muted);font-size:10px}.agenda{padding:20px;border-radius:14px;background:#17212b;color:#fff}.agenda p{margin:7px 0;color:#bec7d0;font-size:12px}.experiment{margin-top:22px;padding:24px;border:1px solid var(--line);border-radius:16px;break-inside:avoid}.experiment header>span{color:var(--accent);font-size:10px;font-weight:800}.experiment h2{font-size:20px;margin:7px 0}.experiment header em{display:inline-block;margin-right:6px;padding:5px 8px;border-radius:99px;background:#eef1f4;color:var(--muted);font-size:9px;font-style:normal}blockquote{margin:18px 0;padding:15px;border-left:3px solid var(--accent);background:var(--soft);font-size:12px;line-height:1.7}.variants{display:grid;grid-template-columns:1fr 120px 1fr;align-items:stretch;gap:10px}.variants div{padding:16px;border:1px solid var(--line);border-radius:11px}.variants span,.facts span,.rules span,.result span{display:block;color:var(--muted);font-size:9px;font-weight:800}.variants strong{display:block;margin-top:9px;font-size:12px}.variants i{display:grid;place-items:center;padding:10px;border-radius:11px;background:#17212b;color:#fff;font-size:10px;font-style:normal;text-align:center}.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.facts div{padding:12px;background:#f6f7f8;border-radius:9px}.facts strong{display:block;margin-top:6px;font-size:11px}.rationale{font-size:10px;color:var(--muted);line-height:1.6}.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.rules div{padding:13px;border-top:2px solid var(--accent);background:#fafbfc}.rules p,.result p{font-size:10px;line-height:1.6;color:var(--muted)}.result{margin-top:12px;padding:15px;border:1px dashed var(--line);border-radius:10px}.result>div{display:flex;justify-content:space-between}.foot{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:9px}@media(max-width:760px){main{width:100%;margin:0;padding:24px}h1{font-size:30px}.summary,.facts,.rules,.variants{grid-template-columns:1fr}.variants i{min-height:44px}}@media print{body{background:#fff}main{width:auto;margin:0;padding:24px}.experiment{break-inside:avoid}}
-  </style></head><body><main><p class="eyebrow">OPENADOPS · EXPERIMENT LEDGER · v${APP_VERSION}</p><h1>${escapeHtml(plan.title)}</h1><p class="lead">${escapeHtml(plan.executive_summary)}</p><section class="summary"><div><strong>${summary.total}</strong><span>实验总数</span></div><div><strong>${summary.ready}</strong><span>周期可行</span></div><div><strong>${summary.running}</strong><span>进行中</span></div><div><strong>${summary.learnings}</strong><span>已沉淀学习</span></div></section><section class="agenda">${plan.learning_agenda.map((item, index) => `<p>${String(index + 1).padStart(2, "0")} · ${escapeHtml(item)}</p>`).join("")}</section>${cards}<p class="foot">OpenAdOps v${APP_VERSION} · 生成来源：${record.source === "codex" ? `Codex · ${escapeHtml(record.model)}` : "Browser-local Mock"} · 只规划和记录实验，不会修改真实广告账户。</p></main></body></html>`;
+  </style></head><body><main><p class="eyebrow">OPENADOPS · EXPERIMENT LEDGER · v${APP_VERSION}</p><h1>${escapeHtml(plan.title)}</h1><p class="lead">${escapeHtml(plan.executive_summary)}</p><section class="summary"><div><strong>${summary.total}</strong><span>实验总数</span></div><div><strong>${summary.ready}</strong><span>周期可行</span></div><div><strong>${summary.running}</strong><span>进行中</span></div><div><strong>${summary.learnings}</strong><span>已沉淀学习</span></div></section><section class="agenda">${plan.learning_agenda.map((item, index) => `<p>${String(index + 1).padStart(2, "0")} · ${escapeHtml(item)}</p>`).join("")}</section>${cards}<p class="foot">OpenAdOps v${APP_VERSION} · 生成来源：${escapeHtml(runRecordLabel(record))} · 只规划和记录实验，不会修改真实广告账户。</p></main></body></html>`;
 }
 
 function exportExperimentHtml() {
@@ -1809,6 +1994,8 @@ aiModeSelect.addEventListener("change", () => {
 });
 
 newProjectButton.addEventListener("click", () => projectDialog.showModal());
+aiCancelButton.addEventListener("click", cancelAiJob);
+aiErrorDismiss.addEventListener("click", clearPersistentError);
 document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => projectDialog.close()));
 projectForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -1856,3 +2043,6 @@ projectForm.addEventListener("submit", (event) => {
 window.addEventListener("hashchange", render);
 if (!location.hash) location.hash = "overview";
 render();
+loadAiRuntime().then(() => {
+  if (!aiBusy) render();
+});

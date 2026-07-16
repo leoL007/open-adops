@@ -41,6 +41,10 @@ body {
   min-width: 320px;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 button,
 input,
 select,
@@ -197,6 +201,94 @@ select {
   background: rgba(255, 255, 255, 0.94);
   border-bottom: 1px solid var(--line);
   backdrop-filter: blur(10px);
+}
+
+.ai-job-panel,
+.ai-error-panel {
+  margin: 16px 32px 0;
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.ai-job-panel {
+  min-height: 74px;
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #f0c5ae;
+  background: linear-gradient(110deg, #fff7f1, #fff);
+}
+
+.ai-job-pulse {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(231, 116, 54, 0.35);
+  animation: ai-pulse 1.8s infinite;
+}
+
+@keyframes ai-pulse {
+  70% {
+    box-shadow: 0 0 0 10px rgba(231, 116, 54, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(231, 116, 54, 0);
+  }
+}
+
+.ai-job-copy strong,
+.ai-job-copy span,
+.ai-job-time strong,
+.ai-job-time span,
+.ai-error-panel strong,
+.ai-error-panel span {
+  display: block;
+}
+
+.ai-job-copy strong {
+  font-size: 13px;
+}
+
+.ai-job-copy span,
+.ai-job-time span {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.ai-job-time {
+  min-width: 118px;
+  text-align: right;
+}
+
+.ai-job-time strong {
+  color: var(--accent-deep);
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ai-error-panel {
+  padding: 14px 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #efb8b8;
+  background: var(--danger-soft);
+  color: #8f3030;
+}
+
+.ai-error-panel strong {
+  font-size: 12px;
+}
+
+.ai-error-panel span {
+  margin-top: 5px;
+  font-size: 10px;
+  line-height: 1.55;
 }
 
 .project-switcher,
@@ -2986,6 +3078,25 @@ tbody tr:hover td {
     padding: 12px 16px;
     flex-wrap: wrap;
     gap: 10px;
+  }
+
+  .ai-job-panel,
+  .ai-error-panel {
+    margin: 12px 16px 0;
+  }
+
+  .ai-job-panel {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+
+  .ai-job-time {
+    grid-column: 2;
+    text-align: left;
+  }
+
+  .ai-job-panel .button {
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 
   .project-switcher {
