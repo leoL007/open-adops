@@ -76,6 +76,12 @@ OpenAdOps uses the model configured in Codex by default. Override it only when n
 OPENADOPS_MODEL=your-model-name npm start
 ```
 
+Complex Launch Packs can exceed the default four-minute limit when the global reasoning effort is very high. You can tune the local bridge without changing your global Codex configuration:
+
+```bash
+OPENADOPS_REASONING_EFFORT=high OPENADOPS_TIMEOUT_MS=360000 npm start
+```
+
 For deeper paid-media reasoning, install a compatible Ads skill such as [Claude Ads](https://github.com/AgriciDaniel/claude-ads) for your agent runtime. OpenAdOps remains usable in Mock mode without it.
 
 ## Launch Pack

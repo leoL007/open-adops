@@ -79,6 +79,12 @@ OpenAdOps 默认使用 Codex 当前配置的模型。如有需要，可以通过
 OPENADOPS_MODEL=your-model-name npm start
 ```
 
+复杂作战包如果继承了过高的全局推理强度，可能超过默认 4 分钟。可以单独为 OpenAdOps 调整推理强度与超时，不影响 Codex 的全局配置：
+
+```bash
+OPENADOPS_REASONING_EFFORT=high OPENADOPS_TIMEOUT_MS=360000 npm start
+```
+
 如需更深入的付费媒体分析，可以为 Agent Runtime 安装兼容的 Ads Skill，例如 [Claude Ads](https://github.com/AgriciDaniel/claude-ads)。即使不安装，OpenAdOps 仍可使用 Mock 模式。
 
 ## Launch Pack

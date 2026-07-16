@@ -21,6 +21,10 @@ const LAUNCH_PACK_SCHEMA_PATH = path.join(APP_ROOT, "schemas", "launch-pack.sche
 const PORT = Number(process.env.PORT || 4173);
 const MODEL = process.env.OPENADOPS_MODEL || process.env.ADPILOT_MODEL || "";
 const CODEX_BIN = process.env.CODEX_BIN || "codex";
+const requestedReasoningEffort = String(process.env.OPENADOPS_REASONING_EFFORT || "").toLowerCase();
+const REASONING_EFFORT = new Set(["low", "medium", "high", "xhigh"]).has(requestedReasoningEffort) ? requestedReasoningEffort : "";
+const requestedTimeout = Number(process.env.OPENADOPS_TIMEOUT_MS);
+const CODEX_TIMEOUT_MS = Number.isFinite(requestedTimeout) && requestedTimeout >= 30000 ? requestedTimeout : 4 * 60 * 1000;
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 let activeAiJob = false;
 
@@ -221,6 +225,7 @@ function runCodexStructured({ prompt, schemaPath, validate, jobName }) {
     const outputPath = path.join(tmpdir(), `openadops-${jobName}-${randomUUID()}.json`);
     const args = ["exec", "--ephemeral", "--sandbox", "read-only", "--color", "never"];
     if (MODEL) args.push("--model", MODEL);
+    if (REASONING_EFFORT) args.push("--config", `model_reasoning_effort="${REASONING_EFFORT}"`);
     args.push("--output-schema", schemaPath, "--output-last-message", outputPath, "-");
     const child = spawn(CODEX_BIN, args, {
       cwd: APP_ROOT,
@@ -269,8 +274,8 @@ function runCodexStructured({ prompt, schemaPath, validate, jobName }) {
 
     const timeout = setTimeout(() => {
       child.kill("SIGTERM");
-      finish(new Error("Codex 分析超过 4 分钟，已停止。本次没有写入结果。"));
-    }, 4 * 60 * 1000);
+      finish(new Error(`Codex 分析超过 ${Math.round(CODEX_TIMEOUT_MS / 60000)} 分钟，已停止。本次没有写入结果。`));
+    }, CODEX_TIMEOUT_MS);
 
     child.stdin.end(prompt);
   });
