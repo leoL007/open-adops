@@ -45,6 +45,18 @@ test("experiment calculator refuses false precision for cost metrics", () => {
   assert.equal(result.status, "not_calculable");
 });
 
+test("cost metrics use a decrease hypothesis direction", () => {
+  const project = {
+    name: "Utility App",
+    platforms: ["Meta Ads"],
+    creativePlan: [{ platform: "Meta Ads", angle: "Outcome", hook: "Show it", variable: "Opening", metric: "CPA" }]
+  };
+  const plan = buildMockExperimentPlan(project);
+  assert.equal(plan.experiments[0].design.metric_type, "cost");
+  assert.equal(plan.experiments[0].hypothesis.direction, "decrease");
+  assert.equal(validateExperimentPlan(plan).valid, true);
+});
+
 test("experiment design normalizes editable duration boundaries", () => {
   assert.deepEqual(
     normalizeExperimentDesign({ ...baseDesign, minimum_days: null, maximum_days: 2 }),
@@ -230,6 +242,44 @@ test("AI experiment metric inputs are replaced by deterministic matching data", 
   });
   assert.equal(normalized.experiments[0].design.baseline_rate_percent, 5);
   assert.equal(normalized.experiments[0].design.daily_eligible_units, 500);
+});
+
+test("equivalent platform labels are combined before experiment sizing", () => {
+  const project = {
+    name: "Finance App",
+    platforms: ["Meta Ads"],
+    creativePlan: [{
+      platform: "Meta Ads",
+      angle: "Trust",
+      hook: "Show proof",
+      variable: "Opening",
+      metric: "Registration CVR"
+    }],
+    data: {
+      metrics: {
+        period: { activeDays: 2, dates: ["2026-07-01", "2026-07-02"] },
+        byPlatform: [
+          {
+            name: "Facebook Ads",
+            clicks: 600,
+            conversions: 30,
+            conversionEvent: "Registration",
+            period: { activeDays: 2, dates: ["2026-07-01", "2026-07-02"] }
+          },
+          {
+            name: "Meta Ads",
+            clicks: 400,
+            conversions: 20,
+            conversionEvent: "注册",
+            period: { activeDays: 2, dates: ["2026-07-01", "2026-07-02"] }
+          }
+        ]
+      }
+    }
+  };
+  const experiment = buildMockExperimentPlan(project).experiments[0];
+  assert.equal(experiment.design.baseline_rate_percent, 5);
+  assert.equal(experiment.design.daily_eligible_units, 500);
 });
 
 test("deep-event rates stay empty without an explicitly matching event identity", () => {

@@ -73,6 +73,9 @@ export function validateExperimentPlan(result) {
       if (!isText(design?.[field])) errors.push(`${path}.design.${field} 必须是非空文本`);
     }
     if (!METRIC_TYPES.has(design?.metric_type)) errors.push(`${path}.design.metric_type 不合法`);
+    if (design?.metric_type === "cost" && hypothesis?.direction !== "decrease") {
+      errors.push(`${path} 成本指标的 hypothesis.direction 必须为 decrease`);
+    }
     textArray(design?.guardrail_metrics, `${path}.design.guardrail_metrics`, errors, 1);
     if (!(Number(design?.control_percent) > 0) || !(Number(design?.variant_percent) > 0)) errors.push(`${path} 的实验分流必须大于 0`);
     if (Math.abs(Number(design?.control_percent) + Number(design?.variant_percent) - 100) > 0.001) errors.push(`${path} 的 Control 与 Variant 分流合计必须为 100`);

@@ -11,6 +11,7 @@ export const FIELD_LABELS = {
   installs: "媒体安装",
   af_installs: "AF 安装",
   conversions: "目标转化",
+  conversion_event: "目标转化事件",
   revenue: "收入",
   d1_retained: "D1 留存人数"
 };
@@ -28,6 +29,7 @@ export const FIELD_ALIASES = {
   installs: ["installs", "install", "media installs", "媒体安装", "安装"],
   af_installs: ["afinstalls", "appsflyerinstalls", "afinstall", "af安装", "af 安装"],
   conversions: ["conversions", "conversion", "events", "actions", "目标转化", "转化"],
+  conversion_event: ["conversionevent", "conversionaction", "eventname", "inappevent", "目标转化事件", "目标事件", "转化事件", "事件名称"],
   revenue: ["revenue", "purchasevalue", "value", "收入", "营收"],
   d1_retained: ["d1retained", "day1retained", "d1users", "d1留存人数", "次留人数"]
 };
@@ -143,8 +145,10 @@ function aggregate(rows) {
     { spend: 0, impressions: 0, clicks: 0, installs: 0, af_installs: 0, conversions: 0, revenue: 0, d1_retained: 0 }
   );
   const attributionInstalls = raw.af_installs || raw.installs;
+  const conversionEvents = [...new Set(rows.map((row) => String(row.conversion_event || "").trim()).filter(Boolean))];
   return {
     ...raw,
+    conversionEvent: conversionEvents.length === 1 ? conversionEvents[0] : "",
     ctr: safeDivide(raw.clicks, raw.impressions),
     cvr: safeDivide(attributionInstalls, raw.clicks),
     cpi: safeDivide(raw.spend, raw.installs),
@@ -165,7 +169,8 @@ function periodForRows(rows) {
   return {
     startDate: dates[0] || "",
     endDate: dates.at(-1) || "",
-    activeDays: dates.length
+    activeDays: dates.length,
+    dates
   };
 }
 

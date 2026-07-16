@@ -87,9 +87,38 @@ function canonicalConversionEvent(value) {
   return compact;
 }
 
+function combinedPlatformMetrics(metrics, platformKey) {
+  const matches = metrics?.byPlatform?.filter((item) => canonicalExperimentPlatform(item.name) === platformKey) || [];
+  if (!matches.length) return null;
+  const totals = matches.reduce((sum, item) => {
+    for (const field of ["impressions", "clicks", "installs", "af_installs", "conversions"]) {
+      sum[field] += Number(item[field]) || 0;
+    }
+    return sum;
+  }, { impressions: 0, clicks: 0, installs: 0, af_installs: 0, conversions: 0 });
+  const dates = [...new Set(matches.flatMap((item) => item.period?.dates || []))].sort();
+  const activeDays = dates.length
+    || Math.max(0, ...matches.map((item) => Number(item.period?.activeDays) || 0));
+  const declaredEvents = [...new Set(matches.map((item) => item.conversionEvent).filter(Boolean).map(canonicalConversionEvent))];
+  return {
+    ...totals,
+    ctr: totals.impressions > 0 ? totals.clicks / totals.impressions : 0,
+    cvr: totals.clicks > 0 ? (totals.af_installs || totals.installs) / totals.clicks : 0,
+    conversionEvent: declaredEvents.length === 1 && matches.every((item) => item.conversionEvent)
+      ? matches.find((item) => item.conversionEvent).conversionEvent
+      : "",
+    period: {
+      startDate: dates[0] || "",
+      endDate: dates.at(-1) || "",
+      activeDays,
+      dates
+    }
+  };
+}
+
 export function experimentMetricContext(metrics = {}, platform, metricName) {
   const platformKey = canonicalExperimentPlatform(platform);
-  const platformMetrics = metrics?.byPlatform?.find((item) => canonicalExperimentPlatform(item.name) === platformKey);
+  const platformMetrics = combinedPlatformMetrics(metrics, platformKey);
   const definition = inferExperimentMetric(metricName);
   if (!platformMetrics || definition.metricType !== "rate" || !definition.rate || !definition.denominator) {
     return { baseline: null, dailyUnits: null, metricType: definition.metricType };
@@ -129,6 +158,10 @@ export function applyExperimentMetricContext(plan = {}, metrics = {}) {
           const context = experimentMetricContext(metrics, experiment.platform, experiment.design?.primary_metric);
           return {
             ...experiment,
+            hypothesis: {
+              ...experiment.hypothesis,
+              direction: context.metricType === "cost" ? "decrease" : experiment.hypothesis?.direction
+            },
             design: {
               ...experiment.design,
               metric_type: context.metricType,

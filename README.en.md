@@ -110,7 +110,7 @@ CSV import requires `Spend` plus at least one of `Media Installs` or `AF Install
 
 | Dimension fields | Metric fields |
 | --- | --- |
-| Date, Platform, Country, Campaign, Ad group / Ad set, Creative | Spend, Impressions, Clicks, Media Installs, AF Installs, Conversions, Revenue, D1 Retained |
+| Date, Platform, Country, Campaign, Ad group / Ad set, Creative, Conversion Event | Spend, Impressions, Clicks, Media Installs, AF Installs, Conversions, Revenue, D1 Retained |
 
 OpenAdOps auto-detects common English and Chinese field aliases and lets the user correct each mapping before calculation. See [the demo CSV](./public/data/openadops-demo.csv).
 
@@ -120,7 +120,7 @@ OpenAdOps auto-detects common English and Chinese field aliases and lets the use
 npm run check
 ```
 
-Eighteen tests cover intake, Launch Pack, Experiment Ledger, finance blockers, small-budget focus, experiment sizing, missing-data protection, quoted CSV parsing, active date ranges, media CPI versus AppsFlyer CPI, aggregation, and schema validation. The test suite never calls a real model.
+Thirty-three tests cover intake, Launch Pack, Experiment Ledger, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform-alias aggregation, missing-data protection, quoted CSV parsing, active date ranges, media CPI versus AppsFlyer CPI, aggregation, and schema validation. The test suite never calls a real model.
 
 ## Current scope
 

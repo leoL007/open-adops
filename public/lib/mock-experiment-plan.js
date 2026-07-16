@@ -113,7 +113,7 @@ export function buildMockExperimentPlan(project = {}, launchPack = null) {
       hypothesis: {
         change: `将 Control 的现有开场替换为“${brief.hook}”，其他变量保持一致`,
         metric: primaryMetric,
-        direction: "increase",
+        direction: metric.metricType === "cost" ? "decrease" : "increase",
         expected_lift_percent: null,
         because: text(brief.hypothesis) || `当前素材 Brief 将“${brief.variable}”列为首要不确定性。`
       },

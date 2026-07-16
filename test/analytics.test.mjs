@@ -9,12 +9,13 @@ test("parseCsv supports quoted commas and BOM", () => {
 });
 
 test("detectMapping recognizes common media and AppsFlyer fields", () => {
-  const mapping = detectMapping(["Media", "Country", "Amount Spent", "Clicks", "Media Installs", "AF Installs"]);
+  const mapping = detectMapping(["Media", "Country", "Amount Spent", "Clicks", "Media Installs", "AF Installs", "Event Name"]);
   assert.equal(mapping.platform, "Media");
   assert.equal(mapping.country, "Country");
   assert.equal(mapping.spend, "Amount Spent");
   assert.equal(mapping.installs, "Media Installs");
   assert.equal(mapping.af_installs, "AF Installs");
+  assert.equal(mapping.conversion_event, "Event Name");
 });
 
 test("calculateMetrics keeps media CPI and AF-CPI separate", () => {
@@ -34,7 +35,12 @@ test("calculateMetrics keeps media CPI and AF-CPI separate", () => {
 test("calculateMetrics records active dates for experiment sizing", () => {
   const parsed = parseCsv("Date,Platform,Spend,Clicks,AF Installs\n2026-07-01,Meta Ads,100,500,80\n2026-07-02,Meta Ads,120,600,90\n2026-07-02,Google Ads,90,400,70\n");
   const metrics = calculateMetrics(mapRows(parsed.rows, detectMapping(parsed.headers)));
-  assert.deepEqual(metrics.period, { startDate: "2026-07-01", endDate: "2026-07-02", activeDays: 2 });
+  assert.deepEqual(metrics.period, {
+    startDate: "2026-07-01",
+    endDate: "2026-07-02",
+    activeDays: 2,
+    dates: ["2026-07-01", "2026-07-02"]
+  });
   assert.equal(metrics.byPlatform.find((item) => item.name === "Meta Ads").period.activeDays, 2);
   assert.equal(metrics.byPlatform.find((item) => item.name === "Google Ads").period.activeDays, 1);
 });
@@ -42,6 +48,18 @@ test("calculateMetrics records active dates for experiment sizing", () => {
 test("calculateMetrics counts timestamped rows by calendar day", () => {
   const parsed = parseCsv("Date,Platform,Clicks,AF Installs\n2026-07-01T09:00:00+08:00,Meta Ads,100,10\n2026-07-01 18:00:00,Meta Ads,120,12\n2026/07/02 08:00:00,Meta Ads,130,13\n");
   const metrics = calculateMetrics(mapRows(parsed.rows, detectMapping(parsed.headers)));
-  assert.deepEqual(metrics.period, { startDate: "2026-07-01", endDate: "2026-07-02", activeDays: 2 });
+  assert.deepEqual(metrics.period, {
+    startDate: "2026-07-01",
+    endDate: "2026-07-02",
+    activeDays: 2,
+    dates: ["2026-07-01", "2026-07-02"]
+  });
   assert.equal(metrics.byPlatform[0].period.activeDays, 2);
+});
+
+test("calculateMetrics preserves one declared conversion event per aggregate", () => {
+  const parsed = parseCsv("Date,Platform,Clicks,Conversions,Event Name\n2026-07-01,Meta Ads,100,8,Registration\n2026-07-02,Meta Ads,120,9,Registration\n");
+  const metrics = calculateMetrics(mapRows(parsed.rows, detectMapping(parsed.headers)));
+  assert.equal(metrics.summary.conversionEvent, "Registration");
+  assert.equal(metrics.byPlatform[0].conversionEvent, "Registration");
 });
