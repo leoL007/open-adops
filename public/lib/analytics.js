@@ -156,7 +156,12 @@ function aggregate(rows) {
 }
 
 function periodForRows(rows) {
-  const dates = [...new Set(rows.map((row) => String(row.date || "").trim()).filter(Boolean))].sort();
+  const dates = [...new Set(rows.map((row) => {
+    const raw = String(row.date || "").trim();
+    const match = raw.match(/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
+    if (match) return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+    return raw.split(/[T\s]/, 1)[0];
+  }).filter(Boolean))].sort();
   return {
     startDate: dates[0] || "",
     endDate: dates.at(-1) || "",

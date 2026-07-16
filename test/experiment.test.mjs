@@ -138,6 +138,33 @@ test("mock Experiment Ledger normalizes platform labels and sizes the actual rat
   assert.match(experiment.design.test_type, /Google Ads/);
 });
 
+test("specific business events take precedence over generic CVR labels", () => {
+  const project = {
+    name: "Finance App",
+    platforms: ["Meta Ads"],
+    creativePlan: [{
+      platform: "Meta Ads",
+      angle: "Trust",
+      hook: "Show proof",
+      variable: "Opening",
+      metric: "注册 CVR"
+    }],
+    data: {
+      metrics: {
+        period: { activeDays: 1 },
+        byPlatform: [{
+          name: "Facebook Ads",
+          clicks: 1000,
+          conversions: 50,
+          cvr: 0.2,
+          period: { activeDays: 1 }
+        }]
+      }
+    }
+  };
+  assert.equal(buildMockExperimentPlan(project).experiments[0].design.baseline_rate_percent, 5);
+});
+
 test("mock Experiment Ledger does not borrow account averages for an unmatched platform", () => {
   const project = {
     name: "Tool App",
@@ -221,4 +248,19 @@ test("validator rejects a manipulated split and feasibility result", () => {
   const validation = validateExperimentPlan(plan);
   assert.equal(validation.valid, false);
   assert.match(validation.errors.join(" "), /合计必须为 100/);
+});
+
+test("validator rejects non-positive experiment sizing inputs", () => {
+  const project = {
+    name: "Tool App",
+    platforms: ["Meta Ads"],
+    creativePlan: [{ platform: "Meta Ads", angle: "Outcome", hook: "Show it", variable: "Opening", metric: "CVR" }]
+  };
+  const plan = buildMockExperimentPlan(project);
+  plan.experiments[0].design.mde_percent = -10;
+  plan.experiments[0].design.daily_eligible_units = 0;
+  const validation = validateExperimentPlan(enrichExperimentPlan(plan));
+  assert.equal(validation.valid, false);
+  assert.match(validation.errors.join(" "), /mde_percent 必须大于 0/);
+  assert.match(validation.errors.join(" "), /daily_eligible_units 必须大于 0/);
 });

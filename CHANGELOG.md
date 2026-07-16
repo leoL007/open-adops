@@ -16,7 +16,9 @@ All notable changes to OpenAdOps are documented here.
 ### Changed
 
 - Browser storage migrates existing projects into the v4 shape without discarding Intake or Launch Pack history.
-- Imported CSV metrics now retain active date ranges for experiment traffic estimation.
+- Imported CSV metrics now normalize timestamped rows into active calendar dates for experiment traffic estimation.
+- Experiment baselines only use a matching platform and the actual primary metric; account-wide averages are never substituted for missing platform data.
+- Invalid sizing inputs are rejected, and concluded experiments automatically reopen if required evidence or learning is removed.
 - Workflow portability moves to v0.5 so v0.4 can close the strategy-to-learning loop.
 
 ## [0.3.0] - 2026-07-16

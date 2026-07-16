@@ -34,9 +34,6 @@ export function inferExperimentMetric(metricName) {
   if (compact.includes("ctr") || compact.includes("clickthroughrate") || compact.includes("点击率")) {
     return { metricType: "rate", rate: "ctr", denominator: "impressions" };
   }
-  if (compact.includes("cvr") || compact.includes("installrate") || compact.includes("安装率")) {
-    return { metricType: "rate", rate: "install", denominator: "clicks" };
-  }
   if (
     compact.includes("conversionrate")
     || compact.includes("registrationrate")
@@ -47,8 +44,16 @@ export function inferExperimentMetric(metricName) {
     || compact.includes("付费率")
     || compact.includes("转化率")
     || compact.includes("事件率")
+    || (
+      compact.includes("cvr")
+      && ["registration", "signup", "purchase", "conversion", "event", "注册", "购买", "付费", "转化", "事件"]
+        .some((token) => compact.includes(token))
+    )
   ) {
     return { metricType: "rate", rate: "conversion", denominator: "clicks" };
+  }
+  if (compact.includes("cvr") || compact.includes("installrate") || compact.includes("安装率")) {
+    return { metricType: "rate", rate: "install", denominator: "clicks" };
   }
   if (["cpi", "cpa", "cpc", "cpm"].some((token) => compact.includes(token)) || compact.includes("成本") || compact.includes("单价")) {
     return { metricType: "cost", rate: null, denominator: null };

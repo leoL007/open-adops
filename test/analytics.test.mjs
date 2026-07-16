@@ -38,3 +38,10 @@ test("calculateMetrics records active dates for experiment sizing", () => {
   assert.equal(metrics.byPlatform.find((item) => item.name === "Meta Ads").period.activeDays, 2);
   assert.equal(metrics.byPlatform.find((item) => item.name === "Google Ads").period.activeDays, 1);
 });
+
+test("calculateMetrics counts timestamped rows by calendar day", () => {
+  const parsed = parseCsv("Date,Platform,Clicks,AF Installs\n2026-07-01T09:00:00+08:00,Meta Ads,100,10\n2026-07-01 18:00:00,Meta Ads,120,12\n2026/07/02 08:00:00,Meta Ads,130,13\n");
+  const metrics = calculateMetrics(mapRows(parsed.rows, detectMapping(parsed.headers)));
+  assert.deepEqual(metrics.period, { startDate: "2026-07-01", endDate: "2026-07-02", activeDays: 2 });
+  assert.equal(metrics.byPlatform[0].period.activeDays, 2);
+});

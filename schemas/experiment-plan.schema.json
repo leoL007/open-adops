@@ -88,15 +88,15 @@
                 "type": "array",
                 "items": { "type": "string" }
               },
-              "control_percent": { "type": "number" },
-              "variant_percent": { "type": "number" },
-              "baseline_rate_percent": { "type": ["number", "null"] },
-              "mde_percent": { "type": ["number", "null"] },
-              "daily_eligible_units": { "type": ["number", "null"] },
+              "control_percent": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 },
+              "variant_percent": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 },
+              "baseline_rate_percent": { "type": ["number", "null"], "exclusiveMinimum": 0, "exclusiveMaximum": 100 },
+              "mde_percent": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+              "daily_eligible_units": { "type": ["number", "null"], "exclusiveMinimum": 0 },
               "confidence_percent": { "type": "number", "enum": [90, 95] },
               "power_percent": { "type": "number", "enum": [80] },
-              "minimum_days": { "type": "integer" },
-              "maximum_days": { "type": "integer" }
+              "minimum_days": { "type": "integer", "minimum": 1 },
+              "maximum_days": { "type": "integer", "minimum": 1 }
             }
           },
           "feasibility": {

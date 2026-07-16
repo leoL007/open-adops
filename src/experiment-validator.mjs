@@ -78,6 +78,11 @@ export function validateExperimentPlan(result) {
     for (const field of ["baseline_rate_percent", "mde_percent", "daily_eligible_units"]) {
       if (!isNullableNumber(design?.[field])) errors.push(`${path}.design.${field} 必须是数字或 null`);
     }
+    if (design?.baseline_rate_percent !== null && (!(design?.baseline_rate_percent > 0) || !(design?.baseline_rate_percent < 100))) {
+      errors.push(`${path}.design.baseline_rate_percent 必须大于 0 且小于 100，或为 null`);
+    }
+    if (design?.mde_percent !== null && !(design?.mde_percent > 0)) errors.push(`${path}.design.mde_percent 必须大于 0，或为 null`);
+    if (design?.daily_eligible_units !== null && !(design?.daily_eligible_units > 0)) errors.push(`${path}.design.daily_eligible_units 必须大于 0，或为 null`);
     if (![90, 95].includes(design?.confidence_percent)) errors.push(`${path}.design.confidence_percent 不合法`);
     if (design?.power_percent !== 80) errors.push(`${path}.design.power_percent 必须为 80`);
     if (!Number.isInteger(design?.minimum_days) || design.minimum_days < 1) errors.push(`${path}.design.minimum_days 必须是正整数`);
