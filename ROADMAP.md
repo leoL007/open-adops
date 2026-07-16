@@ -11,7 +11,15 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] JSON Schema validated findings, tests, and HTML/PDF-ready reporting.
 - [x] Static GitHub Pages demo.
 
-## v0.2 — Real workflow portability
+## v0.2 — Offer Intake and Strategy v0
+
+- [x] Paste client offers, strategy fragments, and operator notes.
+- [x] Distinguish confirmed, inferred, and missing Brief fields.
+- [x] Generate clarification questions and a schema-validated Strategy v0.
+- [x] Support finance, gaming, utility, Google Ads, Meta Ads, and TikTok Ads context.
+- [x] Save local versions, export Markdown, and adopt the draft into planning.
+
+## v0.3 — Real workflow portability
 
 - [ ] XLSX import.
 - [ ] Project JSON export/import and backup.
@@ -20,7 +28,7 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [ ] English UI and runtime locale switch.
 - [ ] Provider adapter contract for additional coding-agent runtimes.
 
-## v0.3 — Evidence and collaboration
+## v0.4 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.
 - [ ] Versioned analysis runs and decision history.

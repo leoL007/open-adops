@@ -14,6 +14,7 @@ const nodeMajor = Number(process.versions.node.split(".")[0]);
 check("Node.js 20+", nodeMajor >= 20, process.version);
 check("Web workspace", existsSync(path.join(root, "public", "index.html")), "public/index.html");
 check("Analysis schema", existsSync(path.join(root, "schemas", "analysis.schema.json")), "schemas/analysis.schema.json");
+check("Intake schema", existsSync(path.join(root, "schemas", "intake.schema.json")), "schemas/intake.schema.json");
 
 const codex = spawnSync(process.env.CODEX_BIN || "codex", ["--version"], { encoding: "utf8", shell: false });
 check("Codex CLI (optional)", codex.status === 0, codex.status === 0 ? codex.stdout.trim() : "not found — Mock mode still works");

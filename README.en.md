@@ -2,9 +2,9 @@
 
 # OpenAdOps
 
-### Turn ad exports into defensible decisions.
+### From fragmented client input to a defensible paid-media strategy.
 
-OpenAdOps is a local-first AI workspace that turns Google Ads, Meta Ads, TikTok Ads, and AppsFlyer exports into campaign strategy, creative tests, optimization actions, and client-ready reports.
+OpenAdOps is a local-first AI workspace that turns client offers, fragmented strategy notes, and Google Ads, Meta Ads, TikTok Ads, and AppsFlyer data into structured briefs, campaign strategy, creative tests, optimization actions, and client-ready reports.
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
@@ -22,18 +22,20 @@ Paid-media work is fragmented across dashboards, spreadsheets, screenshots, and 
 
 OpenAdOps keeps the workflow in one project:
 
-1. **Plan** — goals, markets, media roles, budgets, and test hypotheses.
-2. **Create** — platform-aware creative angles, hooks, variables, and success metrics.
-3. **Launch** — campaign architecture, naming, budgets, and pre-flight checks.
-4. **Optimize** — deterministic KPI calculation plus evidence-backed AI recommendations.
-5. **Report** — management-ready HTML and print/PDF output.
+1. **Intake** — paste client offers and notes, then separate confirmed, inferred, and missing information.
+2. **Plan** — generate clarification questions, Strategy v0, platform roles, budget scenarios, and test hypotheses.
+3. **Create** — platform-aware creative angles, hooks, variables, and success metrics.
+4. **Launch** — campaign architecture, naming, budgets, and pre-flight checks.
+5. **Optimize** — deterministic KPI calculation plus evidence-backed AI recommendations.
+6. **Report** — management-ready HTML and print/PDF output.
 
 ## What makes it different
 
 - **Code does the math.** CSV parsing, field mapping, aggregation, CPI, AF-CPI, CTR, CVR, CPA, ROAS, and retention are deterministic.
 - **AI does the judgment.** Strategy, diagnosis, creative tests, and next actions are returned as schema-validated JSON.
 - **Evidence stays attached.** Every finding separates evidence, diagnosis, action, confidence, and validation.
-- **Local-first by design.** Projects live in browser storage; raw CSV rows are not sent to the AI bridge.
+- **Unknowns stay visible.** The brief distinguishes client-confirmed information, AI inference, and missing input.
+- **Local-first by design.** Projects live in browser storage; raw CSV rows are not sent to the AI bridge, and pasted intake text is submitted to local Codex only on explicit request.
 - **Safe failure behavior.** A failed AI request produces an explicit error instead of a fabricated recommendation.
 - **Useful without an account.** The browser-local Mock demo works on GitHub Pages and does not require Codex or an API key.
 
@@ -64,7 +66,7 @@ npm run doctor
 | Mode | Requirements | What happens |
 | --- | --- | --- |
 | Browser-local Mock | None | Generates deterministic, clearly labeled demo recommendations without a server AI call. |
-| Codex CLI | Signed-in Codex CLI | Sends project context and aggregated metrics through the local Node bridge to `codex exec`. |
+| Codex CLI | Signed-in Codex CLI | Sends pasted intake text, project context, and aggregated metrics through the local Node bridge to `codex exec`. |
 
 OpenAdOps uses the model configured in Codex by default. Override it only when needed:
 
@@ -90,11 +92,12 @@ OpenAdOps auto-detects common English and Chinese field aliases and lets the use
 npm test
 ```
 
-Tests cover quoted CSV parsing, field detection, media CPI versus AppsFlyer CPI, metric aggregation, Mock output, and analysis-schema validation. The test suite never calls a real model.
+Tests cover intake Mock output, brief completeness, quoted CSV parsing, field detection, media CPI versus AppsFlyer CPI, metric aggregation, and schema validation. The test suite never calls a real model.
 
 ## Current scope
 
 - Direct CSV import; XLSX can be exported to CSV first.
+- Intake accepts pasted text; OCR and document parsing are not included yet.
 - Local browser persistence; no multi-user sync yet.
 - Strategy and recommendation generation only; no live ad-account mutations.
 - Google Ads, Meta Ads, TikTok Ads, and AppsFlyer-oriented App UA workflow.

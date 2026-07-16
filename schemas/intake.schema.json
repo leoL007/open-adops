@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["executive_summary", "brief_fields", "clarification_questions", "strategy_draft"],
+  "properties": {
+    "executive_summary": { "type": "string", "minLength": 1 },
+    "brief_fields": {
+      "type": "array",
+      "minItems": 14,
+      "maxItems": 14,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["key", "value", "status", "source", "evidence"],
+        "properties": {
+          "key": {
+            "type": "string",
+            "enum": ["product", "industry", "markets", "objective", "platforms", "budget", "kpi", "conversion_event", "timeline", "audience", "creative_supply", "attribution", "compliance", "constraints"]
+          },
+          "value": { "type": "string" },
+          "status": { "type": "string", "enum": ["confirmed", "inferred", "missing"] },
+          "source": { "type": "string", "enum": ["offer", "client_strategy", "operator_notes", "ai_inference", "unknown"] },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "clarification_questions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field_key", "question", "reason", "priority"],
+        "properties": {
+          "field_key": {
+            "type": "string",
+            "enum": ["product", "industry", "markets", "objective", "platforms", "budget", "kpi", "conversion_event", "timeline", "audience", "creative_supply", "attribution", "compliance", "constraints"]
+          },
+          "question": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "priority": { "type": "string", "enum": ["required", "recommended"] }
+        }
+      }
+    },
+    "strategy_draft": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["positioning", "working_assumptions", "platform_plan", "campaign_plan", "creative_plan", "measurement_plan", "first_week_plan", "risks"],
+      "properties": {
+        "positioning": { "type": "string", "minLength": 1 },
+        "working_assumptions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "platform_plan": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["platform", "role", "rationale", "budget_scenario"],
+            "properties": {
+              "platform": { "type": "string", "minLength": 1 },
+              "role": { "type": "string", "minLength": 1 },
+              "rationale": { "type": "string", "minLength": 1 },
+              "budget_scenario": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "campaign_plan": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "creative_plan": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "measurement_plan": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "first_week_plan": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "risks": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+      }
+    }
+  }
+}

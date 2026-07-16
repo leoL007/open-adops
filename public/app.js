@@ -1,9 +1,11 @@
 import { FIELD_LABELS, calculateMetrics, detectMapping, formatMetric, mapRows, parseCsv } from "./lib/analytics.js";
 import { buildMockAnalysis } from "./lib/mock-analysis.js";
+import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
 
-const STORAGE_KEY = "openadops:v1";
+const STORAGE_KEY = "openadops:v2";
+const PREVIOUS_STORAGE_KEY = "openadops:v1";
 const LEGACY_STORAGE_KEY = "adpilot:mvp:v1";
-const ROUTES = new Set(["overview", "strategy", "creative", "launch", "optimize", "report"]);
+const ROUTES = new Set(["overview", "intake", "strategy", "creative", "launch", "optimize", "report"]);
 const app = document.querySelector("#app");
 const projectSelect = document.querySelector("#projectSelect");
 const aiModeSelect = document.querySelector("#aiMode");
@@ -13,6 +15,8 @@ const projectForm = document.querySelector("#projectForm");
 const toast = document.querySelector("#toast");
 let importSession = null;
 let aiBusy = false;
+
+const BRIEF_FIELD_META = Object.fromEntries(INTAKE_BRIEF_FIELDS.map(([key, label]) => [key, { label, multiline: ["audience", "creative_supply", "compliance", "constraints"].includes(key) }]));
 
 const DEMO_CSV = `Date,Platform,Country,Campaign,Ad Group,Creative,Spend,Impressions,Clicks,Media Installs,AF Installs,Conversions,Revenue,D1 Retained
 2026-07-01,Google Ads,JP,UAC_JP_Core,Core,BeforeAfter_01,820,118000,2760,560,512,82,910,152
@@ -38,8 +42,21 @@ function demoMetrics() {
   return calculateMetrics(mapRows(parsed.rows, mapping));
 }
 
-function createDemoProject() {
+function createIntake(overrides = {}) {
   return {
+    rawOffer: "",
+    clientStrategy: "",
+    operatorNotes: "",
+    strategyAuthority: "reference",
+    analysis: null,
+    versions: [],
+    ...overrides,
+    versions: Array.isArray(overrides.versions) ? overrides.versions : []
+  };
+}
+
+function createDemoProject() {
+  const project = {
     id: makeId(),
     name: "Nova Utility · 全球增长示例",
     industry: "工具",
@@ -86,8 +103,22 @@ function createDemoProject() {
       metrics: demoMetrics(),
       isDemo: true
     },
+    intake: createIntake({
+      rawOffer: "产品：Nova Utility 图片处理 App。市场 JP、US、GB；目标 Install；计划投放 Google Ads、Meta Ads、TikTok Ads。客户希望先快速测试，但预算与正式上线时间暂未确认。归因使用 AppsFlyer。",
+      clientStrategy: "先以 Google 建立稳定安装基线；Meta 和 TikTok 用短视频素材探索增量。该策略仅供代理商参考，可根据预算和素材情况调整。",
+      operatorNotes: "目标 CPI 2.2 USD。客户当前每周可提供 3 条录屏素材，需要确认 D1/D7 留存目标和各市场优先级。",
+      strategyAuthority: "reference"
+    }),
     ai: {}
   };
+  project.intake.analysis = {
+    source: "mock",
+    model: "browser-local-mock",
+    intent: "strategy",
+    generatedAt: new Date().toISOString(),
+    result: buildMockIntake(project, project.intake, "strategy")
+  };
+  return project;
 }
 
 function initialState() {
@@ -96,16 +127,21 @@ function initialState() {
 }
 
 function loadState() {
-  try {
-    const current = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (current?.projects?.length) return current;
-    const legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY));
-    if (legacy?.projects?.length) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(legacy));
-      return legacy;
+  for (const key of [STORAGE_KEY, PREVIOUS_STORAGE_KEY, LEGACY_STORAGE_KEY]) {
+    try {
+      const stored = JSON.parse(localStorage.getItem(key));
+      if (stored?.projects?.length) {
+        const normalized = {
+          ...stored,
+          aiMode: stored.aiMode || "mock",
+          projects: stored.projects.map((project) => ({ ...project, intake: createIntake(project.intake || {}) }))
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+        return normalized;
+      }
+    } catch {
+      // Try the next storage generation.
     }
-  } catch {
-    // Fall through to a fresh local demo state.
   }
   return initialState();
 }
@@ -270,7 +306,116 @@ function confidenceText(value) {
   return ({ high: "高", medium: "中", low: "低" })[value] || value;
 }
 
+function intakeRecord(project) {
+  return project.intake?.analysis || null;
+}
+
+function intakeSourceText(value) {
+  return ({ offer: "客户 Offer", client_strategy: "客户策略", operator_notes: "优化师补充", ai_inference: "AI 推断", unknown: "待补充" })[value] || "待补充";
+}
+
+function intakeStatusText(value) {
+  return ({ confirmed: "已确认", inferred: "待确认", missing: "缺失" })[value] || value;
+}
+
+function briefFieldValue(result, key) {
+  return result?.brief_fields?.find((field) => field.key === key)?.value || "";
+}
+
+function renderStrategyList(title, items, tone = "") {
+  return `<section class="strategy-list ${attr(tone)}"><h3>${escapeHtml(title)}</h3><ol>${(items || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol></section>`;
+}
+
+function renderIntakeResult(project) {
+  const record = intakeRecord(project);
+  const result = record?.result;
+  if (!result) {
+    return `<section class="card">${emptyState("等待第一份客户资料", "把 Offer、客户已有策略和自己的会议记录粘贴到上方。OpenAdOps 会整理 Brief、标记缺失项，并生成 Strategy v0。", "", "")}</section>`;
+  }
+  const counts = { confirmed: 0, inferred: 0, missing: 0 };
+  result.brief_fields.forEach((field) => { counts[field.status] = (counts[field.status] || 0) + 1; });
+  const draft = result.strategy_draft;
+  const questions = result.clarification_questions || [];
+  const versions = project.intake?.versions || [];
+  const sourceLabel = record.source === "codex" ? `Codex · ${record.model}` : "Browser-local Mock";
+
+  return `<div class="intake-result-stack">
+    <section class="intake-summary">
+      <div><span class="card-label">${escapeHtml(sourceLabel)} · ${dateText(record.generatedAt)}</span><p>${escapeHtml(result.executive_summary)}</p></div>
+      <div class="intake-counts" aria-label="Brief 完整度">
+        <div class="intake-count confirmed"><strong>${counts.confirmed}</strong><span>已确认</span></div>
+        <div class="intake-count inferred"><strong>${counts.inferred}</strong><span>待确认</span></div>
+        <div class="intake-count missing"><strong>${counts.missing}</strong><span>缺失</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>结构化 Brief</h2><p>编辑任意字段后会自动标记为“优化师已确认”</p></div><span class="card-label">${counts.confirmed}/${result.brief_fields.length} CONFIRMED</span></div>
+      <div class="brief-grid">${result.brief_fields.map((field) => {
+        const meta = BRIEF_FIELD_META[field.key] || { label: field.key, multiline: false };
+        const control = meta.multiline
+          ? `<textarea data-brief-key="${attr(field.key)}">${escapeHtml(field.value)}</textarea>`
+          : `<input data-brief-key="${attr(field.key)}" value="${attr(field.value)}" />`;
+        return `<label class="brief-field ${attr(field.status)}"><span class="brief-label"><strong>${escapeHtml(meta.label)}</strong><em>${escapeHtml(intakeStatusText(field.status))}</em></span>${control}<small>${escapeHtml(intakeSourceText(field.source))} · ${escapeHtml(field.evidence || "待补充")}</small></label>`;
+      }).join("")}</div>
+    </section>
+
+    <div class="grid intake-decision-grid">
+      <section class="card">
+        <div class="card-header"><div><h2>客户追问清单</h2><p>按对策略影响排序，可直接复制给客户</p></div><div class="inline-actions"><span class="badge question-badge">${questions.length} QUESTIONS</span>${questions.length ? `<button class="button button-ghost button-small" data-copy-questions>复制追问</button>` : ""}</div></div>
+        ${questions.length ? `<div class="question-list">${questions.map((item, index) => `<article class="question-item"><span>${String(index + 1).padStart(2, "0")}</span><div><div class="question-top"><strong>${escapeHtml(item.question)}</strong><em class="${attr(item.priority)}">${item.priority === "required" ? "必须确认" : "建议确认"}</em></div><p>${escapeHtml(item.reason)}</p></div></article>`).join("")}</div>` : `<div class="success-note">关键资料已覆盖，建议由项目负责人做最后口径确认。</div>`}
+      </section>
+      <section class="card strategy-v0-hero">
+        <div class="card-header"><div><h2>Strategy v0</h2><p>带假设的前期策略草案，不等同于最终执行方案</p></div><span class="card-label">WORKING DRAFT</span></div>
+        <blockquote>${escapeHtml(draft.positioning)}</blockquote>
+        <div class="assumption-list"><strong>工作假设</strong>${draft.working_assumptions.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="card-header"><div><h2>媒体角色与预算场景</h2><p>只对入选媒体给出角色；预算缺失时不生成虚假金额</p></div><button class="button button-primary button-small" data-adopt-intake>采用到投放策略</button></div>
+      <div class="platform-plan-grid">${draft.platform_plan.map((item) => `<article class="platform-plan-card"><span>${escapeHtml(item.platform)}</span><h3>${escapeHtml(item.role)}</h3><p>${escapeHtml(item.rationale)}</p><small>${escapeHtml(item.budget_scenario)}</small></article>`).join("")}</div>
+    </section>
+
+    <div class="grid intake-plan-grid">
+      ${renderStrategyList("Campaign 初步结构", draft.campaign_plan)}
+      ${renderStrategyList("素材测试方向", draft.creative_plan)}
+      ${renderStrategyList("监测与归因口径", draft.measurement_plan)}
+      ${renderStrategyList("首周执行计划", draft.first_week_plan)}
+      ${renderStrategyList("风险与前置条件", draft.risks, "risk")}
+    </div>
+
+    <section class="card version-card">
+      <div class="card-header"><div><h2>策略版本</h2><p>保存客户资料和 Strategy v0 的当前快照</p></div><button class="button button-secondary button-small" data-save-intake-version>保存当前版本</button></div>
+      ${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-intake-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存版本。正式发送或采用策略前，建议先保存一份快照。</p>`}
+    </section>
+  </div>`;
+}
+
+function renderIntake(project) {
+  const intake = project.intake || createIntake();
+  const result = intakeRecord(project)?.result;
+  const actions = result ? `<button class="button button-secondary" data-export-intake>导出 Markdown</button><button class="button button-primary" data-save-intake-version>保存版本</button>` : "";
+  const mode = state.aiMode === "codex" ? "本地 Codex CLI · 使用当前配置模型" : "Browser-local Mock · 不消耗模型额度";
+  return `${pageHeader("STAGE 00 · OFFER INTAKE", "需求接收台", "把客户 Offer、零散策略和会议记录整理成可追溯 Brief，再生成带假设的 Strategy v0。", actions)}
+    <section class="card intake-source-card mb-16">
+      <div class="card-header"><div><h2>原始资料</h2><p>资料不完整也可以开始；未知信息会被显式标记，不会由 AI 偷偷补齐</p></div><span class="card-label">LOCAL PROJECT DATA</span></div>
+      <div class="intake-source-grid">
+        <label class="source-panel offer"><span><strong>客户 Offer</strong><em>${textLength(intake.rawOffer)} 字</em></span><textarea data-intake-field="rawOffer" placeholder="粘贴客户发来的产品、市场、目标、预算、KPI、素材、时间等信息……">${escapeHtml(intake.rawOffer)}</textarea></label>
+        <label class="source-panel strategy"><span><strong>客户已有策略</strong><em>${textLength(intake.clientStrategy)} 字</em></span><select data-intake-field="strategyAuthority"><option value="reference" ${intake.strategyAuthority !== "mandatory" ? "selected" : ""}>仅供参考，可调整</option><option value="mandatory" ${intake.strategyAuthority === "mandatory" ? "selected" : ""}>必须执行的约束</option></select><textarea data-intake-field="clientStrategy" placeholder="粘贴客户给出的媒体、预算或素材建议；没有可以留空。">${escapeHtml(intake.clientStrategy)}</textarea></label>
+        <label class="source-panel notes"><span><strong>我的补充</strong><em>${textLength(intake.operatorNotes)} 字</em></span><textarea data-intake-field="operatorNotes" placeholder="补充会议记录、自己的判断、待确认问题与不能忽略的限制……">${escapeHtml(intake.operatorNotes)}</textarea></label>
+      </div>
+      <div class="intake-runbar"><div><strong>AI 处理方式</strong><span>${escapeHtml(mode)} · 原始资料只在你主动运行时提交给本地 Bridge</span></div><div class="inline-actions"><button class="button button-secondary" data-run-intake="questions" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在整理…" : "生成客户追问"}</button><button class="button button-primary" data-run-intake="strategy" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "调用 Codex 生成 Strategy v0" : "生成 Mock Strategy v0"}</button></div></div>
+    </section>
+    ${renderIntakeResult(project)}`;
+}
+
+function textLength(value) {
+  return String(value || "").trim().length;
+}
+
 function renderOverview(project) {
+  const hasIntake = Boolean(project.intake?.analysis?.result);
   const hasStrategy = Boolean(project.strategy?.objective && project.strategy?.testLogic);
   const hasCreative = Boolean(project.creativePlan?.length);
   const checks = Object.values(project.launch?.checklist || {}).filter(Boolean).length;
@@ -279,8 +424,9 @@ function renderOverview(project) {
     ${metricCards(project)}
     <div class="grid overview-grid mb-16">
       <section class="card">
-        <div class="card-header"><div><h2>全链路进度</h2><p>四个核心阶段完成后，自动汇总为老板可读报告</p></div><button class="button button-secondary button-small" data-go-route="report">查看报告</button></div>
+        <div class="card-header"><div><h2>全链路进度</h2><p>五个核心阶段完成后，自动汇总为老板可读报告</p></div><button class="button button-secondary button-small" data-go-route="report">查看报告</button></div>
         <div class="stage-flow">
+          <article class="stage-step ${hasIntake ? "complete" : ""}" data-step="00"><h3>需求接收</h3><p>碎片资料、缺失项、客户追问与 Strategy v0</p></article>
           <article class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01"><h3>投放策略</h3><p>目标、市场、媒体、预算与测试逻辑</p></article>
           <article class="stage-step ${hasCreative ? "complete" : ""}" data-step="02"><h3>素材计划</h3><p>角度、Hook、单变量与成功指标</p></article>
           <article class="stage-step ${checks >= 4 ? "complete" : ""}" data-step="03"><h3>广告搭建</h3><p>Campaign 结构、命名和上线检查</p></article>
@@ -302,7 +448,7 @@ function renderOverview(project) {
     <section class="card mb-16"><div class="card-header"><div><h2>媒体表现矩阵</h2><p>媒体口径与 AF 口径并列，避免只看平台安装</p></div><span class="card-label">MEDIA × ATTRIBUTION</span></div>${platformTable(project)}</section>
     <div class="grid grid-2">
       <section class="card"><div class="card-header"><div><h2>国家效率</h2><p>横条为花费占比，右侧显示 AF-CPI</p></div></div>${spendBars(project)}</section>
-      <section class="card"><div class="card-header"><div><h2>述职产出就绪度</h2><p>不是单次结果，而是可复用方法与案例证据</p></div><span class="badge" style="color:var(--success);background:var(--success-soft)">${[hasStrategy, hasCreative, checks >= 4, hasOptimize].filter(Boolean).length}/4</span></div>
+      <section class="card"><div class="card-header"><div><h2>述职产出就绪度</h2><p>不是单次结果，而是可复用方法与案例证据</p></div><span class="badge" style="color:var(--success);background:var(--success-soft)">${[hasIntake, hasStrategy, hasCreative, checks >= 4, hasOptimize].filter(Boolean).length}/5</span></div>
         <div class="timeline">
           <div class="timeline-item"><strong>方法层</strong><p>多行业 × 多媒体的统一项目结构与指标口径</p></div>
           <div class="timeline-item"><strong>执行层</strong><p>从策略到优化动作，全程留下负责人和验证标准</p></div>
@@ -442,7 +588,7 @@ function renderReport(project) {
     </article>`;
 }
 
-const renderers = { overview: renderOverview, strategy: renderStrategy, creative: renderCreative, launch: renderLaunch, optimize: renderOptimize, report: renderReport };
+const renderers = { overview: renderOverview, intake: renderIntake, strategy: renderStrategy, creative: renderCreative, launch: renderLaunch, optimize: renderOptimize, report: renderReport };
 
 function refreshShell(project) {
   projectSelect.innerHTML = state.projects.map((item) => `<option value="${attr(item.id)}" ${item.id === project.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
@@ -460,6 +606,32 @@ function render() {
 }
 
 function attachPageListeners() {
+  document.querySelectorAll("[data-intake-field]").forEach((input) => {
+    input.addEventListener("change", () => {
+      updateProject((project) => {
+        if (!project.intake) project.intake = createIntake();
+        project.intake[input.dataset.intakeField] = input.value;
+      });
+      showToast("原始资料已保存");
+    });
+  });
+  document.querySelectorAll("[data-brief-key]").forEach((input) => {
+    input.addEventListener("change", () => {
+      updateProject((project) => {
+        const field = project.intake?.analysis?.result?.brief_fields?.find((item) => item.key === input.dataset.briefKey);
+        if (!field) return;
+        field.value = input.value.trim();
+        field.status = field.value ? "confirmed" : "missing";
+        field.source = field.value ? "operator_notes" : "unknown";
+        field.evidence = field.value ? "优化师在结构化 Brief 中手动确认" : "优化师清空该字段，需要重新补充";
+        if (field.value) {
+          project.intake.analysis.result.clarification_questions = project.intake.analysis.result.clarification_questions.filter((item) => item.field_key !== field.key);
+        }
+      });
+      render();
+      showToast("Brief 字段已确认");
+    });
+  });
   document.querySelectorAll("[data-project-field]").forEach((input) => {
     input.addEventListener("change", () => {
       const value = input.type === "number" ? Number(input.value) : input.value;
@@ -489,6 +661,12 @@ function attachPageListeners() {
   });
   document.querySelectorAll("[data-go-route]").forEach((button) => button.addEventListener("click", () => { location.hash = button.dataset.goRoute; }));
   document.querySelectorAll("[data-run-ai]").forEach((button) => button.addEventListener("click", () => runAnalysis(button.dataset.runAi)));
+  document.querySelectorAll("[data-run-intake]").forEach((button) => button.addEventListener("click", () => runIntake(button.dataset.runIntake)));
+  document.querySelectorAll("[data-save-intake-version]").forEach((button) => button.addEventListener("click", saveIntakeVersion));
+  document.querySelectorAll("[data-restore-intake-version]").forEach((button) => button.addEventListener("click", () => restoreIntakeVersion(button.dataset.restoreIntakeVersion)));
+  document.querySelector("[data-export-intake]")?.addEventListener("click", exportIntakeMarkdown);
+  document.querySelector("[data-adopt-intake]")?.addEventListener("click", adoptIntakeStrategy);
+  document.querySelector("[data-copy-questions]")?.addEventListener("click", copyClarificationQuestions);
   document.querySelectorAll("[data-map-field]").forEach((select) => select.addEventListener("change", () => { importSession.mapping[select.dataset.mapField] = select.value; }));
   document.querySelector("[data-apply-import]")?.addEventListener("click", applyImport);
   document.querySelector("[data-load-demo]")?.addEventListener("click", () => prepareImport("openadops-demo.csv", DEMO_CSV, true));
@@ -613,6 +791,201 @@ async function runAnalysis(stage) {
   }
 }
 
+async function runIntake(intent) {
+  if (aiBusy) return;
+  const project = activeProject();
+  const intake = project.intake || createIntake();
+  if (![intake.rawOffer, intake.clientStrategy, intake.operatorNotes].some((value) => String(value || "").trim())) {
+    showToast("请至少粘贴一段客户资料或自己的补充说明。", "error");
+    return;
+  }
+  aiBusy = true;
+  render();
+  try {
+    let payload;
+    if (state.aiMode === "mock") {
+      payload = {
+        ok: true,
+        source: "mock",
+        model: "browser-local-mock",
+        result: buildMockIntake(project, intake, intent)
+      };
+    } else {
+      const response = await fetch("./api/intake", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: state.aiMode, intent, project, intake })
+      });
+      payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "需求整理失败");
+    }
+    updateProject((target) => {
+      if (!target.intake) target.intake = createIntake();
+      target.intake.analysis = {
+        source: payload.source,
+        model: payload.model,
+        intent,
+        generatedAt: new Date().toISOString(),
+        result: payload.result
+      };
+    });
+    showToast(intent === "questions" ? "客户追问清单已生成" : payload.source === "codex" ? `Strategy v0 已生成 · ${payload.model}` : "Mock Strategy v0 已生成");
+  } catch (error) {
+    showToast(`没有写入结果：${error.message}`, "error");
+  } finally {
+    aiBusy = false;
+    render();
+  }
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function saveIntakeVersion() {
+  const project = activeProject();
+  const intake = project.intake;
+  if (!intake?.analysis?.result) {
+    showToast("先生成或整理一版 Strategy v0。", "error");
+    return;
+  }
+  updateProject((target) => {
+    if (!target.intake.versions) target.intake.versions = [];
+    const number = target.intake.versions.length + 1;
+    target.intake.versions.unshift({
+      id: makeId(),
+      name: `Strategy v0.${number}`,
+      savedAt: new Date().toISOString(),
+      snapshot: cloneJson({
+        rawOffer: target.intake.rawOffer,
+        clientStrategy: target.intake.clientStrategy,
+        operatorNotes: target.intake.operatorNotes,
+        strategyAuthority: target.intake.strategyAuthority,
+        analysis: target.intake.analysis
+      })
+    });
+    target.intake.versions = target.intake.versions.slice(0, 10);
+  });
+  render();
+  showToast("当前策略版本已保存");
+}
+
+function restoreIntakeVersion(versionId) {
+  const version = activeProject().intake?.versions?.find((item) => item.id === versionId);
+  if (!version?.snapshot) return;
+  updateProject((project) => {
+    const versions = project.intake.versions || [];
+    project.intake = { ...createIntake(), ...cloneJson(version.snapshot), versions };
+  });
+  render();
+  showToast(`已恢复 ${version.name}`);
+}
+
+function intakeMarkdown(project) {
+  const intake = project.intake || createIntake();
+  const result = intake.analysis?.result;
+  if (!result) return "";
+  const draft = result.strategy_draft;
+  const lines = [
+    `# ${project.name} · Strategy v0`,
+    "",
+    `> ${result.executive_summary}`,
+    "",
+    "## 原始资料",
+    "",
+    "### 客户 Offer",
+    intake.rawOffer || "未提供",
+    "",
+    "### 客户已有策略",
+    intake.clientStrategy || "未提供",
+    "",
+    "### 优化师补充",
+    intake.operatorNotes || "未提供",
+    "",
+    "## 结构化 Brief",
+    "",
+    "| 字段 | 内容 | 状态 | 来源 |",
+    "| --- | --- | --- | --- |",
+    ...result.brief_fields.map((field) => `| ${BRIEF_FIELD_META[field.key]?.label || field.key} | ${markdownCell(field.value || "—")} | ${intakeStatusText(field.status)} | ${intakeSourceText(field.source)} |`),
+    "",
+    "## 客户追问",
+    "",
+    ...(result.clarification_questions.length ? result.clarification_questions.map((item, index) => `${index + 1}. ${item.question}\n   - 原因：${item.reason}`) : ["关键资料已覆盖，无必须追问项。"]),
+    "",
+    "## Strategy v0",
+    "",
+    draft.positioning,
+    "",
+    "### 工作假设",
+    ...draft.working_assumptions.map((item) => `- ${item}`),
+    "",
+    "### 媒体角色",
+    ...draft.platform_plan.map((item) => `- **${item.platform}｜${item.role}**：${item.rationale}\n  - ${item.budget_scenario}`),
+    "",
+    ...markdownSection("Campaign 初步结构", draft.campaign_plan),
+    ...markdownSection("素材测试方向", draft.creative_plan),
+    ...markdownSection("监测与归因口径", draft.measurement_plan),
+    ...markdownSection("首周执行计划", draft.first_week_plan),
+    ...markdownSection("风险与前置条件", draft.risks)
+  ];
+  return lines.join("\n");
+}
+
+function markdownCell(value) {
+  return String(value || "").replaceAll("|", "\\|").replaceAll("\n", "<br>");
+}
+
+function markdownSection(title, items) {
+  return [`### ${title}`, ...(items || []).map((item) => `- ${item}`), ""];
+}
+
+function exportIntakeMarkdown() {
+  const project = activeProject();
+  const content = intakeMarkdown(project);
+  if (!content) {
+    showToast("还没有可导出的 Strategy v0。", "error");
+    return;
+  }
+  const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${project.name.replace(/[\\/:*?"<>|]/g, "-")}-Strategy-v0.md`;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast("Strategy v0 Markdown 已导出");
+}
+
+async function copyClarificationQuestions() {
+  const questions = activeProject().intake?.analysis?.result?.clarification_questions || [];
+  const content = questions.map((item, index) => `${index + 1}. ${item.question}`).join("\n");
+  try {
+    await navigator.clipboard.writeText(content);
+    showToast("客户追问已复制");
+  } catch {
+    showToast("浏览器不允许复制，请使用导出 Markdown。", "error");
+  }
+}
+
+function adoptIntakeStrategy() {
+  const result = activeProject().intake?.analysis?.result;
+  if (!result) return;
+  const draft = result.strategy_draft;
+  updateProject((project) => {
+    const markets = briefFieldValue(result, "markets");
+    const audience = briefFieldValue(result, "audience");
+    if (markets) project.markets = markets;
+    if (!project.strategy) project.strategy = {};
+    project.strategy.objective = draft.positioning;
+    project.strategy.audience = audience || draft.working_assumptions.join("\n");
+    project.strategy.budgetLogic = draft.platform_plan.map((item) => `${item.platform}：${item.budget_scenario}`).join("\n");
+    project.strategy.testLogic = draft.first_week_plan.join("\n");
+  });
+  location.hash = "strategy";
+  render();
+  showToast("Strategy v0 已同步到投放策略，可继续人工修改");
+}
+
 function reportDocument(project) {
   const record = latestAnalysis(project);
   const result = record?.result;
@@ -686,6 +1059,7 @@ projectForm.addEventListener("submit", (event) => {
     strategy: { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: Object.fromEntries(platforms.map((platform) => [platform, Math.round(100 / platforms.length)])) },
     creativePlan: [],
     launch: { checklist: {} },
+    intake: createIntake(),
     ai: {}
   };
   state.projects.push(project);
@@ -693,7 +1067,7 @@ projectForm.addEventListener("submit", (event) => {
   saveState();
   projectForm.reset();
   projectDialog.close();
-  location.hash = "strategy";
+  location.hash = "intake";
   render();
   showToast("项目已创建");
 });
