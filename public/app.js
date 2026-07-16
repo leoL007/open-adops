@@ -18,6 +18,7 @@ const ROUTES = new Set(["overview", "intake", "strategy", "creative", "launch", 
 const app = document.querySelector("#app");
 const projectSelect = document.querySelector("#projectSelect");
 const aiModeSelect = document.querySelector("#aiMode");
+const newProjectButton = document.querySelector("#newProjectButton");
 const demoBadge = document.querySelector("#demoBadge");
 const versionBadge = document.querySelector("#appVersion");
 const projectDialog = document.querySelector("#projectDialog");
@@ -231,11 +232,17 @@ function showToast(message, type = "success") {
   }, 3600);
 }
 
-function updateProject(mutator) {
-  const project = activeProject();
+function updateProjectById(projectId, mutator) {
+  const project = state.projects.find((item) => item.id === projectId);
+  if (!project) return false;
   mutator(project);
   project.updatedAt = new Date().toISOString();
   saveState();
+  return true;
+}
+
+function updateProject(mutator) {
+  return updateProjectById(state.activeProjectId, mutator);
 }
 
 function setNested(object, path, value) {
@@ -871,7 +878,10 @@ const renderers = { overview: renderOverview, intake: renderIntake, strategy: re
 
 function refreshShell(project) {
   projectSelect.innerHTML = state.projects.map((item) => `<option value="${attr(item.id)}" ${item.id === project.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
+  projectSelect.disabled = aiBusy;
   aiModeSelect.value = state.aiMode;
+  aiModeSelect.disabled = aiBusy;
+  newProjectButton.disabled = aiBusy;
   demoBadge.hidden = !project.isDemo;
   if (versionBadge) versionBadge.textContent = `v${APP_VERSION}`;
   document.querySelectorAll("[data-route]").forEach((link) => link.classList.toggle("active", link.dataset.route === route()));
@@ -1086,10 +1096,11 @@ function metricsForAi(project) {
 
 async function runAnalysis(stage) {
   if (aiBusy) return;
+  const project = activeProject();
+  const projectId = project.id;
   aiBusy = true;
   render();
   try {
-    const project = activeProject();
     let payload;
     if (state.aiMode === "mock") {
       payload = {
@@ -1107,7 +1118,7 @@ async function runAnalysis(stage) {
       payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "分析失败");
     }
-    updateProject((target) => {
+    updateProjectById(projectId, (target) => {
       if (!target.ai) target.ai = {};
       target.ai[stage] = {
         source: payload.source,
@@ -1137,6 +1148,7 @@ async function runAnalysis(stage) {
 async function runIntake(intent) {
   if (aiBusy) return;
   const project = activeProject();
+  const projectId = project.id;
   const intake = project.intake || createIntake();
   if (![intake.rawOffer, intake.clientStrategy, intake.operatorNotes].some((value) => String(value || "").trim())) {
     showToast("请至少粘贴一段客户资料或自己的补充说明。", "error");
@@ -1162,7 +1174,7 @@ async function runIntake(intent) {
       payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "需求整理失败");
     }
-    updateProject((target) => {
+    updateProjectById(projectId, (target) => {
       if (!target.intake) target.intake = createIntake();
       target.intake.analysis = {
         source: payload.source,
@@ -1198,6 +1210,7 @@ function recalculateLaunchReadiness(pack, updateSummary = false) {
 async function runLaunchPack() {
   if (aiBusy) return;
   const project = activeProject();
+  const projectId = project.id;
   if (!project.intake?.analysis?.result && !project.strategy?.objective) {
     showToast("建议先整理 Offer 或完善 Strategy v0，再生成投前作战包。", "error");
     return;
@@ -1222,7 +1235,7 @@ async function runLaunchPack() {
       payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Launch Pack 生成失败");
     }
-    updateProject((target) => {
+    updateProjectById(projectId, (target) => {
       if (!target.launch) target.launch = createLaunch();
       target.launch.pack = {
         source: payload.source,
@@ -1251,6 +1264,7 @@ async function runLaunchPack() {
 async function runExperimentPlan() {
   if (aiBusy) return;
   const project = activeProject();
+  const projectId = project.id;
   const launchPack = project.launch?.pack?.result || null;
   if (!launchPack && !project.creativePlan?.length) {
     showToast("请先生成 Launch Pack 或至少准备一份素材计划。", "error");
@@ -1276,7 +1290,7 @@ async function runExperimentPlan() {
       payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "Experiment Ledger 生成失败");
     }
-    updateProject((target) => {
+    updateProjectById(projectId, (target) => {
       if (!target.experiments) target.experiments = createExperiments();
       target.experiments.plan = {
         source: payload.source,
@@ -1794,7 +1808,7 @@ aiModeSelect.addEventListener("change", () => {
   render();
 });
 
-document.querySelector("#newProjectButton").addEventListener("click", () => projectDialog.showModal());
+newProjectButton.addEventListener("click", () => projectDialog.showModal());
 document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => projectDialog.close()));
 projectForm.addEventListener("submit", (event) => {
   event.preventDefault();

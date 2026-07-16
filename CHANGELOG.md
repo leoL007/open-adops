@@ -20,6 +20,7 @@ All notable changes to OpenAdOps are documented here.
 - Experiment baselines only use a matching platform, a single primary metric, and an explicitly matched deep-event identity; account-wide averages and generic conversions are never substituted.
 - Composite metrics remain `not_calculable`, and generated ledgers are deterministically capped at four experiments.
 - Invalid sizing inputs are rejected, and concluded experiments automatically reopen if required evidence or learning is removed.
+- Async AI results are written back to their originating project, while project and mode switching remain locked during generation.
 - Workflow portability moves to v0.5 so v0.4 can close the strategy-to-learning loop.
 
 ## [0.3.0] - 2026-07-16
