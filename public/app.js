@@ -1,13 +1,15 @@
 import { FIELD_LABELS, calculateMetrics, detectMapping, formatMetric, mapRows, parseCsv } from "./lib/analytics.js";
+import { enrichExperimentPlan, experimentPlanSummary } from "./lib/experiments.js";
 import { buildMockAnalysis } from "./lib/mock-analysis.js";
+import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
 import { buildMockLaunchPack } from "./lib/mock-launch-pack.js";
 import { APP_VERSION } from "./version.js";
 
-const STORAGE_KEY = "openadops:v3";
-const PREVIOUS_STORAGE_KEYS = ["openadops:v2", "openadops:v1"];
+const STORAGE_KEY = "openadops:v4";
+const PREVIOUS_STORAGE_KEYS = ["openadops:v3", "openadops:v2", "openadops:v1"];
 const LEGACY_STORAGE_KEY = "adpilot:mvp:v1";
-const ROUTES = new Set(["overview", "intake", "strategy", "creative", "launch", "optimize", "report"]);
+const ROUTES = new Set(["overview", "intake", "strategy", "creative", "launch", "experiments", "optimize", "report"]);
 const app = document.querySelector("#app");
 const projectSelect = document.querySelector("#projectSelect");
 const aiModeSelect = document.querySelector("#aiMode");
@@ -66,6 +68,13 @@ function createLaunch(overrides = {}) {
   };
 }
 
+function createExperiments(overrides = {}) {
+  return {
+    plan: overrides.plan || null,
+    versions: Array.isArray(overrides.versions) ? overrides.versions : []
+  };
+}
+
 function createDemoProject() {
   const project = {
     id: makeId(),
@@ -99,6 +108,7 @@ function createDemoProject() {
       { angle: "原生演示", hook: "录屏演示 3 步完成编辑", platform: "TikTok Ads", variable: "演示节奏", metric: "CVR" }
     ],
     launch: createLaunch(),
+    experiments: createExperiments(),
     data: {
       fileName: "openadops-demo.csv",
       importedAt: new Date().toISOString(),
@@ -126,6 +136,12 @@ function createDemoProject() {
     generatedAt: new Date().toISOString(),
     result: buildMockLaunchPack(project, project.intake.analysis.result)
   };
+  project.experiments.plan = {
+    source: "mock",
+    model: "browser-local-mock",
+    generatedAt: new Date().toISOString(),
+    result: buildMockExperimentPlan(project, project.launch.pack.result)
+  };
   return project;
 }
 
@@ -142,7 +158,12 @@ function loadState() {
         const normalized = {
           ...stored,
           aiMode: stored.aiMode || "mock",
-          projects: stored.projects.map((project) => ({ ...project, intake: createIntake(project.intake || {}), launch: createLaunch(project.launch || {}) }))
+          projects: stored.projects.map((project) => ({
+            ...project,
+            intake: createIntake(project.intake || {}),
+            launch: createLaunch(project.launch || {}),
+            experiments: createExperiments(project.experiments || {})
+          }))
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
         return normalized;
@@ -428,18 +449,20 @@ function renderOverview(project) {
   const hasCreative = Boolean(project.creativePlan?.length);
   const launchPack = project.launch?.pack?.result;
   const launchReady = Boolean(launchPack);
+  const hasExperiments = Boolean(project.experiments?.plan?.result?.experiments?.length);
   const hasOptimize = Boolean(project.data?.metrics && (project.ai?.optimize || project.ai?.strategy));
   return `${pageHeader("PROJECT COMMAND CENTER", project.name, "把策略、素材、广告搭建和优化证据沉淀在同一个项目里。")}
     ${metricCards(project)}
     <div class="grid overview-grid mb-16">
       <section class="card">
-        <div class="card-header"><div><h2>全链路进度</h2><p>五个核心阶段完成后，自动汇总为老板可读报告</p></div><button class="button button-secondary button-small" data-go-route="report">查看报告</button></div>
+        <div class="card-header"><div><h2>全链路进度</h2><p>六个核心阶段完成后，自动汇总为老板可读报告</p></div><button class="button button-secondary button-small" data-go-route="report">查看报告</button></div>
         <div class="stage-flow">
           <article class="stage-step ${hasIntake ? "complete" : ""}" data-step="00"><h3>需求接收</h3><p>碎片资料、缺失项、客户追问与 Strategy v0</p></article>
           <article class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01"><h3>投放策略</h3><p>目标、市场、媒体、预算与测试逻辑</p></article>
           <article class="stage-step ${hasCreative ? "complete" : ""}" data-step="02"><h3>素材计划</h3><p>角度、Hook、单变量与成功指标</p></article>
           <article class="stage-step ${launchReady ? "complete" : ""}" data-step="03"><h3>投前作战包</h3><p>Campaign、素材、监测、阻塞项与首周计划</p></article>
-          <article class="stage-step ${hasOptimize ? "complete" : ""}" data-step="04"><h3>投放优化</h3><p>数据证据、诊断、动作和验证</p></article>
+          <article class="stage-step ${hasExperiments ? "complete" : ""}" data-step="04"><h3>实验学习</h3><p>假设、样本门槛、结论与下一步</p></article>
+          <article class="stage-step ${hasOptimize ? "complete" : ""}" data-step="05"><h3>投放优化</h3><p>数据证据、诊断、动作和验证</p></article>
         </div>
       </section>
       <aside class="card">
@@ -457,7 +480,7 @@ function renderOverview(project) {
     <section class="card mb-16"><div class="card-header"><div><h2>媒体表现矩阵</h2><p>媒体口径与 AF 口径并列，避免只看平台安装</p></div><span class="card-label">MEDIA × ATTRIBUTION</span></div>${platformTable(project)}</section>
     <div class="grid grid-2">
       <section class="card"><div class="card-header"><div><h2>国家效率</h2><p>横条为花费占比，右侧显示 AF-CPI</p></div></div>${spendBars(project)}</section>
-      <section class="card"><div class="card-header"><div><h2>述职产出就绪度</h2><p>不是单次结果，而是可复用方法与案例证据</p></div><span class="badge" style="color:var(--success);background:var(--success-soft)">${[hasIntake, hasStrategy, hasCreative, launchReady, hasOptimize].filter(Boolean).length}/5</span></div>
+      <section class="card"><div class="card-header"><div><h2>述职产出就绪度</h2><p>不是单次结果，而是可复用方法与案例证据</p></div><span class="badge" style="color:var(--success);background:var(--success-soft)">${[hasIntake, hasStrategy, hasCreative, launchReady, hasExperiments, hasOptimize].filter(Boolean).length}/6</span></div>
         <div class="timeline">
           <div class="timeline-item"><strong>方法层</strong><p>多行业 × 多媒体的统一项目结构与指标口径</p></div>
           <div class="timeline-item"><strong>执行层</strong><p>从策略到优化动作，全程留下负责人和验证标准</p></div>
@@ -612,6 +635,183 @@ function renderLaunch(project) {
     ${renderLaunchPackResult(project)}`;
 }
 
+function experimentPlanRecord(project) {
+  return project.experiments?.plan || null;
+}
+
+function experimentPriorityText(value) {
+  return ({ now: "现在验证", next: "下一轮", later: "候选池" })[value] || value;
+}
+
+function experimentStatusText(value) {
+  return ({ draft: "草案", ready: "可启动", running: "进行中", concluded: "已结束", archived: "已归档" })[value] || value;
+}
+
+function experimentOutcomeText(value) {
+  return ({ pending: "等待结果", winner: "Variant 胜出", loser: "Control 胜出", inconclusive: "无明确结论" })[value] || value;
+}
+
+function feasibilityText(value) {
+  return ({ ready: "可在计划周期判断", long_horizon: "周期偏长", insufficient_volume: "流量不足", not_calculable: "等待数据" })[value] || value;
+}
+
+function nullableValue(value) {
+  return value === null || value === undefined ? "" : value;
+}
+
+function experimentOptions(values, current, labels) {
+  return values.map((value) => `<option value="${value}" ${value === current ? "selected" : ""}>${escapeHtml(labels(value))}</option>`).join("");
+}
+
+function experimentLane(plan, priority) {
+  const items = plan.experiments.filter((item) => item.priority === priority);
+  return `<section class="experiment-lane ${attr(priority)}">
+    <header><div><span>${escapeHtml(experimentPriorityText(priority))}</span><strong>${items.length}</strong></div><small>${priority === "now" ? "本轮只保留最高价值不确定性" : priority === "next" ? "当前实验结束后再启动" : "尚未进入正式排期"}</small></header>
+    <div>${items.length ? items.map((item) => `<button class="experiment-lane-card" data-scroll-experiment="${attr(item.id)}"><span>${escapeHtml(item.platform)}</span><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.design.single_variable)} · ${escapeHtml(feasibilityText(item.feasibility.status))}</small></button>`).join("") : `<p>暂无实验</p>`}</div>
+  </section>`;
+}
+
+function renderExperimentCard(experiment, index) {
+  const feasibility = experiment.feasibility;
+  const result = experiment.result;
+  const resultReady = experiment.status === "concluded";
+  return `<details class="experiment-card" id="experiment-${attr(experiment.id)}" ${index === 0 ? "open" : ""}>
+    <summary>
+      <span class="experiment-index">${String(index + 1).padStart(2, "0")}</span>
+      <div class="experiment-summary-copy"><span>${escapeHtml(experiment.platform)} · ${escapeHtml(experiment.design.test_type)}</span><strong>${escapeHtml(experiment.name)}</strong><small>${escapeHtml(experiment.design.single_variable)} → ${escapeHtml(experiment.design.primary_metric)}</small></div>
+      <div class="experiment-summary-badges"><span class="experiment-status ${attr(experiment.status)}">${escapeHtml(experimentStatusText(experiment.status))}</span><span class="feasibility-status ${attr(feasibility.status)}">${escapeHtml(feasibilityText(feasibility.status))}</span></div>
+    </summary>
+    <div class="experiment-card-body">
+      <section class="hypothesis-block">
+        <span>HYPOTHESIS</span>
+        <p><strong>IF</strong> ${escapeHtml(experiment.hypothesis.change)} <strong>THEN</strong> ${escapeHtml(experiment.hypothesis.metric)} 将${experiment.hypothesis.direction === "increase" ? "提升" : "下降"}${experiment.hypothesis.expected_lift_percent === null ? "" : `约 ${experiment.hypothesis.expected_lift_percent}%`} <strong>BECAUSE</strong> ${escapeHtml(experiment.hypothesis.because)}</p>
+      </section>
+
+      <div class="experiment-control-row">
+        <label><span>优先级</span><select data-experiment-field="priority" data-experiment-id="${attr(experiment.id)}">${experimentOptions(["now", "next", "later"], experiment.priority, experimentPriorityText)}</select></label>
+        <label><span>运行状态</span><select data-experiment-field="status" data-experiment-id="${attr(experiment.id)}">${experimentOptions(["draft", "ready", "running", "concluded", "archived"], experiment.status, experimentStatusText)}</select></label>
+        <div><span>Owner</span><strong>${escapeHtml(experiment.owner)}</strong></div>
+        <div><span>Category</span><strong>${escapeHtml(experiment.category)}</strong></div>
+      </div>
+
+      <div class="experiment-variant-grid">
+        <article class="experiment-variant control"><span>CONTROL · ${experiment.design.control_percent}%</span><strong>${escapeHtml(experiment.design.control)}</strong></article>
+        <div class="experiment-variable"><span>ONLY CHANGE</span><strong>${escapeHtml(experiment.design.single_variable)}</strong></div>
+        <article class="experiment-variant variant"><span>VARIANT · ${experiment.design.variant_percent}%</span><strong>${escapeHtml(experiment.design.variant)}</strong></article>
+      </div>
+
+      <div class="experiment-feasibility-grid">
+        <section class="feasibility-panel ${attr(feasibility.status)}">
+          <div><span>可行性</span><strong>${escapeHtml(feasibilityText(feasibility.status))}</strong></div>
+          <div class="feasibility-numbers">
+            <p><span>每版本样本</span><strong>${feasibility.required_sample_per_variant === null ? "—" : formatMetric(feasibility.required_sample_per_variant)}</strong></p>
+            <p><span>预计周期</span><strong>${feasibility.estimated_duration_days === null ? "—" : `${feasibility.estimated_duration_days} 天`}</strong></p>
+            <p><span>置信度</span><strong>${experiment.design.confidence_percent}%</strong></p>
+          </div>
+          <small>${escapeHtml(feasibility.rationale)}</small>
+        </section>
+        <section class="experiment-calculator">
+          <div class="card-header"><div><h3>样本与周期输入</h3><p>仅对比例指标计算；修改后由代码立即重算</p></div><span class="card-label">95/80 OR PLATFORM NATIVE</span></div>
+          <div class="experiment-input-grid">
+            <label><span>基准转化率 %</span><input type="number" step="0.01" min="0.01" max="99.99" data-experiment-field="design.baseline_rate_percent" data-experiment-id="${attr(experiment.id)}" value="${attr(nullableValue(experiment.design.baseline_rate_percent))}" placeholder="例如 5" /></label>
+            <label><span>MDE %</span><input type="number" step="1" min="1" data-experiment-field="design.mde_percent" data-experiment-id="${attr(experiment.id)}" value="${attr(nullableValue(experiment.design.mde_percent))}" /></label>
+            <label><span>每日可进入样本</span><input type="number" step="1" min="1" data-experiment-field="design.daily_eligible_units" data-experiment-id="${attr(experiment.id)}" value="${attr(nullableValue(experiment.design.daily_eligible_units))}" placeholder="Clicks / eligible users" /></label>
+            <label><span>最短天数</span><input type="number" step="1" min="1" data-experiment-field="design.minimum_days" data-experiment-id="${attr(experiment.id)}" value="${attr(experiment.design.minimum_days)}" /></label>
+          </div>
+        </section>
+      </div>
+
+      <div class="grid experiment-rule-grid">
+        <section><span>主要与护栏指标</span><strong>${escapeHtml(experiment.design.primary_metric)}</strong>${experiment.design.guardrail_metrics.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</section>
+        <section><span>媒体后台设置</span>${experiment.setup_steps.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</section>
+        <section><span>停止条件</span>${experiment.stop_conditions.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</section>
+      </div>
+
+      <section class="decision-rule-strip">
+        <div><span>WIN</span><p>${escapeHtml(experiment.decision_rules.win)}</p></div>
+        <div><span>LOSE</span><p>${escapeHtml(experiment.decision_rules.lose)}</p></div>
+        <div><span>INCONCLUSIVE</span><p>${escapeHtml(experiment.decision_rules.inconclusive)}</p></div>
+      </section>
+
+      <section class="experiment-result-panel ${resultReady ? "concluded" : ""}">
+        <div class="card-header"><div><h3>结果与学习</h3><p>先填证据和结论，再把状态改为“已结束”</p></div><span class="experiment-outcome ${attr(result.outcome)}">${escapeHtml(experimentOutcomeText(result.outcome))}</span></div>
+        <div class="experiment-result-grid">
+          <label><span>结论</span><select data-experiment-field="result.outcome" data-experiment-id="${attr(experiment.id)}">${experimentOptions(["pending", "winner", "loser", "inconclusive"], result.outcome, experimentOutcomeText)}</select></label>
+          <label><span>Control 结果</span><input type="number" step="0.01" data-experiment-field="result.control_value" data-experiment-id="${attr(experiment.id)}" value="${attr(nullableValue(result.control_value))}" /></label>
+          <label><span>Variant 结果</span><input type="number" step="0.01" data-experiment-field="result.variant_value" data-experiment-id="${attr(experiment.id)}" value="${attr(nullableValue(result.variant_value))}" /></label>
+          <label><span>相对变化</span><input value="${result.relative_change_percent === null ? "—" : `${result.relative_change_percent}%`}" disabled /></label>
+          <label><span>开始日期</span><input type="date" data-experiment-field="result.started_at" data-experiment-id="${attr(experiment.id)}" value="${attr(result.started_at)}" /></label>
+          <label><span>结束日期</span><input type="date" data-experiment-field="result.ended_at" data-experiment-id="${attr(experiment.id)}" value="${attr(result.ended_at)}" /></label>
+          <label class="field-wide"><span>证据</span><textarea data-experiment-field="result.evidence" data-experiment-id="${attr(experiment.id)}" placeholder="原生实验截图、报表路径、数据范围与归因口径">${escapeHtml(result.evidence)}</textarea></label>
+          <label class="field-wide"><span>学习结论</span><textarea data-experiment-field="result.learning" data-experiment-id="${attr(experiment.id)}" placeholder="我们学到了什么，而不只是哪个版本赢了">${escapeHtml(result.learning)}</textarea></label>
+          <label class="field-wide"><span>下一步动作</span><textarea data-experiment-field="result.next_action" data-experiment-id="${attr(experiment.id)}" placeholder="应用赢家、继续验证、扩大 MDE 或停止该方向">${escapeHtml(result.next_action)}</textarea></label>
+        </div>
+      </section>
+    </div>
+  </details>`;
+}
+
+function renderExperimentPlanResult(project) {
+  const record = experimentPlanRecord(project);
+  const plan = record?.result;
+  if (!plan) {
+    return `<section class="card experiment-empty">
+      <div><span class="card-label">LAUNCH PACK → LEARNING</span><h2>建立第一份实验账本</h2><p>从 Launch Pack 的素材 Brief 和当前投放数据生成单变量测试队列、样本门槛、停止条件和结果记录模板。</p></div>
+      <div class="launch-input-summary">
+        <div><span>素材 Brief</span><strong>${project.launch?.pack?.result?.creative_briefs?.length || project.creativePlan?.length || 0}</strong></div>
+        <div><span>已有数据</span><strong>${project.data?.metrics ? `${project.data.metrics.period?.activeDays || "—"} 天` : "未导入"}</strong></div>
+        <div><span>媒体</span><strong>${escapeHtml(project.platforms.join(" · "))}</strong></div>
+        <div><span>最终口径</span><strong>${escapeHtml(project.attribution || "待确认")}</strong></div>
+      </div>
+    </section>`;
+  }
+
+  const summary = experimentPlanSummary(plan);
+  const versions = project.experiments?.versions || [];
+  const source = record.source === "codex" ? `Codex · ${record.model}` : "Browser-local Mock";
+  return `<div class="experiment-workspace">
+    <section class="experiment-hero">
+      <div><span class="card-label">${escapeHtml(source)} · ${dateText(record.generatedAt)}</span><h2>${escapeHtml(plan.title)}</h2><p>${escapeHtml(plan.executive_summary)}</p></div>
+      <div class="experiment-hero-metrics">
+        <p><strong>${summary.total}</strong><span>实验总数</span></p>
+        <p><strong>${summary.ready}</strong><span>周期可行</span></p>
+        <p><strong>${summary.running}</strong><span>进行中</span></p>
+        <p><strong>${summary.learnings}</strong><span>已沉淀学习</span></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>学习议程</h2><p>每次只推进最重要的不确定性，不把所有想法同时上线</p></div><span class="card-label">TEST & LEARN</span></div>
+      <div class="learning-agenda">${plan.learning_agenda.map((item, index) => `<article><span>${String(index + 1).padStart(2, "0")}</span><p>${escapeHtml(item)}</p></article>`).join("")}</div>
+    </section>
+
+    <section class="experiment-board">
+      ${experimentLane(plan, "now")}
+      ${experimentLane(plan, "next")}
+      ${experimentLane(plan, "later")}
+    </section>
+
+    <section class="experiment-detail-stack">
+      <div class="section-title"><div><span class="card-label">EXPERIMENT REGISTRY</span><h2>实验设计与结果记录</h2></div><p>样本计算、运行状态和学习结论都会保存在当前项目。</p></div>
+      ${plan.experiments.map(renderExperimentCard).join("")}
+    </section>
+
+    <div class="grid grid-2">
+      <section class="card"><div class="card-header"><div><h2>实验风险</h2><p>跨平台和低样本场景必须保留的判断边界</p></div><span class="card-label">GUARDRAILS</span></div><div class="launch-risk-list">${plan.risks.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div></section>
+      <section class="card version-card"><div class="card-header"><div><h2>Experiment Ledger 版本</h2><p>在实验开始和结论冻结时分别保存快照</p></div><button class="button button-secondary button-small" data-save-experiment-version>保存当前版本</button></div>${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-experiment-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存实验账本快照。</p>`}</section>
+    </div>
+  </div>`;
+}
+
+function renderExperiments(project) {
+  const record = experimentPlanRecord(project);
+  const actions = record?.result ? `<button class="button button-ghost" data-export-experiments>导出 Markdown</button><button class="button button-secondary" data-export-experiment-html>导出 HTML</button><button class="button button-primary" data-save-experiment-version>保存版本</button>` : "";
+  const mode = state.aiMode === "codex" ? "本地 Codex CLI · 使用 ads-test 方法" : "Browser-local Mock · 不消耗模型额度";
+  return `${pageHeader("STAGE 04 · EXPERIMENT LEDGER", "实验台", "把素材与投放想法变成有假设、样本门槛、停止条件和学习记录的测试队列。", actions)}
+    <section class="card experiment-runbar mb-16"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 只规划和记录，不会在媒体后台创建实验</span></div><button class="button button-primary" data-run-experiments ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "调用 Codex 生成实验账本" : "生成 Mock 实验账本"}</button></section>
+    ${renderExperimentPlanResult(project)}`;
+}
+
 function mappingPanel() {
   if (!importSession) return "";
   return `<div class="mt-16"><div class="card-header"><div><h3>字段映射 · ${escapeHtml(importSession.name)}</h3><p>已识别 ${importSession.parsed.rows.length} 行；请确认关键字段后计算</p></div><button class="button button-primary button-small" data-apply-import>计算并写入项目</button></div>
@@ -619,7 +819,7 @@ function mappingPanel() {
 }
 
 function renderOptimize(project) {
-  return `${pageHeader("STAGE 04 · OPTIMIZATION", "投放优化", "上传媒体或 AppsFlyer CSV，先由代码计算，再让 AI 基于证据做判断。")}
+  return `${pageHeader("STAGE 05 · OPTIMIZATION", "投放优化", "上传媒体或 AppsFlyer CSV，先由代码计算，再让 AI 基于证据做判断。")}
     <section class="card mb-16">
       <div class="card-header"><div><h2>数据导入</h2><p>V1 支持 CSV；原始明细仅在当前页面解析，项目只保存聚合指标</p></div>${project.data ? `<span class="badge" style="color:var(--success);background:var(--success-soft)">${escapeHtml(project.data.fileName)}</span>` : ""}</div>
       <div class="drop-zone"><strong>导入媒体 / AppsFlyer 报表</strong><span>支持带引号的 CSV；可手动调整字段映射</span><div class="upload-actions" style="justify-content:center"><label class="button button-secondary">选择 CSV<input id="csvInput" type="file" accept=".csv,text/csv" /></label><button class="button button-ghost" data-load-demo>载入演示 CSV</button></div></div>
@@ -632,6 +832,12 @@ function renderOptimize(project) {
 
 function latestAnalysis(project) {
   return project.ai?.optimize || project.ai?.strategy || project.ai?.creative || null;
+}
+
+function experimentLearningTable(project) {
+  const experiments = project.experiments?.plan?.result?.experiments || [];
+  if (!experiments.length) return `<p class="muted">还没有实验账本。</p>`;
+  return `<div class="table-wrap"><table><thead><tr><th>实验</th><th>状态</th><th>可行性</th><th>结果</th><th>学习 / 下一步</th></tr></thead><tbody>${experiments.map((item) => `<tr><td class="cell-wrap"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.platform)} · ${escapeHtml(item.design.single_variable)}</small></td><td>${escapeHtml(experimentStatusText(item.status))}</td><td>${escapeHtml(feasibilityText(item.feasibility.status))}${item.feasibility.estimated_duration_days ? `<small>${item.feasibility.estimated_duration_days} 天</small>` : ""}</td><td>${escapeHtml(experimentOutcomeText(item.result.outcome))}${item.result.relative_change_percent === null ? "" : `<small>${item.result.relative_change_percent}%</small>`}</td><td class="cell-wrap">${escapeHtml(item.result.learning || item.result.next_action || "等待实验结果")}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function actionTable(result) {
@@ -650,12 +856,13 @@ function renderReport(project) {
       <section class="report-section"><h3>01 · 核心指标</h3>${metricCards(project)}</section>
       <section class="report-section"><h3>02 · 管理层摘要</h3><div class="summary-callout">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。建议先在“投放优化”导入数据并运行分析。")}</div></section>
       <section class="report-section"><h3>03 · 关键判断</h3>${result ? result.findings.map((item) => `<article class="finding-card"><div class="finding-top"><h3>${escapeHtml(item.title)}</h3><span class="priority-badge ${attr(item.priority)}">${priorityText(item.priority)}</span></div><div class="finding-body"><div class="evidence-box"><span>Evidence</span><p>${escapeHtml(item.evidence)}</p></div><div class="action-box"><span>Action</span><p>${escapeHtml(item.action)}</p></div></div><p class="finding-diagnosis">${escapeHtml(item.diagnosis)} · 验证：${escapeHtml(item.validation)}</p></article>`).join("") : emptyState("还没有关键判断", "AI 失败时不会生成假结果；请在其他阶段重新运行。", "optimize", "去优化页")}</section>
-      <section class="report-section"><h3>04 · 下一步动作</h3>${actionTable(result)}</section>
-      <section class="report-section"><h3>05 · 口径说明</h3><div class="project-facts"><div class="fact-row"><span>数据来源</span><strong>${escapeHtml(project.data?.fileName || "未导入")}</strong></div><div class="fact-row"><span>归因口径</span><strong>${escapeHtml(project.attribution)}</strong></div><div class="fact-row"><span>分析来源</span><strong>${record ? escapeHtml(record.source === "codex" ? `${record.model} + Codex Ads` : "Mock 演示") : "未运行"}</strong></div><div class="fact-row"><span>项目备注</span><strong>${escapeHtml(project.notes || "无")}</strong></div></div></section>
+      <section class="report-section"><h3>04 · 实验与学习</h3>${experimentLearningTable(project)}</section>
+      <section class="report-section"><h3>05 · 下一步动作</h3>${actionTable(result)}</section>
+      <section class="report-section"><h3>06 · 口径说明</h3><div class="project-facts"><div class="fact-row"><span>数据来源</span><strong>${escapeHtml(project.data?.fileName || "未导入")}</strong></div><div class="fact-row"><span>归因口径</span><strong>${escapeHtml(project.attribution)}</strong></div><div class="fact-row"><span>分析来源</span><strong>${record ? escapeHtml(record.source === "codex" ? `${record.model} + Codex Ads` : "Mock 演示") : "未运行"}</strong></div><div class="fact-row"><span>项目备注</span><strong>${escapeHtml(project.notes || "无")}</strong></div></div></section>
     </article>`;
 }
 
-const renderers = { overview: renderOverview, intake: renderIntake, strategy: renderStrategy, creative: renderCreative, launch: renderLaunch, optimize: renderOptimize, report: renderReport };
+const renderers = { overview: renderOverview, intake: renderIntake, strategy: renderStrategy, creative: renderCreative, launch: renderLaunch, experiments: renderExperiments, optimize: renderOptimize, report: renderReport };
 
 function refreshShell(project) {
   projectSelect.innerHTML = state.projects.map((item) => `<option value="${attr(item.id)}" ${item.id === project.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
@@ -731,10 +938,42 @@ function attachPageListeners() {
       showToast("上线 Gate 状态已更新");
     });
   });
+  document.querySelectorAll("[data-experiment-field]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const experiment = activeProject().experiments?.plan?.result?.experiments?.find((item) => item.id === input.dataset.experimentId);
+      if (!experiment) return;
+      const field = input.dataset.experimentField;
+      const value = input.type === "number" ? (input.value === "" ? null : Number(input.value)) : input.value;
+      if (field === "status" && value === "concluded") {
+        const result = experiment.result;
+        if (result.outcome === "pending" || !result.learning.trim() || !result.next_action.trim() || !result.evidence.trim()) {
+          input.value = experiment.status;
+          showToast("结束实验前，请先填写结论、证据、学习和下一步动作。", "error");
+          return;
+        }
+      }
+      updateProject((project) => {
+        const plan = project.experiments?.plan?.result;
+        const target = plan?.experiments?.find((item) => item.id === input.dataset.experimentId);
+        if (!target) return;
+        setNested(target, field, value);
+        project.experiments.plan.result = enrichExperimentPlan(plan);
+      });
+      render();
+      showToast(field.startsWith("design.") ? "样本与周期已重新计算" : "实验账本已更新");
+    });
+  });
   document.querySelectorAll("[data-go-route]").forEach((button) => button.addEventListener("click", () => { location.hash = button.dataset.goRoute; }));
+  document.querySelectorAll("[data-scroll-experiment]").forEach((button) => button.addEventListener("click", () => {
+    const target = document.querySelector(`#experiment-${CSS.escape(button.dataset.scrollExperiment)}`);
+    if (!target) return;
+    target.open = true;
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
   document.querySelectorAll("[data-run-ai]").forEach((button) => button.addEventListener("click", () => runAnalysis(button.dataset.runAi)));
   document.querySelectorAll("[data-run-intake]").forEach((button) => button.addEventListener("click", () => runIntake(button.dataset.runIntake)));
   document.querySelector("[data-run-launch-pack]")?.addEventListener("click", runLaunchPack);
+  document.querySelector("[data-run-experiments]")?.addEventListener("click", runExperimentPlan);
   document.querySelectorAll("[data-save-intake-version]").forEach((button) => button.addEventListener("click", saveIntakeVersion));
   document.querySelectorAll("[data-restore-intake-version]").forEach((button) => button.addEventListener("click", () => restoreIntakeVersion(button.dataset.restoreIntakeVersion)));
   document.querySelector("[data-export-intake]")?.addEventListener("click", exportIntakeMarkdown);
@@ -744,6 +983,10 @@ function attachPageListeners() {
   document.querySelectorAll("[data-restore-launch-version]").forEach((button) => button.addEventListener("click", () => restoreLaunchVersion(button.dataset.restoreLaunchVersion)));
   document.querySelector("[data-export-launch-pack]")?.addEventListener("click", exportLaunchPackMarkdown);
   document.querySelector("[data-export-launch-html]")?.addEventListener("click", exportLaunchPackHtml);
+  document.querySelectorAll("[data-save-experiment-version]").forEach((button) => button.addEventListener("click", saveExperimentVersion));
+  document.querySelectorAll("[data-restore-experiment-version]").forEach((button) => button.addEventListener("click", () => restoreExperimentVersion(button.dataset.restoreExperimentVersion)));
+  document.querySelector("[data-export-experiments]")?.addEventListener("click", exportExperimentMarkdown);
+  document.querySelector("[data-export-experiment-html]")?.addEventListener("click", exportExperimentHtml);
   document.querySelectorAll("[data-map-field]").forEach((select) => select.addEventListener("change", () => { importSession.mapping[select.dataset.mapField] = select.value; }));
   document.querySelector("[data-apply-import]")?.addEventListener("click", applyImport);
   document.querySelector("[data-load-demo]")?.addEventListener("click", () => prepareImport("openadops-demo.csv", DEMO_CSV, true));
@@ -809,6 +1052,7 @@ function metricsForAi(project) {
   return {
     rowCount: metrics.rowCount,
     summary: metrics.summary,
+    period: metrics.period,
     byPlatform: metrics.byPlatform.slice(0, 10),
     byCountry: metrics.byCountry.slice(0, 12),
     byCampaign: metrics.byCampaign.slice(0, 12),
@@ -974,6 +1218,52 @@ async function runLaunchPack() {
       }));
     });
     showToast(payload.source === "codex" ? `Launch Pack 已生成 · ${payload.model}` : "Mock Launch Pack 已生成");
+  } catch (error) {
+    showToast(`没有写入结果：${error.message}`, "error");
+  } finally {
+    aiBusy = false;
+    render();
+  }
+}
+
+async function runExperimentPlan() {
+  if (aiBusy) return;
+  const project = activeProject();
+  const launchPack = project.launch?.pack?.result || null;
+  if (!launchPack && !project.creativePlan?.length) {
+    showToast("请先生成 Launch Pack 或至少准备一份素材计划。", "error");
+    return;
+  }
+  aiBusy = true;
+  render();
+  try {
+    let payload;
+    if (state.aiMode === "mock") {
+      payload = {
+        ok: true,
+        source: "mock",
+        model: "browser-local-mock",
+        result: buildMockExperimentPlan(project, launchPack)
+      };
+    } else {
+      const response = await fetch("./api/experiments", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: state.aiMode, project, launchPack, metrics: metricsForAi(project) })
+      });
+      payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "Experiment Ledger 生成失败");
+    }
+    updateProject((target) => {
+      if (!target.experiments) target.experiments = createExperiments();
+      target.experiments.plan = {
+        source: payload.source,
+        model: payload.model,
+        generatedAt: new Date().toISOString(),
+        result: enrichExperimentPlan(payload.result)
+      };
+    });
+    showToast(payload.source === "codex" ? `实验账本已生成 · ${payload.model}` : "Mock 实验账本已生成");
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
   } finally {
@@ -1164,6 +1454,38 @@ function restoreLaunchVersion(versionId) {
   showToast(`已恢复 ${version.name}`);
 }
 
+function saveExperimentVersion() {
+  const record = activeProject().experiments?.plan;
+  if (!record?.result) {
+    showToast("先生成一份 Experiment Ledger。", "error");
+    return;
+  }
+  updateProject((project) => {
+    if (!project.experiments) project.experiments = createExperiments();
+    const number = project.experiments.versions.length + 1;
+    project.experiments.versions.unshift({
+      id: makeId(),
+      name: `Experiment Ledger v0.${number}`,
+      savedAt: new Date().toISOString(),
+      snapshot: cloneJson(project.experiments.plan)
+    });
+    project.experiments.versions = project.experiments.versions.slice(0, 10);
+  });
+  render();
+  showToast("Experiment Ledger 版本已保存");
+}
+
+function restoreExperimentVersion(versionId) {
+  const version = activeProject().experiments?.versions?.find((item) => item.id === versionId);
+  if (!version?.snapshot) return;
+  updateProject((project) => {
+    if (!project.experiments) project.experiments = createExperiments();
+    project.experiments.plan = cloneJson(version.snapshot);
+  });
+  render();
+  showToast(`已恢复 ${version.name}`);
+}
+
 function launchPackMarkdown(project) {
   const pack = project.launch?.pack?.result;
   if (!pack) return "";
@@ -1300,6 +1622,113 @@ function exportLaunchPackHtml() {
   showToast("Launch Pack HTML 已导出");
 }
 
+function experimentMarkdown(project) {
+  const record = project.experiments?.plan;
+  const plan = record?.result;
+  if (!plan) return "";
+  const summary = experimentPlanSummary(plan);
+  return [
+    `# ${plan.title}`,
+    "",
+    `> ${plan.executive_summary}`,
+    "",
+    `- 实验总数：${summary.total}`,
+    `- 周期可行：${summary.ready}`,
+    `- 进行中：${summary.running}`,
+    `- 已沉淀学习：${summary.learnings}`,
+    `- 生成来源：${record.source === "codex" ? `Codex · ${record.model}` : "Browser-local Mock"}`,
+    "",
+    "## 学习议程",
+    "",
+    ...plan.learning_agenda.map((item) => `- ${item}`),
+    "",
+    "## 实验队列",
+    "",
+    ...plan.experiments.flatMap((item, index) => [
+      `### ${index + 1}. ${item.name}`,
+      "",
+      `- 媒体 / 方法：${item.platform} / ${item.design.test_type}`,
+      `- 优先级 / 状态：${experimentPriorityText(item.priority)} / ${experimentStatusText(item.status)}`,
+      `- Owner：${item.owner}`,
+      "",
+      `**IF** ${item.hypothesis.change} **THEN** ${item.hypothesis.metric} 将${item.hypothesis.direction === "increase" ? "提升" : "下降"}${item.hypothesis.expected_lift_percent === null ? "" : `约 ${item.hypothesis.expected_lift_percent}%`} **BECAUSE** ${item.hypothesis.because}`,
+      "",
+      "| Control | 单一变量 | Variant |",
+      "| --- | --- | --- |",
+      `| ${markdownCell(item.design.control)} | ${markdownCell(item.design.single_variable)} | ${markdownCell(item.design.variant)} |`,
+      "",
+      `- 主指标：${item.design.primary_metric}`,
+      `- 护栏指标：${item.design.guardrail_metrics.join("；")}`,
+      `- 分流：${item.design.control_percent}/${item.design.variant_percent}`,
+      `- 基准率：${item.design.baseline_rate_percent === null ? "待补充" : `${item.design.baseline_rate_percent}%`}`,
+      `- MDE：${item.design.mde_percent === null ? "待补充" : `${item.design.mde_percent}%`}`,
+      `- 每日可进入样本：${item.design.daily_eligible_units === null ? "待补充" : formatMetric(item.design.daily_eligible_units)}`,
+      `- 每版本样本：${item.feasibility.required_sample_per_variant === null ? "不可计算" : formatMetric(item.feasibility.required_sample_per_variant)}`,
+      `- 预计周期：${item.feasibility.estimated_duration_days === null ? "不可计算" : `${item.feasibility.estimated_duration_days} 天`}`,
+      `- 可行性：${feasibilityText(item.feasibility.status)}。${item.feasibility.rationale}`,
+      "",
+      "#### 设置步骤",
+      ...item.setup_steps.map((value) => `- ${value}`),
+      "",
+      "#### 停止条件",
+      ...item.stop_conditions.map((value) => `- ${value}`),
+      "",
+      "#### 决策规则",
+      `- Win：${item.decision_rules.win}`,
+      `- Lose：${item.decision_rules.lose}`,
+      `- Inconclusive：${item.decision_rules.inconclusive}`,
+      "",
+      "#### 结果与学习",
+      `- 结论：${experimentOutcomeText(item.result.outcome)}`,
+      `- Control / Variant：${item.result.control_value ?? "—"} / ${item.result.variant_value ?? "—"}`,
+      `- 相对变化：${item.result.relative_change_percent === null ? "—" : `${item.result.relative_change_percent}%`}`,
+      `- 证据：${item.result.evidence || "待补充"}`,
+      `- 学习：${item.result.learning || "待补充"}`,
+      `- 下一步：${item.result.next_action || "待补充"}`,
+      ""
+    ]),
+    "## 风险与判断边界",
+    "",
+    ...plan.risks.map((item) => `- ${item}`),
+    "",
+    "---",
+    `OpenAdOps v${APP_VERSION} · 只规划和记录实验，不修改真实广告账户。`
+  ].join("\n");
+}
+
+function exportExperimentMarkdown() {
+  const project = activeProject();
+  const content = experimentMarkdown(project);
+  if (!content) {
+    showToast("还没有可导出的 Experiment Ledger。", "error");
+    return;
+  }
+  downloadText(content, safeProjectFileName(project, "Experiment-Ledger.md"), "text/markdown;charset=utf-8");
+  showToast("Experiment Ledger Markdown 已导出");
+}
+
+function experimentDocument(project) {
+  const record = project.experiments?.plan;
+  const plan = record?.result;
+  if (!plan) return "";
+  const summary = experimentPlanSummary(plan);
+  const cards = plan.experiments.map((item, index) => `<article class="experiment"><header><span>${String(index + 1).padStart(2, "0")} · ${escapeHtml(item.platform)}</span><h2>${escapeHtml(item.name)}</h2><div><em>${escapeHtml(experimentPriorityText(item.priority))}</em><em>${escapeHtml(experimentStatusText(item.status))}</em><em>${escapeHtml(feasibilityText(item.feasibility.status))}</em></div></header><blockquote><b>IF</b> ${escapeHtml(item.hypothesis.change)} <b>THEN</b> ${escapeHtml(item.hypothesis.metric)} 将${item.hypothesis.direction === "increase" ? "提升" : "下降"} <b>BECAUSE</b> ${escapeHtml(item.hypothesis.because)}</blockquote><section class="variants"><div><span>CONTROL · ${item.design.control_percent}%</span><strong>${escapeHtml(item.design.control)}</strong></div><i>${escapeHtml(item.design.single_variable)}</i><div><span>VARIANT · ${item.design.variant_percent}%</span><strong>${escapeHtml(item.design.variant)}</strong></div></section><section class="facts"><div><span>主指标</span><strong>${escapeHtml(item.design.primary_metric)}</strong></div><div><span>每版本样本</span><strong>${item.feasibility.required_sample_per_variant === null ? "—" : formatMetric(item.feasibility.required_sample_per_variant)}</strong></div><div><span>预计周期</span><strong>${item.feasibility.estimated_duration_days === null ? "—" : `${item.feasibility.estimated_duration_days} 天`}</strong></div><div><span>实验方法</span><strong>${escapeHtml(item.design.test_type)}</strong></div></section><p class="rationale">${escapeHtml(item.feasibility.rationale)}</p><section class="rules"><div><span>WIN</span><p>${escapeHtml(item.decision_rules.win)}</p></div><div><span>LOSE</span><p>${escapeHtml(item.decision_rules.lose)}</p></div><div><span>INCONCLUSIVE</span><p>${escapeHtml(item.decision_rules.inconclusive)}</p></div></section><section class="result"><div><span>结果</span><strong>${escapeHtml(experimentOutcomeText(item.result.outcome))}</strong></div><p><b>证据：</b>${escapeHtml(item.result.evidence || "待补充")}</p><p><b>学习：</b>${escapeHtml(item.result.learning || "待补充")}</p><p><b>下一步：</b>${escapeHtml(item.result.next_action || "待补充")}</p></section></article>`).join("");
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(plan.title)}</title><style>
+  :root{--ink:#17212b;--muted:#687382;--line:#dfe4e8;--paper:#fff;--bg:#edf0f2;--accent:#e86f34;--soft:#fff0e8;--blue:#315d96;--green:#247a55}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,Arial,"PingFang SC",sans-serif}main{width:min(1120px,calc(100% - 32px));margin:32px auto;background:var(--paper);padding:56px}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--accent)}h1{font-size:42px;line-height:1.1;margin:10px 0 18px}.lead{max-width:850px;color:var(--muted);line-height:1.8}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:30px 0}.summary div{padding:18px;border:1px solid var(--line);border-radius:12px}.summary strong,.summary span{display:block}.summary strong{font-size:28px}.summary span{margin-top:5px;color:var(--muted);font-size:10px}.agenda{padding:20px;border-radius:14px;background:#17212b;color:#fff}.agenda p{margin:7px 0;color:#bec7d0;font-size:12px}.experiment{margin-top:22px;padding:24px;border:1px solid var(--line);border-radius:16px;break-inside:avoid}.experiment header>span{color:var(--accent);font-size:10px;font-weight:800}.experiment h2{font-size:20px;margin:7px 0}.experiment header em{display:inline-block;margin-right:6px;padding:5px 8px;border-radius:99px;background:#eef1f4;color:var(--muted);font-size:9px;font-style:normal}blockquote{margin:18px 0;padding:15px;border-left:3px solid var(--accent);background:var(--soft);font-size:12px;line-height:1.7}.variants{display:grid;grid-template-columns:1fr 120px 1fr;align-items:stretch;gap:10px}.variants div{padding:16px;border:1px solid var(--line);border-radius:11px}.variants span,.facts span,.rules span,.result span{display:block;color:var(--muted);font-size:9px;font-weight:800}.variants strong{display:block;margin-top:9px;font-size:12px}.variants i{display:grid;place-items:center;padding:10px;border-radius:11px;background:#17212b;color:#fff;font-size:10px;font-style:normal;text-align:center}.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.facts div{padding:12px;background:#f6f7f8;border-radius:9px}.facts strong{display:block;margin-top:6px;font-size:11px}.rationale{font-size:10px;color:var(--muted);line-height:1.6}.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.rules div{padding:13px;border-top:2px solid var(--accent);background:#fafbfc}.rules p,.result p{font-size:10px;line-height:1.6;color:var(--muted)}.result{margin-top:12px;padding:15px;border:1px dashed var(--line);border-radius:10px}.result>div{display:flex;justify-content:space-between}.foot{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:9px}@media(max-width:760px){main{width:100%;margin:0;padding:24px}h1{font-size:30px}.summary,.facts,.rules,.variants{grid-template-columns:1fr}.variants i{min-height:44px}}@media print{body{background:#fff}main{width:auto;margin:0;padding:24px}.experiment{break-inside:avoid}}
+  </style></head><body><main><p class="eyebrow">OPENADOPS · EXPERIMENT LEDGER · v${APP_VERSION}</p><h1>${escapeHtml(plan.title)}</h1><p class="lead">${escapeHtml(plan.executive_summary)}</p><section class="summary"><div><strong>${summary.total}</strong><span>实验总数</span></div><div><strong>${summary.ready}</strong><span>周期可行</span></div><div><strong>${summary.running}</strong><span>进行中</span></div><div><strong>${summary.learnings}</strong><span>已沉淀学习</span></div></section><section class="agenda">${plan.learning_agenda.map((item, index) => `<p>${String(index + 1).padStart(2, "0")} · ${escapeHtml(item)}</p>`).join("")}</section>${cards}<p class="foot">OpenAdOps v${APP_VERSION} · 生成来源：${record.source === "codex" ? `Codex · ${escapeHtml(record.model)}` : "Browser-local Mock"} · 只规划和记录实验，不会修改真实广告账户。</p></main></body></html>`;
+}
+
+function exportExperimentHtml() {
+  const project = activeProject();
+  const content = experimentDocument(project);
+  if (!content) {
+    showToast("还没有可导出的 Experiment Ledger。", "error");
+    return;
+  }
+  downloadText(content, safeProjectFileName(project, "Experiment-Ledger.html"), "text/html;charset=utf-8");
+  showToast("Experiment Ledger HTML 已导出");
+}
+
 function reportDocument(project) {
   const record = latestAnalysis(project);
   const result = record?.result;
@@ -1312,9 +1741,10 @@ function reportDocument(project) {
     ["D1 Retention", formatMetric(summary.d1Retention, "percent")],
     ["ROAS", formatMetric(summary.roas, "ratio")]
   ];
+  const experimentRows = (project.experiments?.plan?.result?.experiments || []).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(experimentStatusText(item.status))}</td><td>${escapeHtml(feasibilityText(item.feasibility.status))}</td><td>${escapeHtml(experimentOutcomeText(item.result.outcome))}</td><td>${escapeHtml(item.result.learning || item.result.next_action || "等待结果")}</td></tr>`).join("");
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escapeHtml(project.name)}投放报告</title><style>
   body{margin:0;background:#f3f4f6;color:#1b2430;font-family:Arial,"PingFang SC",sans-serif}main{width:1040px;margin:32px auto;padding:50px;background:#fff;box-sizing:border-box}.eyebrow{color:#e77436;font-size:11px;font-weight:700;letter-spacing:.12em}h1{font-size:34px;margin:8px 0 38px}h2{font-size:18px;margin:34px 0 14px}.meta{color:#77808b;font-size:12px}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric,.finding{border:1px solid #e5e8ec;border-radius:10px;padding:16px}.metric span{display:block;color:#77808b;font-size:11px}.metric strong{display:block;margin-top:9px;font-size:21px}.summary{border-left:3px solid #e77436;background:#fff1e8;padding:17px;line-height:1.7}.finding{margin-top:10px}.finding h3{margin:0 0 9px;font-size:15px}.finding p{font-size:12px;line-height:1.7;color:#5f6b79}.actions{width:100%;border-collapse:collapse}.actions th,.actions td{padding:11px;border-bottom:1px solid #e5e8ec;text-align:left;font-size:11px}.notice{margin-top:34px;color:#8c96a3;font-size:10px}@media print{body{background:#fff}main{width:auto;margin:0;padding:24px}}
-  </style></head><body><main><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h1>${escapeHtml(project.name)}<br>投放阶段复盘与下一步计划</h1><p class="meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))} · ${escapeHtml(project.markets)} · ${dateText(new Date().toISOString())}</p><h2>核心指标</h2><div class="metrics">${metricRows.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><h2>管理层摘要</h2><div class="summary">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。")}</div><h2>关键判断</h2>${result?.findings?.map((item) => `<section class="finding"><h3>${escapeHtml(item.title)}</h3><p><strong>证据：</strong>${escapeHtml(item.evidence)}</p><p><strong>判断：</strong>${escapeHtml(item.diagnosis)}</p><p><strong>动作：</strong>${escapeHtml(item.action)}</p><p><strong>验证：</strong>${escapeHtml(item.validation)}</p></section>`).join("") || "<p>暂无。</p>"}<h2>下一步动作</h2><table class="actions"><thead><tr><th>动作</th><th>负责人</th><th>时间</th><th>成功指标</th></tr></thead><tbody>${result?.next_actions?.map((item) => `<tr><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.timing)}</td><td>${escapeHtml(item.success_metric)}</td></tr>`).join("") || ""}</tbody></table><p class="notice">数据来源：${escapeHtml(project.data?.fileName || "未导入")} · 归因口径：${escapeHtml(project.attribution)} · ${project.isDemo ? "演示数据，不代表任何真实客户表现。" : "由 OpenAdOps 本地工作台生成。"}</p></main></body></html>`;
+  </style></head><body><main><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h1>${escapeHtml(project.name)}<br>投放阶段复盘与下一步计划</h1><p class="meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))} · ${escapeHtml(project.markets)} · ${dateText(new Date().toISOString())}</p><h2>核心指标</h2><div class="metrics">${metricRows.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><h2>管理层摘要</h2><div class="summary">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。")}</div><h2>关键判断</h2>${result?.findings?.map((item) => `<section class="finding"><h3>${escapeHtml(item.title)}</h3><p><strong>证据：</strong>${escapeHtml(item.evidence)}</p><p><strong>判断：</strong>${escapeHtml(item.diagnosis)}</p><p><strong>动作：</strong>${escapeHtml(item.action)}</p><p><strong>验证：</strong>${escapeHtml(item.validation)}</p></section>`).join("") || "<p>暂无。</p>"}<h2>实验与学习</h2><table class="actions"><thead><tr><th>实验</th><th>状态</th><th>可行性</th><th>结果</th><th>学习</th></tr></thead><tbody>${experimentRows}</tbody></table><h2>下一步动作</h2><table class="actions"><thead><tr><th>动作</th><th>负责人</th><th>时间</th><th>成功指标</th></tr></thead><tbody>${result?.next_actions?.map((item) => `<tr><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.timing)}</td><td>${escapeHtml(item.success_metric)}</td></tr>`).join("") || ""}</tbody></table><p class="notice">数据来源：${escapeHtml(project.data?.fileName || "未导入")} · 归因口径：${escapeHtml(project.attribution)} · ${project.isDemo ? "演示数据，不代表任何真实客户表现。" : "由 OpenAdOps 本地工作台生成。"}</p></main></body></html>`;
 }
 
 function exportReport() {
@@ -1373,6 +1803,7 @@ projectForm.addEventListener("submit", (event) => {
     strategy: { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: Object.fromEntries(platforms.map((platform) => [platform, Math.round(100 / platforms.length)])) },
     creativePlan: [],
     launch: createLaunch(),
+    experiments: createExperiments(),
     intake: createIntake(),
     ai: {}
   };
