@@ -19,7 +19,16 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Support finance, gaming, utility, Google Ads, Meta Ads, and TikTok Ads context.
 - [x] Save local versions, export Markdown, and adopt the draft into planning.
 
-## v0.3 — Real workflow portability
+## v0.3 — Launch Pack
+
+- [x] Turn Offer Intake and Strategy v0 into an execution-ready pre-flight deliverable.
+- [x] Generate platform roles, normalized budgets, Campaign blueprints, and creative production briefs.
+- [x] Separate media feedback, MMP attribution, and business source-of-truth rules.
+- [x] Track owner-based launch gates, blockers, evidence, and first-seven-day actions.
+- [x] Export Markdown and standalone HTML; save local Launch Pack snapshots.
+- [x] Add fixed product evals, version validation, and tag-driven GitHub Releases.
+
+## v0.4 — Workflow portability
 
 - [ ] XLSX import.
 - [ ] Project JSON export/import and backup.
@@ -28,7 +37,7 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [ ] English UI and runtime locale switch.
 - [ ] Provider adapter contract for additional coding-agent runtimes.
 
-## v0.4 — Evidence and collaboration
+## v0.5 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.
 - [ ] Versioned analysis runs and decision history.

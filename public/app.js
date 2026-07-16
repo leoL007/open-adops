@@ -1,15 +1,18 @@
 import { FIELD_LABELS, calculateMetrics, detectMapping, formatMetric, mapRows, parseCsv } from "./lib/analytics.js";
 import { buildMockAnalysis } from "./lib/mock-analysis.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
+import { buildMockLaunchPack } from "./lib/mock-launch-pack.js";
+import { APP_VERSION } from "./version.js";
 
-const STORAGE_KEY = "openadops:v2";
-const PREVIOUS_STORAGE_KEY = "openadops:v1";
+const STORAGE_KEY = "openadops:v3";
+const PREVIOUS_STORAGE_KEYS = ["openadops:v2", "openadops:v1"];
 const LEGACY_STORAGE_KEY = "adpilot:mvp:v1";
 const ROUTES = new Set(["overview", "intake", "strategy", "creative", "launch", "optimize", "report"]);
 const app = document.querySelector("#app");
 const projectSelect = document.querySelector("#projectSelect");
 const aiModeSelect = document.querySelector("#aiMode");
 const demoBadge = document.querySelector("#demoBadge");
+const versionBadge = document.querySelector("#appVersion");
 const projectDialog = document.querySelector("#projectDialog");
 const projectForm = document.querySelector("#projectForm");
 const toast = document.querySelector("#toast");
@@ -55,6 +58,14 @@ function createIntake(overrides = {}) {
   };
 }
 
+function createLaunch(overrides = {}) {
+  return {
+    checklist: overrides.checklist && typeof overrides.checklist === "object" ? overrides.checklist : {},
+    pack: overrides.pack || null,
+    versions: Array.isArray(overrides.versions) ? overrides.versions : []
+  };
+}
+
 function createDemoProject() {
   const project = {
     id: makeId(),
@@ -87,16 +98,7 @@ function createDemoProject() {
       { angle: "痛点反转", hook: "图片有路人？一键清理", platform: "Meta Ads", variable: "开场文案", metric: "CTR" },
       { angle: "原生演示", hook: "录屏演示 3 步完成编辑", platform: "TikTok Ads", variable: "演示节奏", metric: "CVR" }
     ],
-    launch: {
-      checklist: {
-        naming: true,
-        attribution: true,
-        deepLink: false,
-        budget: true,
-        creative: true,
-        exclusions: false
-      }
-    },
+    launch: createLaunch(),
     data: {
       fileName: "openadops-demo.csv",
       importedAt: new Date().toISOString(),
@@ -118,6 +120,12 @@ function createDemoProject() {
     generatedAt: new Date().toISOString(),
     result: buildMockIntake(project, project.intake, "strategy")
   };
+  project.launch.pack = {
+    source: "mock",
+    model: "browser-local-mock",
+    generatedAt: new Date().toISOString(),
+    result: buildMockLaunchPack(project, project.intake.analysis.result)
+  };
   return project;
 }
 
@@ -127,14 +135,14 @@ function initialState() {
 }
 
 function loadState() {
-  for (const key of [STORAGE_KEY, PREVIOUS_STORAGE_KEY, LEGACY_STORAGE_KEY]) {
+  for (const key of [STORAGE_KEY, ...PREVIOUS_STORAGE_KEYS, LEGACY_STORAGE_KEY]) {
     try {
       const stored = JSON.parse(localStorage.getItem(key));
       if (stored?.projects?.length) {
         const normalized = {
           ...stored,
           aiMode: stored.aiMode || "mock",
-          projects: stored.projects.map((project) => ({ ...project, intake: createIntake(project.intake || {}) }))
+          projects: stored.projects.map((project) => ({ ...project, intake: createIntake(project.intake || {}), launch: createLaunch(project.launch || {}) }))
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
         return normalized;
@@ -418,7 +426,8 @@ function renderOverview(project) {
   const hasIntake = Boolean(project.intake?.analysis?.result);
   const hasStrategy = Boolean(project.strategy?.objective && project.strategy?.testLogic);
   const hasCreative = Boolean(project.creativePlan?.length);
-  const checks = Object.values(project.launch?.checklist || {}).filter(Boolean).length;
+  const launchPack = project.launch?.pack?.result;
+  const launchReady = Boolean(launchPack);
   const hasOptimize = Boolean(project.data?.metrics && (project.ai?.optimize || project.ai?.strategy));
   return `${pageHeader("PROJECT COMMAND CENTER", project.name, "把策略、素材、广告搭建和优化证据沉淀在同一个项目里。")}
     ${metricCards(project)}
@@ -429,7 +438,7 @@ function renderOverview(project) {
           <article class="stage-step ${hasIntake ? "complete" : ""}" data-step="00"><h3>需求接收</h3><p>碎片资料、缺失项、客户追问与 Strategy v0</p></article>
           <article class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01"><h3>投放策略</h3><p>目标、市场、媒体、预算与测试逻辑</p></article>
           <article class="stage-step ${hasCreative ? "complete" : ""}" data-step="02"><h3>素材计划</h3><p>角度、Hook、单变量与成功指标</p></article>
-          <article class="stage-step ${checks >= 4 ? "complete" : ""}" data-step="03"><h3>广告搭建</h3><p>Campaign 结构、命名和上线检查</p></article>
+          <article class="stage-step ${launchReady ? "complete" : ""}" data-step="03"><h3>投前作战包</h3><p>Campaign、素材、监测、阻塞项与首周计划</p></article>
           <article class="stage-step ${hasOptimize ? "complete" : ""}" data-step="04"><h3>投放优化</h3><p>数据证据、诊断、动作和验证</p></article>
         </div>
       </section>
@@ -448,7 +457,7 @@ function renderOverview(project) {
     <section class="card mb-16"><div class="card-header"><div><h2>媒体表现矩阵</h2><p>媒体口径与 AF 口径并列，避免只看平台安装</p></div><span class="card-label">MEDIA × ATTRIBUTION</span></div>${platformTable(project)}</section>
     <div class="grid grid-2">
       <section class="card"><div class="card-header"><div><h2>国家效率</h2><p>横条为花费占比，右侧显示 AF-CPI</p></div></div>${spendBars(project)}</section>
-      <section class="card"><div class="card-header"><div><h2>述职产出就绪度</h2><p>不是单次结果，而是可复用方法与案例证据</p></div><span class="badge" style="color:var(--success);background:var(--success-soft)">${[hasIntake, hasStrategy, hasCreative, checks >= 4, hasOptimize].filter(Boolean).length}/5</span></div>
+      <section class="card"><div class="card-header"><div><h2>述职产出就绪度</h2><p>不是单次结果，而是可复用方法与案例证据</p></div><span class="badge" style="color:var(--success);background:var(--success-soft)">${[hasIntake, hasStrategy, hasCreative, launchReady, hasOptimize].filter(Boolean).length}/5</span></div>
         <div class="timeline">
           <div class="timeline-item"><strong>方法层</strong><p>多行业 × 多媒体的统一项目结构与指标口径</p></div>
           <div class="timeline-item"><strong>执行层</strong><p>从策略到优化动作，全程留下负责人和验证标准</p></div>
@@ -515,34 +524,92 @@ function renderCreative(project) {
     <section class="card">${analysisToolbar("creative")}${aiResult(project, "creative")}</section>`;
 }
 
-function renderLaunch(project) {
-  const checklist = project.launch?.checklist || {};
-  const checklistItems = [
-    ["naming", "命名规则包含市场、目标、受众和测试变量"],
-    ["attribution", "媒体 SDK / MMP 事件与归因窗口已确认"],
-    ["deepLink", "落地页、商店页或 Deep Link 已验证"],
-    ["budget", "预算与出价不会让 Campaign 互相抢量"],
-    ["creative", "素材尺寸、文案和平台安全区已检查"],
-    ["exclusions", "排除项、品牌词和再营销重叠已检查"]
-  ];
-  const monthly = Number(project.budget) || 0;
-  return `${pageHeader("STAGE 03 · LAUNCH", "广告搭建", "把策略翻译为可执行的 Campaign / Ad set 结构，并保留上线检查记录。")}
-    <section class="card mb-16"><div class="card-header"><div><h2>媒体搭建清单</h2><p>建议结构，不会连接或修改真实广告账户</p></div><span class="card-label">READ-ONLY PLAN</span></div>
-      <div class="table-wrap"><table><thead><tr><th>媒体</th><th>建议目标</th><th>Campaign 结构</th><th>月预算</th><th>日预算参考</th><th>命名示例</th></tr></thead><tbody>${project.platforms.map((platform) => {
-        const share = Number(project.strategy?.budgetShares?.[platform] ?? 100 / project.platforms.length) / 100;
-        const amount = monthly * share;
-        const architecture = platform === "Google Ads" ? "市场 × 优化目标" : platform === "Meta Ads" ? "市场 × 概念组" : "市场 × 素材角度";
-        return `<tr><td><strong>${escapeHtml(platform)}</strong></td><td>${escapeHtml(project.goal)}</td><td>${architecture}</td><td>${formatMetric(amount, "currency", project.currency)}</td><td>${formatMetric(amount / 30, "currency", project.currency)}</td><td>${escapeHtml(`${platform.split(" ")[0]}_${project.markets.split(",")[0]?.trim() || "GEO"}_${project.goal}_T01`)}</td></tr>`;
-      }).join("")}</tbody></table></div>
+function launchPackRecord(project) {
+  return project.launch?.pack || null;
+}
+
+function launchStatusText(status) {
+  return ({ ready: "可上线", conditional: "有条件就绪", blocked: "存在阻塞", needs_confirmation: "待确认", blocker: "阻塞项" })[status] || status;
+}
+
+function launchBudgetText(item) {
+  if (item.budget_amount === null) return "待确认";
+  if (Number(item.budget_amount) === 0) return "本轮暂缓";
+  return formatMetric(item.budget_amount, "currency", item.currency);
+}
+
+function renderLaunchPackResult(project) {
+  const record = launchPackRecord(project);
+  const pack = record?.result;
+  if (!pack) {
+    return `<section class="card launch-empty-card">
+      <div class="launch-empty-copy"><span class="card-label">OFFER → EXECUTION</span><h2>生成第一份投前作战包</h2><p>OpenAdOps 会把 Brief、Strategy v0 和项目设置组合成 Campaign 蓝图、素材生产 Brief、监测方案、上线阻塞项和首 7 天计划。</p></div>
+      <div class="launch-input-summary">
+        <div><span>行业</span><strong>${escapeHtml(project.industry || "待确认")}</strong></div>
+        <div><span>市场</span><strong>${escapeHtml(project.markets || "待确认")}</strong></div>
+        <div><span>媒体</span><strong>${escapeHtml(project.platforms.join(" · "))}</strong></div>
+        <div><span>预算</span><strong>${Number(project.budget) > 0 ? formatMetric(project.budget, "currency", project.currency) : "待确认"}</strong></div>
+      </div>
+    </section>`;
+  }
+
+  const readiness = pack.readiness;
+  const versions = project.launch?.versions || [];
+  const sourceLabel = record.source === "codex" ? `Codex · ${record.model}` : "Browser-local Mock";
+  const statusOptions = (current) => ["ready", "needs_confirmation", "blocker"].map((status) => `<option value="${status}" ${status === current ? "selected" : ""}>${launchStatusText(status)}</option>`).join("");
+  return `<div class="launch-pack-stack">
+    <section class="launch-readiness ${attr(readiness.status)}">
+      <div class="readiness-score"><strong>${readiness.score}</strong><span>/ 100</span></div>
+      <div class="readiness-copy"><span class="card-label">${escapeHtml(sourceLabel)} · ${dateText(record.generatedAt)}</span><h2>${escapeHtml(launchStatusText(readiness.status))}</h2><p>${escapeHtml(pack.executive_summary)}</p></div>
+      <div class="readiness-blockers"><span>BLOCKERS</span><strong>${readiness.blockers.length}</strong><small>${readiness.blockers.length ? escapeHtml(readiness.blockers[0]) : "没有硬阻塞项"}</small></div>
     </section>
+
+    ${pack.assumptions.length ? `<section class="assumption-banner"><strong>当前假设</strong><div>${pack.assumptions.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div></section>` : ""}
+
+    <section class="card">
+      <div class="card-header"><div><h2>媒体分工与预算</h2><p>预算缺失时保持为空；预算不足时主动收敛媒体</p></div><span class="card-label">MEDIA PLAN</span></div>
+      <div class="table-wrap"><table class="launch-media-table"><thead><tr><th>媒体</th><th>角色</th><th>Campaign 类型</th><th>占比</th><th>月预算</th><th>前置条件</th></tr></thead><tbody>${pack.media_plan.map((item) => `<tr class="${Number(item.allocation_percent) === 0 ? "muted-row" : ""}"><td><strong>${escapeHtml(item.platform)}</strong><small>${escapeHtml(item.objective)}</small></td><td>${escapeHtml(item.role)}<small>${escapeHtml(item.rationale)}</small></td><td>${escapeHtml(item.campaign_type)}</td><td>${item.allocation_percent === null ? "—" : `${item.allocation_percent}%`}</td><td>${escapeHtml(launchBudgetText(item))}</td><td>${item.prerequisites.map((value) => `<span class="mini-tag">${escapeHtml(value)}</span>`).join("")}</td></tr>`).join("")}</tbody></table></div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>Campaign Blueprint</h2><p>命名、目标、事件、出价和拆分逻辑可直接交给投手</p></div><span class="badge launch-count">${pack.campaigns.length} CAMPAIGNS</span></div>
+      <div class="campaign-blueprint-grid">${pack.campaigns.map((item) => `<article class="campaign-blueprint"><div class="campaign-code"><span>${escapeHtml(item.platform)}</span><strong>${escapeHtml(item.campaign_name)}</strong></div><div class="campaign-facts"><div><span>优化事件</span><strong>${escapeHtml(item.optimization_event)}</strong></div><div><span>市场</span><strong>${escapeHtml(item.geo)}</strong></div><div><span>出价</span><strong>${escapeHtml(item.bidding)}</strong></div><div><span>预算</span><strong>${escapeHtml(item.budget_note)}</strong></div></div><div class="campaign-lists"><div><span>结构逻辑</span>${item.ad_group_logic.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div><div><span>受众与排除</span>${item.audience_notes.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div></div></article>`).join("")}</div>
+    </section>
+
+    <section class="card">
+      <div class="card-header"><div><h2>素材生产 Brief</h2><p>每张卡片只有一个主要测试变量，并预先写明成功指标</p></div><span class="badge launch-count">${pack.creative_briefs.length} BRIEFS</span></div>
+      <div class="launch-creative-grid">${pack.creative_briefs.map((item) => `<article class="launch-creative-card"><div class="creative-card-top"><span>${escapeHtml(item.platform)}</span><em>${item.variants} VARIANTS</em></div><h3>${escapeHtml(item.angle)}</h3><blockquote>${escapeHtml(item.hook)}</blockquote><p><strong>假设：</strong>${escapeHtml(item.hypothesis)}</p><dl><div><dt>格式</dt><dd>${escapeHtml(item.format)}</dd></div><div><dt>单变量</dt><dd>${escapeHtml(item.test_variable)}</dd></div><div><dt>成功指标</dt><dd>${escapeHtml(item.success_metric)}</dd></div></dl><div class="production-notes">${item.production_notes.map((value) => `<span>${escapeHtml(value)}</span>`).join("")}</div><div class="compliance-note">${item.compliance_notes.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div></article>`).join("")}</div>
+    </section>
+
+    <div class="grid launch-measurement-grid">
+      <section class="card"><div class="card-header"><div><h2>监测与归因</h2><p>媒体反馈、MMP 和业务真相分层使用</p></div><span class="card-label">MEASUREMENT</span></div><div class="measurement-hero"><span>最终口径</span><strong>${escapeHtml(pack.measurement.source_of_truth)}</strong></div>${renderStrategyList("主要与辅助事件", [pack.measurement.primary_event, ...pack.measurement.supporting_events])}${renderStrategyList("归因规则", pack.measurement.attribution_rules)}${renderStrategyList("追踪检查", pack.measurement.tracking_checklist)}</section>
+      <section class="card"><div class="card-header"><div><h2>首 7 天行动</h2><p>先定义观察和动作边界，避免上线后临时解释</p></div><span class="card-label">DAY 0–7</span></div><div class="launch-week">${pack.first_7_days.map((item) => `<article><span>${escapeHtml(item.period)}</span><div>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<strong>${escapeHtml(item.decision_rule)}</strong></div></article>`).join("")}</div></section>
+    </div>
+
+    <section class="card">
+      <div class="card-header"><div><h2>上线 Gate</h2><p>你可以人工更新状态；Blocker 会自动反映到顶部就绪度</p></div><span class="card-label">OWNER × EVIDENCE</span></div>
+      <div class="table-wrap"><table class="launch-gate-table"><thead><tr><th>类别</th><th>检查项</th><th>状态</th><th>负责人</th><th>证据 / 缺口</th></tr></thead><tbody>${pack.launch_checklist.map((item) => `<tr><td><span class="gate-category">${escapeHtml(item.category)}</span></td><td><strong>${escapeHtml(item.item)}</strong></td><td><select class="gate-status ${attr(item.status)}" data-launch-status="${attr(item.id)}">${statusOptions(item.status)}</select></td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.evidence)}</td></tr>`).join("")}</tbody></table></div>
+    </section>
+
     <div class="grid grid-2">
-      <section class="card"><div class="card-header"><div><h2>上线前检查</h2><p>勾选状态会保存在项目中</p></div><span class="badge" style="color:var(--success);background:var(--success-soft)">${Object.values(checklist).filter(Boolean).length}/${checklistItems.length}</span></div><div class="checklist">${checklistItems.map(([key, text]) => `<label class="check-item"><input type="checkbox" data-launch-check="${key}" ${checklist[key] ? "checked" : ""} /><span>${escapeHtml(text)}</span></label>`).join("")}</div></section>
-      <section class="card"><div class="card-header"><div><h2>搭建原则</h2><p>统一逻辑，媒体差异化落地</p></div></div><div class="timeline">
-        <div class="timeline-item"><strong>先保证可判断</strong><p>Campaign 数量服从预算和转化量，不为结构完整而拆散学习。</p></div>
-        <div class="timeline-item"><strong>再保证可复用</strong><p>命名、市场、目标与测试变量统一，后续 CSV 可自动识别。</p></div>
-        <div class="timeline-item"><strong>最后保证可追溯</strong><p>每次上线记录假设、版本、负责人和成功标准。</p></div>
-      </div></section>
-    </div>`;
+      <section class="card"><div class="card-header"><div><h2>待确认问题</h2><p>在正式上线前关闭高影响缺口</p></div><span class="badge question-badge">${pack.open_questions.length}</span></div>${pack.open_questions.length ? `<ol class="launch-question-list">${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : `<div class="success-note">当前没有未记录的问题。</div>`}</section>
+      <section class="card"><div class="card-header"><div><h2>风险说明</h2><p>不把 AI 草案伪装成正式客户结论</p></div><span class="card-label">RISK REGISTER</span></div><div class="launch-risk-list">${pack.risks.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div></section>
+    </div>
+
+    <section class="card version-card">
+      <div class="card-header"><div><h2>Launch Pack 版本</h2><p>在发送客户或开始搭建前保存快照</p></div><button class="button button-secondary button-small" data-save-launch-version>保存当前版本</button></div>
+      ${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-launch-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存 Launch Pack 快照。</p>`}
+    </section>
+  </div>`;
+}
+
+function renderLaunch(project) {
+  const record = launchPackRecord(project);
+  const actions = record?.result ? `<button class="button button-ghost" data-export-launch-pack>导出 Markdown</button><button class="button button-secondary" data-export-launch-html>导出 HTML</button><button class="button button-primary" data-save-launch-version>保存版本</button>` : "";
+  const mode = state.aiMode === "codex" ? "本地 Codex CLI · 使用当前配置模型" : "Browser-local Mock · 不消耗模型额度";
+  return `${pageHeader("STAGE 03 · LAUNCH PACK", "投前作战包", "把 Strategy v0 变成可交给投放、素材、数据和客户负责人的执行文件。", actions)}
+    <section class="card launch-runbar mb-16"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 只生成计划，不会连接或修改真实广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "调用 Codex 生成 Launch Pack" : "生成 Mock Launch Pack"}</button></section>
+    ${renderLaunchPackResult(project)}`;
 }
 
 function mappingPanel() {
@@ -594,6 +661,7 @@ function refreshShell(project) {
   projectSelect.innerHTML = state.projects.map((item) => `<option value="${attr(item.id)}" ${item.id === project.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
   aiModeSelect.value = state.aiMode;
   demoBadge.hidden = !project.isDemo;
+  if (versionBadge) versionBadge.textContent = `v${APP_VERSION}`;
   document.querySelectorAll("[data-route]").forEach((link) => link.classList.toggle("active", link.dataset.route === route()));
 }
 
@@ -649,24 +717,33 @@ function attachPageListeners() {
       render();
     });
   });
-  document.querySelectorAll("[data-launch-check]").forEach((input) => {
-    input.addEventListener("change", () => {
+  document.querySelectorAll("[data-launch-status]").forEach((select) => {
+    select.addEventListener("change", () => {
       updateProject((project) => {
-        if (!project.launch) project.launch = { checklist: {} };
-        if (!project.launch.checklist) project.launch.checklist = {};
-        project.launch.checklist[input.dataset.launchCheck] = input.checked;
+        const pack = project.launch?.pack?.result;
+        const item = pack?.launch_checklist?.find((entry) => entry.id === select.dataset.launchStatus);
+        if (!item) return;
+        item.status = select.value;
+        item.evidence = select.value === "ready" ? `${item.evidence}；优化师已人工确认` : item.evidence;
+        recalculateLaunchReadiness(pack, true);
       });
       render();
+      showToast("上线 Gate 状态已更新");
     });
   });
   document.querySelectorAll("[data-go-route]").forEach((button) => button.addEventListener("click", () => { location.hash = button.dataset.goRoute; }));
   document.querySelectorAll("[data-run-ai]").forEach((button) => button.addEventListener("click", () => runAnalysis(button.dataset.runAi)));
   document.querySelectorAll("[data-run-intake]").forEach((button) => button.addEventListener("click", () => runIntake(button.dataset.runIntake)));
+  document.querySelector("[data-run-launch-pack]")?.addEventListener("click", runLaunchPack);
   document.querySelectorAll("[data-save-intake-version]").forEach((button) => button.addEventListener("click", saveIntakeVersion));
   document.querySelectorAll("[data-restore-intake-version]").forEach((button) => button.addEventListener("click", () => restoreIntakeVersion(button.dataset.restoreIntakeVersion)));
   document.querySelector("[data-export-intake]")?.addEventListener("click", exportIntakeMarkdown);
   document.querySelector("[data-adopt-intake]")?.addEventListener("click", adoptIntakeStrategy);
   document.querySelector("[data-copy-questions]")?.addEventListener("click", copyClarificationQuestions);
+  document.querySelectorAll("[data-save-launch-version]").forEach((button) => button.addEventListener("click", saveLaunchVersion));
+  document.querySelectorAll("[data-restore-launch-version]").forEach((button) => button.addEventListener("click", () => restoreLaunchVersion(button.dataset.restoreLaunchVersion)));
+  document.querySelector("[data-export-launch-pack]")?.addEventListener("click", exportLaunchPackMarkdown);
+  document.querySelector("[data-export-launch-html]")?.addEventListener("click", exportLaunchPackHtml);
   document.querySelectorAll("[data-map-field]").forEach((select) => select.addEventListener("change", () => { importSession.mapping[select.dataset.mapField] = select.value; }));
   document.querySelector("[data-apply-import]")?.addEventListener("click", applyImport);
   document.querySelector("[data-load-demo]")?.addEventListener("click", () => prepareImport("openadops-demo.csv", DEMO_CSV, true));
@@ -838,6 +915,73 @@ async function runIntake(intent) {
   }
 }
 
+function recalculateLaunchReadiness(pack, updateSummary = false) {
+  if (!pack?.launch_checklist?.length) return;
+  const blockers = pack.launch_checklist.filter((item) => item.status === "blocker").map((item) => item.item);
+  const readyCount = pack.launch_checklist.filter((item) => item.status === "ready").length;
+  pack.readiness = {
+    score: Math.round((readyCount / pack.launch_checklist.length) * 100),
+    status: blockers.length ? "blocked" : pack.launch_checklist.some((item) => item.status === "needs_confirmation") ? "conditional" : "ready",
+    blockers
+  };
+  if (updateSummary) {
+    pack.executive_summary = `上线 Gate 已由优化师更新：当前就绪度 ${pack.readiness.score}%，${blockers.length ? `存在 ${blockers.length} 个阻塞项，正式花费前必须关闭。` : pack.readiness.status === "conditional" ? "没有硬阻塞项，但仍有待确认事项。" : "所有 Gate 已标记为可上线，仍建议由项目负责人做最终复核。"}`;
+  }
+}
+
+async function runLaunchPack() {
+  if (aiBusy) return;
+  const project = activeProject();
+  if (!project.intake?.analysis?.result && !project.strategy?.objective) {
+    showToast("建议先整理 Offer 或完善 Strategy v0，再生成投前作战包。", "error");
+    return;
+  }
+  aiBusy = true;
+  render();
+  try {
+    let payload;
+    if (state.aiMode === "mock") {
+      payload = {
+        ok: true,
+        source: "mock",
+        model: "browser-local-mock",
+        result: buildMockLaunchPack(project, project.intake?.analysis?.result || null)
+      };
+    } else {
+      const response = await fetch("./api/launch-pack", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: state.aiMode, project, intake: project.intake || createIntake() })
+      });
+      payload = await response.json();
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "Launch Pack 生成失败");
+    }
+    updateProject((target) => {
+      if (!target.launch) target.launch = createLaunch();
+      target.launch.pack = {
+        source: payload.source,
+        model: payload.model,
+        generatedAt: new Date().toISOString(),
+        result: payload.result
+      };
+      target.launch.checklist = Object.fromEntries(payload.result.launch_checklist.map((item) => [item.id, item.status === "ready"]));
+      target.creativePlan = payload.result.creative_briefs.map((item) => ({
+        angle: item.angle,
+        hook: item.hook,
+        platform: item.platform,
+        variable: item.test_variable,
+        metric: item.success_metric
+      }));
+    });
+    showToast(payload.source === "codex" ? `Launch Pack 已生成 · ${payload.model}` : "Mock Launch Pack 已生成");
+  } catch (error) {
+    showToast(`没有写入结果：${error.message}`, "error");
+  } finally {
+    aiBusy = false;
+    render();
+  }
+}
+
 function cloneJson(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -986,6 +1130,176 @@ function adoptIntakeStrategy() {
   showToast("Strategy v0 已同步到投放策略，可继续人工修改");
 }
 
+function saveLaunchVersion() {
+  const packRecord = activeProject().launch?.pack;
+  if (!packRecord?.result) {
+    showToast("先生成一份 Launch Pack。", "error");
+    return;
+  }
+  updateProject((project) => {
+    if (!project.launch) project.launch = createLaunch();
+    if (!project.launch.versions) project.launch.versions = [];
+    const number = project.launch.versions.length + 1;
+    project.launch.versions.unshift({
+      id: makeId(),
+      name: `Launch Pack v0.${number}`,
+      savedAt: new Date().toISOString(),
+      snapshot: cloneJson(project.launch.pack)
+    });
+    project.launch.versions = project.launch.versions.slice(0, 10);
+  });
+  render();
+  showToast("Launch Pack 版本已保存");
+}
+
+function restoreLaunchVersion(versionId) {
+  const version = activeProject().launch?.versions?.find((item) => item.id === versionId);
+  if (!version?.snapshot) return;
+  updateProject((project) => {
+    if (!project.launch) project.launch = createLaunch();
+    project.launch.pack = cloneJson(version.snapshot);
+    project.launch.checklist = Object.fromEntries(project.launch.pack.result.launch_checklist.map((item) => [item.id, item.status === "ready"]));
+  });
+  render();
+  showToast(`已恢复 ${version.name}`);
+}
+
+function launchPackMarkdown(project) {
+  const pack = project.launch?.pack?.result;
+  if (!pack) return "";
+  const lines = [
+    `# ${pack.title}`,
+    "",
+    `> ${pack.executive_summary}`,
+    "",
+    `- 就绪度：${pack.readiness.score}/100 · ${launchStatusText(pack.readiness.status)}`,
+    `- 生成时间：${dateText(project.launch.pack.generatedAt)}`,
+    `- 生成来源：${project.launch.pack.source === "codex" ? `Codex · ${project.launch.pack.model}` : "Browser-local Mock"}`,
+    "",
+    "## 上线阻塞项",
+    "",
+    ...(pack.readiness.blockers.length ? pack.readiness.blockers.map((item) => `- ${item}`) : ["- 当前没有硬阻塞项。"]),
+    "",
+    "## 当前假设",
+    "",
+    ...(pack.assumptions.length ? pack.assumptions.map((item) => `- ${item}`) : ["- 无。"]),
+    "",
+    "## 媒体分工与预算",
+    "",
+    "| 媒体 | 角色 | Campaign 类型 | 占比 | 月预算 |",
+    "| --- | --- | --- | ---: | ---: |",
+    ...pack.media_plan.map((item) => `| ${markdownCell(item.platform)} | ${markdownCell(item.role)} | ${markdownCell(item.campaign_type)} | ${item.allocation_percent === null ? "—" : `${item.allocation_percent}%`} | ${markdownCell(launchBudgetText(item))} |`),
+    "",
+    "## Campaign Blueprint",
+    "",
+    ...pack.campaigns.flatMap((item, index) => [
+      `### ${index + 1}. ${item.campaign_name}`,
+      "",
+      `- 媒体：${item.platform}`,
+      `- 目标 / 事件：${item.objective} / ${item.optimization_event}`,
+      `- 市场：${item.geo}`,
+      `- 出价：${item.bidding}`,
+      `- 预算：${item.budget_note}`,
+      "- 结构逻辑：",
+      ...item.ad_group_logic.map((value) => `  - ${value}`),
+      "- 受众与排除：",
+      ...item.audience_notes.map((value) => `  - ${value}`),
+      ""
+    ]),
+    "## 素材生产 Brief",
+    "",
+    ...pack.creative_briefs.flatMap((item, index) => [
+      `### ${index + 1}. ${item.platform} · ${item.angle}`,
+      "",
+      `> ${item.hook}`,
+      "",
+      `- 假设：${item.hypothesis}`,
+      `- 格式：${item.format}`,
+      `- 变体：${item.variants}`,
+      `- 单变量：${item.test_variable}`,
+      `- 成功指标：${item.success_metric}`,
+      "- 生产说明：",
+      ...item.production_notes.map((value) => `  - ${value}`),
+      "- 合规说明：",
+      ...(item.compliance_notes.length ? item.compliance_notes.map((value) => `  - ${value}`) : ["  - 无额外说明。"]),
+      ""
+    ]),
+    "## 监测与归因",
+    "",
+    `- 最终口径：${pack.measurement.source_of_truth}`,
+    `- 主要事件：${pack.measurement.primary_event}`,
+    ...markdownSection("辅助事件", pack.measurement.supporting_events),
+    ...markdownSection("媒体实时反馈", pack.measurement.platform_feedback),
+    ...markdownSection("归因规则", pack.measurement.attribution_rules),
+    ...markdownSection("追踪检查", pack.measurement.tracking_checklist),
+    "## 上线 Gate",
+    "",
+    "| 类别 | 检查项 | 状态 | 负责人 | 证据 / 缺口 |",
+    "| --- | --- | --- | --- | --- |",
+    ...pack.launch_checklist.map((item) => `| ${item.category} | ${markdownCell(item.item)} | ${launchStatusText(item.status)} | ${markdownCell(item.owner)} | ${markdownCell(item.evidence)} |`),
+    "",
+    "## 首 7 天行动",
+    "",
+    ...pack.first_7_days.flatMap((item) => [`### ${item.period}`, ...item.actions.map((value) => `- ${value}`), `- **决策规则：** ${item.decision_rule}`, ""]),
+    "## 待确认问题",
+    "",
+    ...(pack.open_questions.length ? pack.open_questions.map((item, index) => `${index + 1}. ${item}`) : ["无。"]),
+    "",
+    "## 风险说明",
+    "",
+    ...pack.risks.map((item) => `- ${item}`),
+    "",
+    `---`,
+    `OpenAdOps v${APP_VERSION} · 只读规划，不会修改真实广告账户。`
+  ];
+  return lines.join("\n");
+}
+
+function downloadText(content, fileName, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function safeProjectFileName(project, suffix) {
+  return `${project.name.replace(/[\\/:*?"<>|]/g, "-")}-${suffix}`;
+}
+
+function exportLaunchPackMarkdown() {
+  const project = activeProject();
+  const content = launchPackMarkdown(project);
+  if (!content) {
+    showToast("还没有可导出的 Launch Pack。", "error");
+    return;
+  }
+  downloadText(content, safeProjectFileName(project, "Launch-Pack.md"), "text/markdown;charset=utf-8");
+  showToast("Launch Pack Markdown 已导出");
+}
+
+function launchPackDocument(project) {
+  const pack = project.launch?.pack?.result;
+  if (!pack) return "";
+  const gateRows = pack.launch_checklist.map((item) => `<tr><td>${escapeHtml(item.category)}</td><td><strong>${escapeHtml(item.item)}</strong></td><td><span class="status ${attr(item.status)}">${escapeHtml(launchStatusText(item.status))}</span></td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.evidence)}</td></tr>`).join("");
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(pack.title)}</title><style>
+  :root{--ink:#17212b;--muted:#687382;--line:#dfe4e8;--paper:#fff;--bg:#edf0f2;--accent:#e86f34;--accent-soft:#fff0e8;--success:#247a55;--risk:#b8443e}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,Arial,"PingFang SC",sans-serif}main{width:min(1120px,calc(100% - 32px));margin:32px auto;background:var(--paper);padding:56px}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.14em;color:var(--accent)}h1{font-size:42px;line-height:1.12;margin:10px 0 20px}.lead{font-size:16px;line-height:1.8;color:var(--muted);max-width:860px}.readiness{margin:34px 0;display:grid;grid-template-columns:150px 1fr 220px;gap:28px;padding:26px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(135deg,#fff,var(--accent-soft))}.score strong{font-size:58px}.score span{color:var(--muted)}.state{font-size:24px;font-weight:800}.blockers{border-left:1px solid var(--line);padding-left:22px}.blockers strong{display:block;font-size:32px}.meta{display:flex;gap:18px;color:var(--muted);font-size:12px}.section{margin-top:42px}.section h2{font-size:22px;margin:0 0 16px}.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.card{border:1px solid var(--line);border-radius:12px;padding:18px;break-inside:avoid}.card span{font-size:10px;font-weight:800;color:var(--accent);letter-spacing:.08em}.card h3{font-size:16px;margin:8px 0}.card p,.card li{font-size:12px;line-height:1.7;color:var(--muted)}blockquote{margin:12px 0;padding:12px 14px;border-left:3px solid var(--accent);background:var(--accent-soft);font-weight:700}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:11px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--muted);font-size:9px;letter-spacing:.08em;text-transform:uppercase}.status{display:inline-block;padding:4px 8px;border-radius:99px;background:#eef1f3}.status.ready{color:var(--success);background:#e7f5ee}.status.blocker{color:var(--risk);background:#fdebea}.week{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.week strong{display:block;margin-bottom:8px}.foot{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:10px}@media(max-width:760px){main{width:100%;margin:0;padding:24px}.readiness,.cards,.week{grid-template-columns:1fr}.blockers{border-left:0;border-top:1px solid var(--line);padding:14px 0 0}h1{font-size:30px}}@media print{body{background:#fff}main{width:auto;margin:0;padding:28px}.section{break-inside:auto}.card{break-inside:avoid}}
+  </style></head><body><main><p class="eyebrow">OPENADOPS · LAUNCH PACK · v${APP_VERSION}</p><h1>${escapeHtml(pack.title)}</h1><p class="lead">${escapeHtml(pack.executive_summary)}</p><div class="meta"><span>${escapeHtml(project.industry)} App</span><span>${escapeHtml(project.markets || "市场待确认")}</span><span>${escapeHtml(project.platforms.join(" / "))}</span><span>${dateText(project.launch.pack.generatedAt)}</span></div><section class="readiness"><div class="score"><strong>${pack.readiness.score}</strong><span>/100</span></div><div><div class="state">${escapeHtml(launchStatusText(pack.readiness.status))}</div><p>${pack.assumptions.map((item) => escapeHtml(item)).join("<br>") || "关键输入已覆盖。"}</p></div><div class="blockers"><span>BLOCKERS</span><strong>${pack.readiness.blockers.length}</strong><p>${pack.readiness.blockers.map((item) => escapeHtml(item)).join("<br>") || "没有硬阻塞项"}</p></div></section><section class="section"><h2>01 · 媒体分工与预算</h2><table><thead><tr><th>媒体</th><th>角色</th><th>Campaign</th><th>占比</th><th>预算</th></tr></thead><tbody>${pack.media_plan.map((item) => `<tr><td><strong>${escapeHtml(item.platform)}</strong></td><td>${escapeHtml(item.role)}</td><td>${escapeHtml(item.campaign_type)}</td><td>${item.allocation_percent === null ? "—" : `${item.allocation_percent}%`}</td><td>${escapeHtml(launchBudgetText(item))}</td></tr>`).join("")}</tbody></table></section><section class="section"><h2>02 · Campaign Blueprint</h2><div class="cards">${pack.campaigns.map((item) => `<article class="card"><span>${escapeHtml(item.platform)}</span><h3>${escapeHtml(item.campaign_name)}</h3><p><strong>目标 / 事件：</strong>${escapeHtml(item.objective)} / ${escapeHtml(item.optimization_event)}<br><strong>市场：</strong>${escapeHtml(item.geo)}<br><strong>出价：</strong>${escapeHtml(item.bidding)}<br><strong>预算：</strong>${escapeHtml(item.budget_note)}</p><ul>${item.ad_group_logic.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></article>`).join("")}</div></section><section class="section"><h2>03 · 素材生产 Brief</h2><div class="cards">${pack.creative_briefs.map((item) => `<article class="card"><span>${escapeHtml(item.platform)} · ${item.variants} VARIANTS</span><h3>${escapeHtml(item.angle)}</h3><blockquote>${escapeHtml(item.hook)}</blockquote><p><strong>假设：</strong>${escapeHtml(item.hypothesis)}</p><p><strong>格式：</strong>${escapeHtml(item.format)}<br><strong>单变量：</strong>${escapeHtml(item.test_variable)}<br><strong>成功指标：</strong>${escapeHtml(item.success_metric)}</p></article>`).join("")}</div></section><section class="section"><h2>04 · 监测与归因</h2><article class="card"><h3>${escapeHtml(pack.measurement.source_of_truth)}</h3><p><strong>主要事件：</strong>${escapeHtml(pack.measurement.primary_event)}</p><ul>${[...pack.measurement.supporting_events,...pack.measurement.attribution_rules,...pack.measurement.tracking_checklist].map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></article></section><section class="section"><h2>05 · 上线 Gate</h2><table><thead><tr><th>类别</th><th>检查项</th><th>状态</th><th>负责人</th><th>证据 / 缺口</th></tr></thead><tbody>${gateRows}</tbody></table></section><section class="section"><h2>06 · 首 7 天行动</h2><div class="week">${pack.first_7_days.map((item) => `<article class="card"><strong>${escapeHtml(item.period)}</strong>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<blockquote>${escapeHtml(item.decision_rule)}</blockquote></article>`).join("")}</div></section><section class="section"><h2>07 · 待确认与风险</h2><div class="cards"><article class="card"><h3>待确认问题</h3><ol>${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>无</li>"}</ol></article><article class="card"><h3>风险说明</h3><ul>${pack.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></article></div></section><p class="foot">OpenAdOps v${APP_VERSION} · 本文件为投前工作草案，不会修改真实广告账户；正式上线前由项目负责人和相关合规人员确认。</p></main></body></html>`;
+}
+
+function exportLaunchPackHtml() {
+  const project = activeProject();
+  const content = launchPackDocument(project);
+  if (!content) {
+    showToast("还没有可导出的 Launch Pack。", "error");
+    return;
+  }
+  downloadText(content, safeProjectFileName(project, "Launch-Pack.html"), "text/html;charset=utf-8");
+  showToast("Launch Pack HTML 已导出");
+}
+
 function reportDocument(project) {
   const record = latestAnalysis(project);
   const result = record?.result;
@@ -1058,7 +1372,7 @@ projectForm.addEventListener("submit", (event) => {
     updatedAt: new Date().toISOString(),
     strategy: { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: Object.fromEntries(platforms.map((platform) => [platform, Math.round(100 / platforms.length)])) },
     creativePlan: [],
-    launch: { checklist: {} },
+    launch: createLaunch(),
     intake: createIntake(),
     ai: {}
   };

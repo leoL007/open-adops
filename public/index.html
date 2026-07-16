@@ -10,7 +10,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <title>OpenAdOps｜Local-first AI workspace for paid media</title>
     <link rel="icon" href="./og.png" type="image/png" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=0.3.0" />
   </head>
   <body>
     <div class="app-shell">
@@ -28,7 +28,7 @@
           <a href="#intake" data-route="intake"><span>01</span>需求接收</a>
           <a href="#strategy" data-route="strategy"><span>02</span>投放策略</a>
           <a href="#creative" data-route="creative"><span>03</span>素材计划</a>
-          <a href="#launch" data-route="launch"><span>04</span>广告搭建</a>
+          <a href="#launch" data-route="launch"><span>04</span>投前作战包</a>
           <a href="#optimize" data-route="optimize"><span>05</span>投放优化</a>
           <a href="#report" data-route="report"><span>06</span>报告输出</a>
         </nav>
@@ -50,6 +50,7 @@
             <span id="demoBadge" class="demo-badge" hidden>演示数据</span>
           </div>
           <div class="topbar-actions">
+            <span class="app-version" id="appVersion">v0.3.0</span>
             <div class="ai-mode-control" title="Mock 不消耗模型额度；Codex 会调用本地 CLI">
               <span>分析模式</span>
               <select id="aiMode">
@@ -128,6 +129,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./app.js?v=0.3.0"></script>
   </body>
 </html>
