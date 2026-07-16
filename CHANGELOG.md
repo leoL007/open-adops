@@ -2,6 +2,16 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.2.0] - 2026-07-16
+
+### Added
+
+- Offer Intake workspace for client offers, strategy fragments, and operator notes.
+- Schema-validated Brief fields with confirmed, inferred, and missing states.
+- Client clarification questions and industry-aware Strategy v0 generation.
+- Editable Brief adoption into the planning stage, Markdown export, and local version snapshots.
+- Browser-local Mock intake and optional Codex CLI intake bridge.
+
 ## [0.1.0] - 2026-07-15
 
 ### Added
