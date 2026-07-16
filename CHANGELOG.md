@@ -2,6 +2,28 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.4.0] - 2026-07-16
+
+### Added
+
+- Experiment Ledger workspace that turns Launch Pack creative briefs into a Now / Next / Later test backlog.
+- Deterministic rate-test sample sizing, duration estimation, feasibility states, and relative-change calculation.
+- Google App asset experiment, Meta A/B test, and TikTok Split Testing execution guidance.
+- Editable experiment status, result evidence, learning, next action, local snapshots, and Markdown / standalone HTML exports.
+- Experiment summaries in the project command center and management report.
+- Fixed experiment acceptance cases for multi-platform, missing-data, and insufficient-volume scenarios.
+
+### Changed
+
+- Browser storage migrates existing projects into the v4 shape without discarding Intake or Launch Pack history.
+- Imported CSV metrics now normalize timestamped rows into active calendar dates for experiment traffic estimation.
+- CSV mapping can preserve the declared conversion-event name, and equivalent platform aliases are combined before sizing.
+- Experiment baselines only use a matching platform, a single primary metric, and an explicitly matched deep-event identity; account-wide averages and generic conversions are never substituted.
+- Composite metrics remain `not_calculable`, and generated ledgers are deterministically capped at four experiments.
+- Invalid sizing inputs are rejected, and concluded experiments automatically reopen if required evidence or learning is removed.
+- Async AI results are written back to their originating project, while project and mode switching remain locked during generation.
+- Workflow portability moves to v0.5 so v0.4 can close the strategy-to-learning loop.
+
 ## [0.3.0] - 2026-07-16
 
 ### Added

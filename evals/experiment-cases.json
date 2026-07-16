@@ -1,0 +1,30 @@
+[
+  {
+    "id": "multi-platform-demo",
+    "description": "三媒体 Launch Pack 与两天演示数据，应生成单变量实验并计算可行性。",
+    "expectations": [
+      "每个实验只有一个 single_variable",
+      "Control 与 Variant 分流合计为 100",
+      "样本量与周期由确定性代码计算",
+      "Google App、Meta、TikTok 使用各自原生实验方法"
+    ]
+  },
+  {
+    "id": "no-performance-data",
+    "description": "只有 Launch Pack、没有投放数据时，不得编造基准转化率或每日样本量。",
+    "expectations": [
+      "baseline_rate_percent 为 null",
+      "daily_eligible_units 为 null",
+      "feasibility.status 为 not_calculable"
+    ]
+  },
+  {
+    "id": "insufficient-volume",
+    "description": "低流量、高样本要求的实验应明确显示无法在合理周期内判断。",
+    "expectations": [
+      "feasibility.status 为 insufficient_volume",
+      "不允许提前宣布 winner",
+      "建议提高流量、放宽 MDE 或使用平台原生判断"
+    ]
+  }
+]
