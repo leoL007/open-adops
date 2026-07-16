@@ -2,6 +2,22 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.3.0] - 2026-07-16
+
+### Added
+
+- Launch Pack workspace that turns Offer Intake and Strategy v0 into an execution-ready pre-flight deliverable.
+- Platform roles, normalized budget allocation, Campaign blueprints, creative production briefs, layered measurement rules, launch gates, and first-seven-day actions.
+- Markdown and standalone HTML export plus local Launch Pack snapshots.
+- Schema-validated browser Mock and local Codex CLI Launch Pack generation.
+- Fixed finance, gaming, and utility acceptance cases under `evals/`.
+- Product definition, benchmark notes, decision records, release discipline, version validation, and tag-driven GitHub Release workflow.
+
+### Changed
+
+- Full CI now runs version validation, tests, and environment checks through `npm run check`.
+- Browser storage migrates previous projects into the v3 project shape without discarding Intake history.
+
 ## [0.2.0] - 2026-07-16
 
 ### Added
