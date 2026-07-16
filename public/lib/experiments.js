@@ -31,6 +31,23 @@ export function canonicalExperimentPlatform(value) {
 
 export function inferExperimentMetric(metricName) {
   const compact = normalizedText(metricName);
+  const hasCost = ["cpi", "cpa", "cpc", "cpm"].some((token) => compact.includes(token))
+    || compact.includes("成本")
+    || compact.includes("单价");
+  const hasRevenue = compact.includes("roas")
+    || compact.includes("revenue")
+    || compact.includes("收入")
+    || compact.includes("营收")
+    || compact.includes("回收");
+  const hasRate = compact.includes("ctr")
+    || compact.includes("cvr")
+    || compact.includes("rate")
+    || compact.includes("率");
+  if ([hasCost, hasRevenue, hasRate].filter(Boolean).length > 1) {
+    return { metricType: "composite", rate: null, denominator: null };
+  }
+  if (hasCost) return { metricType: "cost", rate: null, denominator: null };
+  if (hasRevenue) return { metricType: "revenue", rate: null, denominator: null };
   if (compact.includes("ctr") || compact.includes("clickthroughrate") || compact.includes("点击率")) {
     return { metricType: "rate", rate: "ctr", denominator: "impressions" };
   }
@@ -55,16 +72,19 @@ export function inferExperimentMetric(metricName) {
   if (compact.includes("cvr") || compact.includes("installrate") || compact.includes("安装率")) {
     return { metricType: "rate", rate: "install", denominator: "clicks" };
   }
-  if (["cpi", "cpa", "cpc", "cpm"].some((token) => compact.includes(token)) || compact.includes("成本") || compact.includes("单价")) {
-    return { metricType: "cost", rate: null, denominator: null };
-  }
-  if (compact.includes("roas") || compact.includes("revenue") || compact.includes("收入") || compact.includes("营收") || compact.includes("回收")) {
-    return { metricType: "revenue", rate: null, denominator: null };
-  }
   if (compact.endsWith("rate") || compact.endsWith("率")) {
     return { metricType: "rate", rate: null, denominator: null };
   }
   return { metricType: "count", rate: null, denominator: null };
+}
+
+function canonicalConversionEvent(value) {
+  const compact = normalizedText(value);
+  if (["registration", "register", "signup", "注册"].some((token) => compact.includes(token))) return "registration";
+  if (["purchase", "buyer", "购买", "付费"].some((token) => compact.includes(token))) return "purchase";
+  if (["activation", "activate", "激活"].some((token) => compact.includes(token))) return "activation";
+  if (["lead", "线索"].some((token) => compact.includes(token))) return "lead";
+  return compact;
 }
 
 export function experimentMetricContext(metrics = {}, platform, metricName) {
@@ -78,6 +98,15 @@ export function experimentMetricContext(metrics = {}, platform, metricName) {
   const period = platformMetrics.period || metrics.period;
   const activeDays = Number(period?.activeDays) || 0;
   const denominator = Number(platformMetrics[definition.denominator]) || 0;
+  const declaredConversionEvent = platformMetrics.conversionEvent || metrics.conversionEvent;
+  const eventMatched = definition.rate !== "conversion"
+    || (
+      Boolean(declaredConversionEvent)
+      && canonicalConversionEvent(declaredConversionEvent) === canonicalConversionEvent(metricName)
+    );
+  if (!eventMatched) {
+    return { baseline: null, dailyUnits: null, metricType: definition.metricType };
+  }
   const rate = definition.rate === "ctr"
     ? Number(platformMetrics.ctr)
     : definition.rate === "install"
@@ -122,7 +151,28 @@ export function normalizeExperimentDesign(design = {}) {
   };
 }
 
+export function experimentSizingInputError(field, value) {
+  if (field === "design.minimum_days") {
+    return Number.isInteger(value) && value > 0 ? "" : "最短天数必须是正整数。";
+  }
+  if (value === null) return "";
+  if (field === "design.baseline_rate_percent" && (!(value > 0) || !(value < 100))) {
+    return "基准转化率必须大于 0 且小于 100。";
+  }
+  if (field === "design.mde_percent" && !(value > 0)) return "MDE 必须大于 0。";
+  if (field === "design.daily_eligible_units" && !(value > 0)) return "每日可进入样本必须大于 0。";
+  return "";
+}
+
 export function calculateExperimentFeasibility(design = {}) {
+  if (design.metric_type === "composite") {
+    return {
+      required_sample_per_variant: null,
+      estimated_duration_days: null,
+      status: "not_calculable",
+      rationale: "当前主指标包含多个指标，请先拆成一个主要指标和独立护栏指标后再计算。"
+    };
+  }
   if (design.metric_type !== "rate") {
     return {
       required_sample_per_variant: null,

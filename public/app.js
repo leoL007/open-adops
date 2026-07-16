@@ -1,5 +1,10 @@
 import { FIELD_LABELS, calculateMetrics, detectMapping, formatMetric, mapRows, parseCsv } from "./lib/analytics.js";
-import { enrichExperimentPlan, experimentConclusionComplete, experimentPlanSummary } from "./lib/experiments.js";
+import {
+  enrichExperimentPlan,
+  experimentConclusionComplete,
+  experimentPlanSummary,
+  experimentSizingInputError
+} from "./lib/experiments.js";
 import { buildMockAnalysis } from "./lib/mock-analysis.js";
 import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
@@ -944,6 +949,12 @@ function attachPageListeners() {
       if (!experiment) return;
       const field = input.dataset.experimentField;
       const value = input.type === "number" ? (input.value === "" ? null : Number(input.value)) : input.value;
+      const sizingError = experimentSizingInputError(field, value);
+      if (sizingError) {
+        input.value = nullableValue(field.split(".").reduce((current, key) => current?.[key], experiment));
+        showToast(sizingError, "error");
+        return;
+      }
       if (field === "status" && value === "concluded") {
         if (!experimentConclusionComplete(experiment)) {
           input.value = experiment.status;

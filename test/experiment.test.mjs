@@ -5,6 +5,7 @@ import {
   calculateExperimentFeasibility,
   enrichExperimentPlan,
   experimentConclusionComplete,
+  experimentSizingInputError,
   normalizeExperimentDesign
 } from "../public/lib/experiments.js";
 import { buildMockExperimentPlan } from "../public/lib/mock-experiment-plan.js";
@@ -53,6 +54,15 @@ test("experiment design normalizes editable duration boundaries", () => {
     normalizeExperimentDesign({ ...baseDesign, minimum_days: 7.6, maximum_days: 2 }),
     { ...baseDesign, minimum_days: 8, maximum_days: 8 }
   );
+});
+
+test("editable experiment sizing inputs reject invalid values", () => {
+  assert.match(experimentSizingInputError("design.baseline_rate_percent", 100), /小于 100/);
+  assert.match(experimentSizingInputError("design.mde_percent", -1), /大于 0/);
+  assert.match(experimentSizingInputError("design.daily_eligible_units", 0), /大于 0/);
+  assert.match(experimentSizingInputError("design.minimum_days", 7.5), /正整数/);
+  assert.equal(experimentSizingInputError("design.baseline_rate_percent", null), "");
+  assert.equal(experimentSizingInputError("design.minimum_days", 7), "");
 });
 
 test("concluded experiments require durable evidence and learning", () => {
@@ -122,6 +132,7 @@ test("mock Experiment Ledger normalizes platform labels and sizes the actual rat
           clicks: 1000,
           impressions: 10000,
           conversions: 50,
+          conversionEvent: "Registration",
           cvr: 0.2,
           ctr: 0.1,
           period: { activeDays: 2 }
@@ -156,6 +167,7 @@ test("specific business events take precedence over generic CVR labels", () => {
           name: "Facebook Ads",
           clicks: 1000,
           conversions: 50,
+          conversionEvent: "Registration",
           cvr: 0.2,
           period: { activeDays: 1 }
         }]
@@ -211,12 +223,70 @@ test("AI experiment metric inputs are replaced by deterministic matching data", 
       name: "googleadwords_int",
       clicks: 1000,
       conversions: 50,
+      conversionEvent: "Registration",
       cvr: 0.2,
       period: { activeDays: 2 }
     }]
   });
   assert.equal(normalized.experiments[0].design.baseline_rate_percent, 5);
   assert.equal(normalized.experiments[0].design.daily_eligible_units, 500);
+});
+
+test("deep-event rates stay empty without an explicitly matching event identity", () => {
+  const project = {
+    name: "Commerce App",
+    platforms: ["Meta Ads"],
+    creativePlan: [{
+      platform: "Meta Ads",
+      angle: "Offer",
+      hook: "Show the offer",
+      variable: "Opening",
+      metric: "Purchase CVR"
+    }],
+    data: {
+      metrics: {
+        period: { activeDays: 2 },
+        byPlatform: [{
+          name: "Facebook Ads",
+          clicks: 1000,
+          conversions: 50,
+          conversionEvent: "Registration",
+          cvr: 0.2,
+          period: { activeDays: 2 }
+        }]
+      }
+    }
+  };
+  const experiment = buildMockExperimentPlan(project).experiments[0];
+  assert.equal(experiment.design.metric_type, "rate");
+  assert.equal(experiment.design.baseline_rate_percent, null);
+  assert.equal(experiment.design.daily_eligible_units, null);
+});
+
+test("composite primary metrics remain not calculable", () => {
+  const project = {
+    name: "Install App",
+    goal: "Install",
+    platforms: ["Google Ads"],
+    data: {
+      metrics: {
+        period: { activeDays: 2 },
+        byPlatform: [{
+          name: "Google Ads",
+          clicks: 1000,
+          conversions: 100,
+          cvr: 0.2,
+          period: { activeDays: 2 }
+        }]
+      }
+    }
+  };
+  const launchPack = buildMockLaunchPack(project);
+  const experiment = buildMockExperimentPlan(project, launchPack).experiments[0];
+  assert.equal(experiment.design.metric_type, "composite");
+  assert.equal(experiment.design.baseline_rate_percent, null);
+  assert.equal(experiment.feasibility.status, "not_calculable");
+  assert.match(experiment.feasibility.rationale, /拆成一个主要指标/);
 });
 
 test("mock Experiment Ledger keeps unavailable traffic inputs empty", () => {
@@ -263,4 +333,20 @@ test("validator rejects non-positive experiment sizing inputs", () => {
   assert.equal(validation.valid, false);
   assert.match(validation.errors.join(" "), /mde_percent 必须大于 0/);
   assert.match(validation.errors.join(" "), /daily_eligible_units 必须大于 0/);
+});
+
+test("validator enforces the 1–4 experiment contract", () => {
+  const project = {
+    name: "Tool App",
+    platforms: ["Meta Ads"],
+    creativePlan: [{ platform: "Meta Ads", angle: "Outcome", hook: "Show it", variable: "Opening", metric: "CVR" }]
+  };
+  const plan = buildMockExperimentPlan(project);
+  plan.experiments = Array.from({ length: 5 }, (_, index) => ({
+    ...structuredClone(plan.experiments[0]),
+    id: `experiment-${index + 1}`
+  }));
+  const validation = validateExperimentPlan(plan);
+  assert.equal(validation.valid, false);
+  assert.match(validation.errors.join(" "), /最多允许 4 项/);
 });

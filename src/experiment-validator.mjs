@@ -3,7 +3,7 @@ import { calculateExperimentFeasibility, calculateRelativeChange } from "../publ
 const PRIORITIES = new Set(["now", "next", "later"]);
 const STATUSES = new Set(["draft", "ready", "running", "concluded", "archived"]);
 const CATEGORIES = new Set(["creative", "audience", "bidding", "landing_page", "measurement", "campaign_structure"]);
-const METRIC_TYPES = new Set(["rate", "cost", "revenue", "count"]);
+const METRIC_TYPES = new Set(["rate", "cost", "revenue", "count", "composite"]);
 const FEASIBILITY = new Set(["ready", "long_horizon", "insufficient_volume", "not_calculable"]);
 const OUTCOMES = new Set(["pending", "winner", "loser", "inconclusive"]);
 
@@ -46,6 +46,7 @@ export function validateExperimentPlan(result) {
     errors.push("experiments 至少需要 1 项");
     return { valid: errors.length === 0, errors };
   }
+  if (result.experiments.length > 4) errors.push("experiments 最多允许 4 项");
 
   const ids = new Set();
   result.experiments.forEach((experiment, index) => {
