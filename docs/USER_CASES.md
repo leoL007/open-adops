@@ -57,3 +57,32 @@
 - 所有 Campaign 都有目标、优化事件、市场、出价和预算说明。
 - 所有素材 Brief 都有假设、单一测试变量和成功指标。
 - 所有版本可以通过 Git Tag 和 GitHub Release 回溯。
+
+## Case D：三媒体素材测试队列
+
+输入：
+
+- 已存在 Google、Meta、TikTok 的 Launch Pack 素材 Brief。
+- 已导入两天带日期、点击和 MMP 安装的演示数据。
+
+必须输出：
+
+- 每个实验只有一个主要变量。
+- Google App 素材使用 App asset experiment，Meta 使用 A/B test，TikTok 使用 Split Testing。
+- Control 与 Variant 分流合计为 100%。
+- 基准转化率、每日样本、每版本所需样本和预计周期可以回溯到输入或确定性计算。
+- 实验开始前已经写好 Win、Lose 和 Inconclusive 条件。
+
+## Case E：没有投放数据的实验草案
+
+输入：
+
+- 已存在素材 Brief。
+- 未导入可用于估算流量和转化率的数据。
+
+必须输出：
+
+- 不编造 baseline rate 或 daily eligible units。
+- 可行性显示为 `not_calculable`。
+- 仍然输出可执行的原生实验设置、停止条件和结果记录模板。
+- 不允许把未达到样本门槛的短期波动写成 Winner。

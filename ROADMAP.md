@@ -28,7 +28,16 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Export Markdown and standalone HTML; save local Launch Pack snapshots.
 - [x] Add fixed product evals, version validation, and tag-driven GitHub Releases.
 
-## v0.4 — Workflow portability
+## v0.4 — Experiment Ledger
+
+- [x] Turn Launch Pack creative briefs into a prioritized cross-platform experiment backlog.
+- [x] Enforce one primary variable, predefined success rules, guardrails, owners, and evidence.
+- [x] Calculate rate-test sample size, duration, and relative change with deterministic code.
+- [x] Keep missing baseline and traffic inputs empty instead of fabricating precision.
+- [x] Record running state, outcome, learning, next action, and local versions.
+- [x] Export Markdown and standalone HTML; feed experiment status into the management report.
+
+## v0.5 — Workflow portability
 
 - [ ] XLSX import.
 - [ ] Project JSON export/import and backup.
@@ -37,7 +46,7 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [ ] English UI and runtime locale switch.
 - [ ] Provider adapter contract for additional coding-agent runtimes.
 
-## v0.5 — Evidence and collaboration
+## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.
 - [ ] Versioned analysis runs and decision history.
