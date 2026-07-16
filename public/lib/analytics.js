@@ -155,6 +155,15 @@ function aggregate(rows) {
   };
 }
 
+function periodForRows(rows) {
+  const dates = [...new Set(rows.map((row) => String(row.date || "").trim()).filter(Boolean))].sort();
+  return {
+    startDate: dates[0] || "",
+    endDate: dates.at(-1) || "",
+    activeDays: dates.length
+  };
+}
+
 function groupBy(rows, field) {
   const groups = new Map();
   for (const row of rows) {
@@ -163,7 +172,7 @@ function groupBy(rows, field) {
     groups.get(key).push(row);
   }
   return [...groups.entries()]
-    .map(([name, groupRows]) => ({ name, ...aggregate(groupRows) }))
+    .map(([name, groupRows]) => ({ name, ...aggregate(groupRows), period: periodForRows(groupRows) }))
     .sort((left, right) => right.spend - left.spend);
 }
 
@@ -172,6 +181,7 @@ export function calculateMetrics(rows) {
   return {
     rowCount: rows.length,
     summary: aggregate(rows),
+    period: periodForRows(rows),
     byPlatform: groupBy(rows, "platform"),
     byCountry: groupBy(rows, "country"),
     byCampaign: groupBy(rows, "campaign")

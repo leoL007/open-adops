@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "title", "executive_summary", "learning_agenda", "experiments", "risks"],
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "title": { "type": "string" },
+    "executive_summary": { "type": "string" },
+    "learning_agenda": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "experiments": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "platform",
+          "source",
+          "priority",
+          "status",
+          "category",
+          "hypothesis",
+          "design",
+          "feasibility",
+          "setup_steps",
+          "stop_conditions",
+          "decision_rules",
+          "owner",
+          "result"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "platform": { "type": "string" },
+          "source": { "type": "string", "enum": ["launch_pack", "operator", "analysis"] },
+          "priority": { "type": "string", "enum": ["now", "next", "later"] },
+          "status": { "type": "string", "enum": ["draft", "ready", "running", "concluded", "archived"] },
+          "category": {
+            "type": "string",
+            "enum": ["creative", "audience", "bidding", "landing_page", "measurement", "campaign_structure"]
+          },
+          "hypothesis": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["change", "metric", "direction", "expected_lift_percent", "because"],
+            "properties": {
+              "change": { "type": "string" },
+              "metric": { "type": "string" },
+              "direction": { "type": "string", "enum": ["increase", "decrease"] },
+              "expected_lift_percent": { "type": ["number", "null"] },
+              "because": { "type": "string" }
+            }
+          },
+          "design": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "test_type",
+              "control",
+              "variant",
+              "single_variable",
+              "primary_metric",
+              "metric_type",
+              "guardrail_metrics",
+              "control_percent",
+              "variant_percent",
+              "baseline_rate_percent",
+              "mde_percent",
+              "daily_eligible_units",
+              "confidence_percent",
+              "power_percent",
+              "minimum_days",
+              "maximum_days"
+            ],
+            "properties": {
+              "test_type": { "type": "string" },
+              "control": { "type": "string" },
+              "variant": { "type": "string" },
+              "single_variable": { "type": "string" },
+              "primary_metric": { "type": "string" },
+              "metric_type": { "type": "string", "enum": ["rate", "cost", "revenue", "count"] },
+              "guardrail_metrics": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "control_percent": { "type": "number" },
+              "variant_percent": { "type": "number" },
+              "baseline_rate_percent": { "type": ["number", "null"] },
+              "mde_percent": { "type": ["number", "null"] },
+              "daily_eligible_units": { "type": ["number", "null"] },
+              "confidence_percent": { "type": "number", "enum": [90, 95] },
+              "power_percent": { "type": "number", "enum": [80] },
+              "minimum_days": { "type": "integer" },
+              "maximum_days": { "type": "integer" }
+            }
+          },
+          "feasibility": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["required_sample_per_variant", "estimated_duration_days", "status", "rationale"],
+            "properties": {
+              "required_sample_per_variant": { "type": ["integer", "null"] },
+              "estimated_duration_days": { "type": ["integer", "null"] },
+              "status": {
+                "type": "string",
+                "enum": ["ready", "long_horizon", "insufficient_volume", "not_calculable"]
+              },
+              "rationale": { "type": "string" }
+            }
+          },
+          "setup_steps": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "stop_conditions": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "decision_rules": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["win", "lose", "inconclusive"],
+            "properties": {
+              "win": { "type": "string" },
+              "lose": { "type": "string" },
+              "inconclusive": { "type": "string" }
+            }
+          },
+          "owner": { "type": "string" },
+          "result": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "outcome",
+              "control_value",
+              "variant_value",
+              "relative_change_percent",
+              "confidence_percent",
+              "started_at",
+              "ended_at",
+              "learning",
+              "next_action",
+              "evidence"
+            ],
+            "properties": {
+              "outcome": { "type": "string", "enum": ["pending", "winner", "loser", "inconclusive"] },
+              "control_value": { "type": ["number", "null"] },
+              "variant_value": { "type": ["number", "null"] },
+              "relative_change_percent": { "type": ["number", "null"] },
+              "confidence_percent": { "type": ["number", "null"] },
+              "started_at": { "type": "string" },
+              "ended_at": { "type": "string" },
+              "learning": { "type": "string" },
+              "next_action": { "type": "string" },
+              "evidence": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

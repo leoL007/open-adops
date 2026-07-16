@@ -27,5 +27,14 @@ test("calculateMetrics keeps media CPI and AF-CPI separate", () => {
   assert.equal(metrics.summary.cpi, 300 / 220);
   assert.equal(metrics.summary.afCpi, 300 / 180);
   assert.equal(metrics.summary.roas, 330 / 300);
+  assert.equal(metrics.period.activeDays, 0);
   assert.equal(metrics.byPlatform.length, 2);
+});
+
+test("calculateMetrics records active dates for experiment sizing", () => {
+  const parsed = parseCsv("Date,Platform,Spend,Clicks,AF Installs\n2026-07-01,Meta Ads,100,500,80\n2026-07-02,Meta Ads,120,600,90\n2026-07-02,Google Ads,90,400,70\n");
+  const metrics = calculateMetrics(mapRows(parsed.rows, detectMapping(parsed.headers)));
+  assert.deepEqual(metrics.period, { startDate: "2026-07-01", endDate: "2026-07-02", activeDays: 2 });
+  assert.equal(metrics.byPlatform.find((item) => item.name === "Meta Ads").period.activeDays, 2);
+  assert.equal(metrics.byPlatform.find((item) => item.name === "Google Ads").period.activeDays, 1);
 });
