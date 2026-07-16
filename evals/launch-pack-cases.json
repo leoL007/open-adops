@@ -1,0 +1,47 @@
+[
+  {
+    "id": "finance-incomplete-id",
+    "project": {
+      "name": "Atlas Finance App",
+      "industry": "金融",
+      "platforms": ["Google Ads", "Meta Ads"],
+      "markets": "ID",
+      "budget": 0,
+      "currency": "USD",
+      "goal": "Registration",
+      "attribution": "AppsFlyer",
+      "strategy": { "budgetShares": { "Google Ads": 60, "Meta Ads": 40 } }
+    },
+    "expect": { "budgetAmounts": false, "complianceBlocker": true, "platformCount": 2 }
+  },
+  {
+    "id": "game-three-platforms",
+    "project": {
+      "name": "Orbit Game",
+      "industry": "游戏",
+      "platforms": ["Google Ads", "Meta Ads", "TikTok Ads"],
+      "markets": "JP, US",
+      "budget": 30000,
+      "currency": "USD",
+      "goal": "Install",
+      "attribution": "AppsFlyer",
+      "strategy": { "budgetShares": { "Google Ads": 35, "Meta Ads": 40, "TikTok Ads": 25 } }
+    },
+    "expect": { "budgetAmounts": true, "allocationTotal": 100, "platformCount": 3 }
+  },
+  {
+    "id": "utility-small-budget",
+    "project": {
+      "name": "Nova Utility",
+      "industry": "工具",
+      "platforms": ["Google Ads", "Meta Ads", "TikTok Ads"],
+      "markets": "GB",
+      "budget": 2000,
+      "currency": "USD",
+      "goal": "Subscription",
+      "attribution": "AppsFlyer",
+      "strategy": { "budgetShares": { "Google Ads": 55, "Meta Ads": 45, "TikTok Ads": 0 } }
+    },
+    "expect": { "budgetAmounts": true, "allocationTotal": 100, "platformCount": 3, "activePlatformMax": 2 }
+  }
+]
