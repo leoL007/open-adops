@@ -1,6 +1,6 @@
 {
   "name": "open-adops",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Local-first AI workspace for paid-media strategy, optimization, and reporting.",
@@ -24,7 +24,9 @@
     "start": "node server.mjs",
     "dev": "node --watch server.mjs",
     "doctor": "node scripts/doctor.mjs",
-    "test": "node --test"
+    "version:check": "node scripts/check-version.mjs",
+    "test": "node --test",
+    "check": "npm run version:check && npm test && npm run doctor"
   },
   "engines": {
     "node": ">=20"
