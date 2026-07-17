@@ -8,9 +8,9 @@
     <meta property="og:description" content="Local-first AI workspace for intake, launch packs, experiment ledgers, optimization and reporting." />
     <meta property="og:image" content="./og.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <title>OpenAdOps｜Local-first AI workspace for paid media</title>
+    <title>OpenAdOps｜付费媒体工作台</title>
     <link rel="icon" href="./og.png" type="image/png" />
-    <link rel="stylesheet" href="./styles.css?v=0.4.1" />
+    <link rel="stylesheet" href="./styles.css?v=0.4.1-zh2" />
   </head>
   <body>
     <div class="app-shell">
@@ -19,7 +19,7 @@
           <div class="brand-mark">OA</div>
           <div>
             <div class="brand-name">OpenAdOps</div>
-            <div class="brand-subtitle">Paid Media Workspace</div>
+            <div class="brand-subtitle">付费媒体工作台</div>
           </div>
         </div>
 
@@ -28,7 +28,7 @@
           <a href="#intake" data-route="intake"><span>01</span>需求接收</a>
           <a href="#strategy" data-route="strategy"><span>02</span>投放策略</a>
           <a href="#creative" data-route="creative"><span>03</span>素材计划</a>
-          <a href="#launch" data-route="launch"><span>04</span>投前作战包</a>
+          <a href="#launch" data-route="launch"><span>04</span>执行方案</a>
           <a href="#experiments" data-route="experiments"><span>05</span>实验台</a>
           <a href="#optimize" data-route="optimize"><span>06</span>投放优化</a>
           <a href="#report" data-route="report"><span>07</span>报告输出</a>
@@ -37,7 +37,7 @@
         <div class="sidebar-note">
           <div class="status-dot"></div>
           <div>
-            <strong>Local-first · Open source</strong>
+            <strong>本地优先 · 开源</strong>
             <span>项目数据保存在当前浏览器</span>
           </div>
         </div>
@@ -52,11 +52,11 @@
           </div>
           <div class="topbar-actions">
             <span class="app-version" id="appVersion">v0.4.1</span>
-            <div class="ai-mode-control" title="Mock 不消耗模型额度；Codex 会调用本地 CLI">
+            <div class="ai-mode-control" title="演示模式不耗额度；本机模式会调用本地模型">
               <span>分析模式</span>
               <select id="aiMode">
-                <option value="mock">Mock 演示</option>
-                <option value="codex">Codex CLI · smart routing</option>
+                <option value="mock">本地演示</option>
+                <option value="codex">本机模型 · 智能路由</option>
               </select>
             </div>
             <button class="button button-secondary" id="newProjectButton" type="button">＋ 新建项目</button>
@@ -66,7 +66,7 @@
         <section id="aiJobPanel" class="ai-job-panel" hidden aria-live="polite">
           <div class="ai-job-pulse" aria-hidden="true"></div>
           <div class="ai-job-copy">
-            <strong id="aiJobLabel">Codex 正在生成</strong>
+            <strong id="aiJobLabel">正在生成</strong>
             <span id="aiJobMeta">正在准备模型路由…</span>
           </div>
           <div class="ai-job-time">
@@ -92,7 +92,7 @@
       <form method="dialog" id="projectForm">
         <div class="dialog-header">
           <div>
-            <p class="eyebrow">NEW PROJECT</p>
+            <p class="eyebrow">新建项目</p>
             <h2>建立投放项目</h2>
           </div>
           <button type="button" class="icon-button" data-close-dialog aria-label="关闭">×</button>
@@ -100,7 +100,7 @@
         <div class="form-grid two-columns">
           <label class="field field-wide">
             <span>项目名称</span>
-            <input name="name" required placeholder="例如：Finance App · SEA Q3" />
+            <input name="name" required placeholder="例如：工具 App · 东南亚 Q3" />
           </label>
           <label class="field">
             <span>产品行业</span>
@@ -113,9 +113,9 @@
           <label class="field">
             <span>主要目标</span>
             <select name="goal">
-              <option value="Install">Install</option>
-              <option value="Registration">Registration</option>
-              <option value="Purchase">Purchase / ROAS</option>
+              <option value="Install">安装</option>
+              <option value="Registration">注册</option>
+              <option value="Purchase">付费 / ROAS</option>
             </select>
           </label>
           <fieldset class="field field-wide platform-field">
@@ -151,6 +151,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js?v=0.4.1"></script>
+    <script type="module" src="./app.js?v=0.4.1-zh2"></script>
   </body>
 </html>

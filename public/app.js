@@ -40,11 +40,11 @@ let aiJobTimer = null;
 let aiJobTicks = 0;
 let aiRoutes = {
   intakeQuestions: { label: "生成客户追问", model: "gpt-5.6-terra", effort: "low", expectedSeconds: [30, 90] },
-  intakeStrategy: { label: "快速生成 Strategy v0", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
-  intakeDeep: { label: "深度复核 Strategy v0", model: "gpt-5.6", effort: "high", expectedSeconds: [120, 300] },
+  intakeStrategy: { label: "快速生成策略初稿", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
+  intakeDeep: { label: "深度复核策略初稿", model: "gpt-5.6", effort: "high", expectedSeconds: [120, 300] },
   analysis: { label: "投放数据诊断", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
-  launchPack: { label: "生成 Launch Pack", model: "gpt-5.6", effort: "high", expectedSeconds: [120, 300] },
-  experiments: { label: "生成 Experiment Ledger", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] }
+  launchPack: { label: "生成投放执行方案", model: "gpt-5.6", effort: "high", expectedSeconds: [120, 300] },
+  experiments: { label: "生成实验账本", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] }
 };
 
 const BRIEF_FIELD_META = Object.fromEntries(INTAKE_BRIEF_FIELDS.map(([key, label]) => [key, { label, multiline: ["audience", "creative_supply", "compliance", "constraints"].includes(key) }]));
@@ -208,7 +208,7 @@ if (isStaticDemo) {
   const codexOption = aiModeSelect.querySelector('option[value="codex"]');
   if (codexOption) {
     codexOption.disabled = true;
-    codexOption.textContent = "Codex CLI · run locally";
+    codexOption.textContent = "请在本地启动后使用";
   }
 }
 
@@ -265,13 +265,14 @@ function formatClock(milliseconds) {
 }
 
 function modelShortName(model) {
-  if (model === "gpt-5.6-terra") return "Terra";
-  if (model === "gpt-5.6") return "GPT-5.6";
-  return model || "Codex";
+  if (model === "gpt-5.6-terra") return "Terra 轻量";
+  if (model === "gpt-5.6") return "GPT-5.6 深度";
+  if (!model || model === "codex-default" || model === "Codex") return "本机模型";
+  return model;
 }
 
 function effortLabel(effort) {
-  return ({ low: "Low", medium: "Medium", high: "High", xhigh: "Extra High" })[effort] || effort || "Default";
+  return ({ low: "低", medium: "中", high: "高", xhigh: "极高" })[effort] || effort || "默认";
 }
 
 function expectedLabel(expectedSeconds = []) {
@@ -288,12 +289,21 @@ function routeSummary(routeKey) {
 
 function runRecordLabel(record) {
   if (!record) return "";
-  if (record.source !== "codex") return "Mock 演示结果";
+  if (record.source !== "codex") return "演示结果";
   const details = [modelShortName(record.model)];
   if (record.reasoningEffort) details.push(effortLabel(record.reasoningEffort));
   if (record.durationMs) details.push(formatDuration(record.durationMs));
   if (record.fallbackUsed) details.push("自动复核");
-  return `Codex · ${details.join(" · ")}`;
+  return `本机模型 · ${details.join(" · ")}`;
+}
+
+function displayRouteLabel(label) {
+  return String(label || "正在生成")
+    .replaceAll("Strategy v0", "策略初稿")
+    .replaceAll("Launch Pack", "投放执行方案")
+    .replaceAll("Experiment Ledger", "实验账本")
+    .replaceAll("Mock ", "演示")
+    .replaceAll("Codex ", "");
 }
 
 function renderAiJobPanel() {
@@ -304,8 +314,8 @@ function renderAiJobPanel() {
   const config = aiRoutes[currentAiJob.routeKey] || {};
   const live = currentAiJob.live || {};
   aiJobPanel.hidden = false;
-  aiJobLabel.textContent = config.label || "Codex 正在生成";
-  aiJobMeta.textContent = `${modelShortName(live.model || config.model)} · ${effortLabel(live.effort || config.effort)}${live.fallbackUsed ? " · 结构校验自动复核中" : ""} · 本地 Codex CLI`;
+  aiJobLabel.textContent = displayRouteLabel(live.label || config.label || "正在生成");
+  aiJobMeta.textContent = `${modelShortName(live.model || config.model)} · ${effortLabel(live.effort || config.effort)}${live.fallbackUsed ? " · 结构校验后自动复核中" : ""} · 本机运行`;
   aiJobElapsed.textContent = formatClock(Date.now() - currentAiJob.startedAt);
   aiJobExpected.textContent = expectedLabel(config.expectedSeconds);
   aiCancelButton.disabled = currentAiJob.cancelling;
@@ -361,7 +371,15 @@ async function loadAiRuntime() {
   try {
     const response = await fetch("./api/health", { cache: "no-store" });
     const payload = await response.json();
-    if (response.ok && payload.routes) aiRoutes = { ...aiRoutes, ...payload.routes };
+    if (response.ok && payload.routes) {
+      const merged = { ...aiRoutes, ...payload.routes };
+      for (const [key, route] of Object.entries(merged)) {
+        if (route && typeof route === "object") {
+          merged[key] = { ...route, label: displayRouteLabel(route.label || aiRoutes[key]?.label || key) };
+        }
+      }
+      aiRoutes = merged;
+    }
   } catch {
     // Local defaults remain usable if the health endpoint is temporarily unavailable.
   }
@@ -466,16 +484,16 @@ function emptyState(title, description, targetRoute, buttonLabel) {
 }
 
 function analysisToolbar(stage) {
-  const mode = state.aiMode === "codex" ? `Codex CLI · ${routeSummary("analysis")}` : "Browser-local Mock（无需账号）";
+  const mode = state.aiMode === "codex" ? `本机模型 · ${routeSummary("analysis")}` : "本地演示（无需账号）";
   return `<div class="analysis-toolbar">
     <div><strong>结构化 AI 判断</strong><span>${escapeHtml(mode)} · 结果需通过 JSON Schema</span></div>
-    <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : state.aiMode === "codex" ? "调用 Codex Ads" : "运行 Mock 演示"}</button>
+    <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : state.aiMode === "codex" ? "用本机模型分析" : "运行演示分析"}</button>
   </div>`;
 }
 
 function aiResult(project, stage) {
   const record = project.ai?.[stage];
-  if (!record?.result) return emptyState("还没有分析结果", "先完善项目信息或导入数据，再运行结构化分析。Mock 模式用于演示界面，不会占用模型额度。", "", "");
+  if (!record?.result) return emptyState("还没有分析结果", "先完善项目信息或导入数据，再运行结构化分析。演示模式只演示界面，不占用模型额度。", "", "");
   const result = record.result;
   const sourceText = runRecordLabel(record);
   return `<div class="ai-result">
@@ -483,7 +501,7 @@ function aiResult(project, stage) {
     ${result.findings.map((item) => `<article class="finding-card">
       <div class="finding-top"><h3>${escapeHtml(item.title)}</h3><div class="badge-row"><span class="priority-badge ${attr(item.priority)}">${escapeHtml(priorityText(item.priority))}</span><span class="confidence-badge">置信度 ${escapeHtml(confidenceText(item.confidence))}</span></div></div>
       <p class="finding-diagnosis">${escapeHtml(item.diagnosis)}</p>
-      <div class="finding-body"><div class="evidence-box"><span>Evidence</span><p>${escapeHtml(item.evidence)}</p></div><div class="action-box"><span>Action</span><p>${escapeHtml(item.action)}</p></div></div>
+      <div class="finding-body"><div class="evidence-box"><span>证据</span><p>${escapeHtml(item.evidence)}</p></div><div class="action-box"><span>动作</span><p>${escapeHtml(item.action)}</p></div></div>
       <p class="finding-diagnosis"><strong>验证：</strong>${escapeHtml(item.validation)}</p>
     </article>`).join("")}
   </div>`;
@@ -502,7 +520,7 @@ function intakeRecord(project) {
 }
 
 function intakeSourceText(value) {
-  return ({ offer: "客户 Offer", client_strategy: "客户策略", operator_notes: "优化师补充", ai_inference: "AI 推断", unknown: "待补充" })[value] || "待补充";
+  return ({ offer: "客户资料", client_strategy: "客户策略", operator_notes: "优化师补充", ai_inference: "AI 推断", unknown: "待补充" })[value] || "待补充";
 }
 
 function intakeStatusText(value) {
@@ -521,7 +539,7 @@ function renderIntakeResult(project) {
   const record = intakeRecord(project);
   const result = record?.result;
   if (!result) {
-    return `<section class="card">${emptyState("等待第一份客户资料", "把 Offer、客户已有策略和自己的会议记录粘贴到上方。OpenAdOps 会整理 Brief、标记缺失项，并生成 Strategy v0。", "", "")}</section>`;
+    return `<section class="card">${emptyState("等待第一份客户资料", "把客户资料、客户已有策略和自己的会议记录粘贴到上方。OpenAdOps 会整理简报、标记缺失项，并生成策略初稿。", "", "")}</section>`;
   }
   const counts = { confirmed: 0, inferred: 0, missing: 0 };
   result.brief_fields.forEach((field) => { counts[field.status] = (counts[field.status] || 0) + 1; });
@@ -533,7 +551,7 @@ function renderIntakeResult(project) {
   return `<div class="intake-result-stack">
     <section class="intake-summary">
       <div><span class="card-label">${escapeHtml(sourceLabel)} · ${dateText(record.generatedAt)}</span><p>${escapeHtml(result.executive_summary)}</p></div>
-      <div class="intake-counts" aria-label="Brief 完整度">
+      <div class="intake-counts" aria-label="简报完整度">
         <div class="intake-count confirmed"><strong>${counts.confirmed}</strong><span>已确认</span></div>
         <div class="intake-count inferred"><strong>${counts.inferred}</strong><span>待确认</span></div>
         <div class="intake-count missing"><strong>${counts.missing}</strong><span>缺失</span></div>
@@ -541,7 +559,7 @@ function renderIntakeResult(project) {
     </section>
 
     <section class="card">
-      <div class="card-header"><div><h2>结构化 Brief</h2><p>编辑任意字段后会自动标记为“优化师已确认”</p></div><span class="card-label">${counts.confirmed}/${result.brief_fields.length} CONFIRMED</span></div>
+      <div class="card-header"><div><h2>结构化简报</h2><p>编辑任意字段后会自动标记为“优化师已确认”</p></div><span class="card-label">${counts.confirmed}/${result.brief_fields.length} 已确认</span></div>
       <div class="brief-grid">${result.brief_fields.map((field) => {
         const meta = BRIEF_FIELD_META[field.key] || { label: field.key, multiline: false };
         const control = meta.multiline
@@ -557,7 +575,7 @@ function renderIntakeResult(project) {
         ${questions.length ? `<div class="question-list">${questions.map((item, index) => `<article class="question-item"><span>${String(index + 1).padStart(2, "0")}</span><div><div class="question-top"><strong>${escapeHtml(item.question)}</strong><em class="${attr(item.priority)}">${item.priority === "required" ? "必须确认" : "建议确认"}</em></div><p>${escapeHtml(item.reason)}</p></div></article>`).join("")}</div>` : `<div class="success-note">关键资料已覆盖，建议由项目负责人做最后口径确认。</div>`}
       </section>
       <section class="card strategy-v0-hero">
-        <div class="card-header"><div><h2>Strategy v0</h2><p>带假设的前期策略草案，不等同于最终执行方案</p></div><span class="card-label">WORKING DRAFT</span></div>
+        <div class="card-header"><div><h2>策略初稿</h2><p>带假设的前期策略草案，不等同于最终执行方案</p></div><span class="card-label">工作草案</span></div>
         <blockquote>${escapeHtml(draft.positioning)}</blockquote>
         <div class="assumption-list"><strong>工作假设</strong>${draft.working_assumptions.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div>
       </section>
@@ -577,7 +595,7 @@ function renderIntakeResult(project) {
     </div>
 
     <section class="card version-card">
-      <div class="card-header"><div><h2>策略版本</h2><p>保存客户资料和 Strategy v0 的当前快照</p></div><button class="button button-secondary button-small" data-save-intake-version>保存当前版本</button></div>
+      <div class="card-header"><div><h2>策略版本</h2><p>保存客户资料和策略初稿的当前快照</p></div><button class="button button-secondary button-small" data-save-intake-version>保存当前版本</button></div>
       ${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-intake-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存版本。正式发送或采用策略前，建议先保存一份快照。</p>`}
     </section>
   </div>`;
@@ -586,19 +604,19 @@ function renderIntakeResult(project) {
 function renderIntake(project) {
   const intake = project.intake || createIntake();
   const result = intakeRecord(project)?.result;
-  const actions = result ? `<button class="button button-secondary" data-export-intake>导出 Markdown</button><button class="button button-primary" data-save-intake-version>保存版本</button>` : "";
+  const actions = result ? `<button class="button button-secondary" data-export-intake>导出文档</button><button class="button button-primary" data-save-intake-version>保存版本</button>` : "";
   const mode = state.aiMode === "codex"
     ? `智能路由 · 追问 ${routeSummary("intakeQuestions")} / 快速策略 ${routeSummary("intakeStrategy")}`
-    : "Browser-local Mock · 不消耗模型额度";
-  return `${pageHeader("STAGE 00 · OFFER INTAKE", "需求接收台", "把客户 Offer、零散策略和会议记录整理成可追溯 Brief，再生成带假设的 Strategy v0。", actions)}
+    : "本地演示 · 不消耗模型额度";
+  return `${pageHeader("阶段 00 · 需求接收", "需求接收台", "把客户资料、零散策略和会议记录整理成可追溯简报，再生成带假设的策略初稿。", actions)}
     <section class="card intake-source-card mb-16">
-      <div class="card-header"><div><h2>原始资料</h2><p>资料不完整也可以开始；未知信息会被显式标记，不会由 AI 偷偷补齐</p></div><span class="card-label">LOCAL PROJECT DATA</span></div>
+      <div class="card-header"><div><h2>原始资料</h2><p>资料不完整也可以开始；未知信息会被显式标记，不会偷偷编造补齐</p></div><span class="card-label">本地项目数据</span></div>
       <div class="intake-source-grid">
-        <label class="source-panel offer"><span><strong>客户 Offer</strong><em>${textLength(intake.rawOffer)} 字</em></span><textarea data-intake-field="rawOffer" placeholder="粘贴客户发来的产品、市场、目标、预算、KPI、素材、时间等信息……">${escapeHtml(intake.rawOffer)}</textarea></label>
+        <label class="source-panel offer"><span><strong>客户资料</strong><em>${textLength(intake.rawOffer)} 字</em></span><textarea data-intake-field="rawOffer" placeholder="粘贴客户发来的产品、市场、目标、预算、KPI、素材、时间等信息……">${escapeHtml(intake.rawOffer)}</textarea></label>
         <label class="source-panel strategy"><span><strong>客户已有策略</strong><em>${textLength(intake.clientStrategy)} 字</em></span><select data-intake-field="strategyAuthority"><option value="reference" ${intake.strategyAuthority !== "mandatory" ? "selected" : ""}>仅供参考，可调整</option><option value="mandatory" ${intake.strategyAuthority === "mandatory" ? "selected" : ""}>必须执行的约束</option></select><textarea data-intake-field="clientStrategy" placeholder="粘贴客户给出的媒体、预算或素材建议；没有可以留空。">${escapeHtml(intake.clientStrategy)}</textarea></label>
         <label class="source-panel notes"><span><strong>我的补充</strong><em>${textLength(intake.operatorNotes)} 字</em></span><textarea data-intake-field="operatorNotes" placeholder="补充会议记录、自己的判断、待确认问题与不能忽略的限制……">${escapeHtml(intake.operatorNotes)}</textarea></label>
       </div>
-      <div class="intake-runbar"><div><strong>AI 处理方式</strong><span>${escapeHtml(mode)} · 原始资料只在你主动运行时提交给本地 Bridge</span></div><div class="inline-actions"><button class="button button-secondary" data-run-intake="questions" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在处理…" : "生成客户追问"}</button><button class="button button-primary" data-run-intake="strategy" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "快速生成 Strategy v0" : "生成 Mock Strategy v0"}</button><button class="button button-ghost" data-run-intake="deep" ${aiBusy ? "disabled" : ""}>${aiBusy ? "请稍候…" : "深度复核"}</button></div></div>
+      <div class="intake-runbar"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 原始资料只在你主动运行时提交给本地服务</span></div><div class="inline-actions"><button class="button button-secondary" data-run-intake="questions" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在处理…" : "生成客户追问"}</button><button class="button button-primary" data-run-intake="strategy" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "快速生成策略初稿" : "生成演示策略初稿"}</button><button class="button button-ghost" data-run-intake="deep" ${aiBusy ? "disabled" : ""}>${aiBusy ? "请稍候…" : "深度复核"}</button></div></div>
     </section>
     ${renderIntakeResult(project)}`;
 }
@@ -615,16 +633,16 @@ function renderOverview(project) {
   const launchReady = Boolean(launchPack);
   const hasExperiments = Boolean(project.experiments?.plan?.result?.experiments?.length);
   const hasOptimize = Boolean(project.data?.metrics && (project.ai?.optimize || project.ai?.strategy));
-  return `${pageHeader("PROJECT COMMAND CENTER", project.name, "把策略、素材、广告搭建和优化证据沉淀在同一个项目里。")}
+  return `${pageHeader("项目指挥台", project.name, "把策略、素材、广告搭建和优化证据沉淀在同一个项目里。")}
     ${metricCards(project)}
     <div class="grid overview-grid mb-16">
       <section class="card">
         <div class="card-header"><div><h2>全链路进度</h2><p>六个核心阶段完成后，自动汇总为老板可读报告</p></div><button class="button button-secondary button-small" data-go-route="report">查看报告</button></div>
         <div class="stage-flow">
-          <article class="stage-step ${hasIntake ? "complete" : ""}" data-step="00"><h3>需求接收</h3><p>碎片资料、缺失项、客户追问与 Strategy v0</p></article>
+          <article class="stage-step ${hasIntake ? "complete" : ""}" data-step="00"><h3>需求接收</h3><p>碎片资料、缺失项、客户追问与策略初稿</p></article>
           <article class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01"><h3>投放策略</h3><p>目标、市场、媒体、预算与测试逻辑</p></article>
           <article class="stage-step ${hasCreative ? "complete" : ""}" data-step="02"><h3>素材计划</h3><p>角度、Hook、单变量与成功指标</p></article>
-          <article class="stage-step ${launchReady ? "complete" : ""}" data-step="03"><h3>投前作战包</h3><p>Campaign、素材、监测、阻塞项与首周计划</p></article>
+          <article class="stage-step ${launchReady ? "complete" : ""}" data-step="03"><h3>投放执行方案</h3><p>Campaign、素材、监测、阻塞项与首周计划</p></article>
           <article class="stage-step ${hasExperiments ? "complete" : ""}" data-step="04"><h3>实验学习</h3><p>假设、样本门槛、结论与下一步</p></article>
           <article class="stage-step ${hasOptimize ? "complete" : ""}" data-step="05"><h3>投放优化</h3><p>数据证据、诊断、动作和验证</p></article>
         </div>
@@ -648,21 +666,21 @@ function renderOverview(project) {
         <div class="timeline">
           <div class="timeline-item"><strong>方法层</strong><p>多行业 × 多媒体的统一项目结构与指标口径</p></div>
           <div class="timeline-item"><strong>执行层</strong><p>从策略到优化动作，全程留下负责人和验证标准</p></div>
-          <div class="timeline-item"><strong>证据层</strong><p>CSV 数据、AI 结构化判断和报告预览可追溯</p></div>
+          <div class="timeline-item"><strong>证据层</strong><p>CSV 数据、结构化判断和报告预览可追溯</p></div>
         </div>
       </section>
     </div>`;
 }
 
 function renderStrategy(project) {
-  return `${pageHeader("STAGE 01 · STRATEGY", "投放策略", "建立可复用的业务输入、媒体分工、预算逻辑和测试假设。")}
+  return `${pageHeader("阶段 01 · 投放策略", "投放策略", "建立可复用的业务输入、媒体分工、预算逻辑和测试假设。")}
     <div class="grid grid-2 mb-16">
       <section class="card">
-        <div class="card-header"><div><h2>项目输入</h2><p>这些信息会随聚合指标一起发送给 Codex</p></div></div>
+        <div class="card-header"><div><h2>项目输入</h2><p>这些信息会随聚合指标一起发送给本机模型</p></div></div>
         <div class="form-grid two-columns">
           <label class="field"><span>目标市场</span><input data-project-field="markets" value="${attr(project.markets)}" /></label>
           <label class="field"><span>项目阶段</span><select data-project-field="stage">${["准备期", "测试期", "放量期", "稳定期"].map((value) => `<option ${project.stage === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
-          <label class="field"><span>主要目标</span><select data-project-field="goal">${["Install", "Registration", "Purchase", "ROAS"].map((value) => `<option ${project.goal === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+          <label class="field"><span>主要目标</span><select data-project-field="goal">${[["Install", "安装"], ["Registration", "注册"], ["Purchase", "付费"], ["ROAS", "ROAS"]].map(([value, label]) => `<option value="${value}" ${project.goal === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
           <label class="field"><span>归因来源</span><select data-project-field="attribution">${["AppsFlyer", "Adjust", "媒体后台", "GA4"].map((value) => `<option ${project.attribution === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
           <label class="field"><span>目标 CPI</span><input type="number" step="0.01" data-project-field="targetCpi" value="${attr(project.targetCpi)}" /></label>
           <label class="field"><span>目标 CPA</span><input type="number" step="0.01" data-project-field="targetCpa" value="${attr(project.targetCpa)}" /></label>
@@ -701,7 +719,7 @@ function creativeTable(project) {
 }
 
 function renderCreative(project) {
-  return `${pageHeader("STAGE 02 · CREATIVE", "素材计划", "把素材从“多做几条”变成可验证的角度、Hook 和单变量测试矩阵。")}
+  return `${pageHeader("阶段 02 · 素材计划", "素材计划", "把素材从“多做几条”变成可验证的角度、Hook 和单变量测试矩阵。")}
     <div class="grid grid-3 mb-16">
       <article class="card"><span class="card-label">GOOGLE ADS</span><h3>信息覆盖</h3><p class="muted">功能证明、不同长度资产、国家语言匹配与商店页一致性。</p></article>
       <article class="card"><span class="card-label">META ADS</span><h3>概念多样性</h3><p class="muted">差异化角度、首帧可读性、UGC 与结果展示，减少素材聚类。</p></article>
@@ -730,7 +748,7 @@ function renderLaunchPackResult(project) {
   const pack = record?.result;
   if (!pack) {
     return `<section class="card launch-empty-card">
-      <div class="launch-empty-copy"><span class="card-label">OFFER → EXECUTION</span><h2>生成第一份投前作战包</h2><p>OpenAdOps 会把 Brief、Strategy v0 和项目设置组合成 Campaign 蓝图、素材生产 Brief、监测方案、上线阻塞项和首 7 天计划。</p></div>
+      <div class="launch-empty-copy"><span class="card-label">需求 → 执行</span><h2>生成第一份投放执行方案</h2><p>OpenAdOps 会把简报、策略初稿和项目设置组合成 Campaign 蓝图、素材生产简报、监测方案、上线阻塞项和首 7 天计划。</p></div>
       <div class="launch-input-summary">
         <div><span>行业</span><strong>${escapeHtml(project.industry || "待确认")}</strong></div>
         <div><span>市场</span><strong>${escapeHtml(project.markets || "待确认")}</strong></div>
@@ -748,7 +766,7 @@ function renderLaunchPackResult(project) {
     <section class="launch-readiness ${attr(readiness.status)}">
       <div class="readiness-score"><strong>${readiness.score}</strong><span>/ 100</span></div>
       <div class="readiness-copy"><span class="card-label">${escapeHtml(sourceLabel)} · ${dateText(record.generatedAt)}</span><h2>${escapeHtml(launchStatusText(readiness.status))}</h2><p>${escapeHtml(pack.executive_summary)}</p></div>
-      <div class="readiness-blockers"><span>BLOCKERS</span><strong>${readiness.blockers.length}</strong><small>${readiness.blockers.length ? escapeHtml(readiness.blockers[0]) : "没有硬阻塞项"}</small></div>
+      <div class="readiness-blockers"><span>阻塞项</span><strong>${readiness.blockers.length}</strong><small>${readiness.blockers.length ? escapeHtml(readiness.blockers[0]) : "没有硬阻塞项"}</small></div>
     </section>
 
     ${pack.assumptions.length ? `<section class="assumption-banner"><strong>当前假设</strong><div>${pack.assumptions.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div></section>` : ""}
@@ -759,22 +777,22 @@ function renderLaunchPackResult(project) {
     </section>
 
     <section class="card">
-      <div class="card-header"><div><h2>Campaign Blueprint</h2><p>命名、目标、事件、出价和拆分逻辑可直接交给投手</p></div><span class="badge launch-count">${pack.campaigns.length} CAMPAIGNS</span></div>
+      <div class="card-header"><div><h2>Campaign 蓝图</h2><p>命名、目标、事件、出价和拆分逻辑可直接交给投手</p></div><span class="badge launch-count">${pack.campaigns.length} CAMPAIGNS</span></div>
       <div class="campaign-blueprint-grid">${pack.campaigns.map((item) => `<article class="campaign-blueprint"><div class="campaign-code"><span>${escapeHtml(item.platform)}</span><strong>${escapeHtml(item.campaign_name)}</strong></div><div class="campaign-facts"><div><span>优化事件</span><strong>${escapeHtml(item.optimization_event)}</strong></div><div><span>市场</span><strong>${escapeHtml(item.geo)}</strong></div><div><span>出价</span><strong>${escapeHtml(item.bidding)}</strong></div><div><span>预算</span><strong>${escapeHtml(item.budget_note)}</strong></div></div><div class="campaign-lists"><div><span>结构逻辑</span>${item.ad_group_logic.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div><div><span>受众与排除</span>${item.audience_notes.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div></div></article>`).join("")}</div>
     </section>
 
     <section class="card">
-      <div class="card-header"><div><h2>素材生产 Brief</h2><p>每张卡片只有一个主要测试变量，并预先写明成功指标</p></div><span class="badge launch-count">${pack.creative_briefs.length} BRIEFS</span></div>
-      <div class="launch-creative-grid">${pack.creative_briefs.map((item) => `<article class="launch-creative-card"><div class="creative-card-top"><span>${escapeHtml(item.platform)}</span><em>${item.variants} VARIANTS</em></div><h3>${escapeHtml(item.angle)}</h3><blockquote>${escapeHtml(item.hook)}</blockquote><p><strong>假设：</strong>${escapeHtml(item.hypothesis)}</p><dl><div><dt>格式</dt><dd>${escapeHtml(item.format)}</dd></div><div><dt>单变量</dt><dd>${escapeHtml(item.test_variable)}</dd></div><div><dt>成功指标</dt><dd>${escapeHtml(item.success_metric)}</dd></div></dl><div class="production-notes">${item.production_notes.map((value) => `<span>${escapeHtml(value)}</span>`).join("")}</div><div class="compliance-note">${item.compliance_notes.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div></article>`).join("")}</div>
+      <div class="card-header"><div><h2>素材生产简报</h2><p>每张卡片只有一个主要测试变量，并预先写明成功指标</p></div><span class="badge launch-count">${pack.creative_briefs.length} 条</span></div>
+      <div class="launch-creative-grid">${pack.creative_briefs.map((item) => `<article class="launch-creative-card"><div class="creative-card-top"><span>${escapeHtml(item.platform)}</span><em>${item.variants} 个版本</em></div><h3>${escapeHtml(item.angle)}</h3><blockquote>${escapeHtml(item.hook)}</blockquote><p><strong>假设：</strong>${escapeHtml(item.hypothesis)}</p><dl><div><dt>格式</dt><dd>${escapeHtml(item.format)}</dd></div><div><dt>单变量</dt><dd>${escapeHtml(item.test_variable)}</dd></div><div><dt>成功指标</dt><dd>${escapeHtml(item.success_metric)}</dd></div></dl><div class="production-notes">${item.production_notes.map((value) => `<span>${escapeHtml(value)}</span>`).join("")}</div><div class="compliance-note">${item.compliance_notes.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div></article>`).join("")}</div>
     </section>
 
     <div class="grid launch-measurement-grid">
-      <section class="card"><div class="card-header"><div><h2>监测与归因</h2><p>媒体反馈、MMP 和业务真相分层使用</p></div><span class="card-label">MEASUREMENT</span></div><div class="measurement-hero"><span>最终口径</span><strong>${escapeHtml(pack.measurement.source_of_truth)}</strong></div>${renderStrategyList("主要与辅助事件", [pack.measurement.primary_event, ...pack.measurement.supporting_events])}${renderStrategyList("归因规则", pack.measurement.attribution_rules)}${renderStrategyList("追踪检查", pack.measurement.tracking_checklist)}</section>
-      <section class="card"><div class="card-header"><div><h2>首 7 天行动</h2><p>先定义观察和动作边界，避免上线后临时解释</p></div><span class="card-label">DAY 0–7</span></div><div class="launch-week">${pack.first_7_days.map((item) => `<article><span>${escapeHtml(item.period)}</span><div>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<strong>${escapeHtml(item.decision_rule)}</strong></div></article>`).join("")}</div></section>
+      <section class="card"><div class="card-header"><div><h2>监测与归因</h2><p>媒体反馈、MMP 和业务真相分层使用</p></div><span class="card-label">监测口径</span></div><div class="measurement-hero"><span>最终口径</span><strong>${escapeHtml(pack.measurement.source_of_truth)}</strong></div>${renderStrategyList("主要与辅助事件", [pack.measurement.primary_event, ...pack.measurement.supporting_events])}${renderStrategyList("归因规则", pack.measurement.attribution_rules)}${renderStrategyList("追踪检查", pack.measurement.tracking_checklist)}</section>
+      <section class="card"><div class="card-header"><div><h2>首 7 天行动</h2><p>先定义观察和动作边界，避免上线后临时解释</p></div><span class="card-label">第 0–7 天</span></div><div class="launch-week">${pack.first_7_days.map((item) => `<article><span>${escapeHtml(item.period)}</span><div>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<strong>${escapeHtml(item.decision_rule)}</strong></div></article>`).join("")}</div></section>
     </div>
 
     <section class="card">
-      <div class="card-header"><div><h2>上线 Gate</h2><p>你可以人工更新状态；Blocker 会自动反映到顶部就绪度</p></div><span class="card-label">OWNER × EVIDENCE</span></div>
+      <div class="card-header"><div><h2>上线检查项</h2><p>你可以人工更新状态；阻塞项会自动反映到顶部就绪度</p></div><span class="card-label">负责人 × 证据</span></div>
       <div class="table-wrap"><table class="launch-gate-table"><thead><tr><th>类别</th><th>检查项</th><th>状态</th><th>负责人</th><th>证据 / 缺口</th></tr></thead><tbody>${pack.launch_checklist.map((item) => `<tr><td><span class="gate-category">${escapeHtml(item.category)}</span></td><td><strong>${escapeHtml(item.item)}</strong></td><td><select class="gate-status ${attr(item.status)}" data-launch-status="${attr(item.id)}">${statusOptions(item.status)}</select></td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.evidence)}</td></tr>`).join("")}</tbody></table></div>
     </section>
 
@@ -784,18 +802,18 @@ function renderLaunchPackResult(project) {
     </div>
 
     <section class="card version-card">
-      <div class="card-header"><div><h2>Launch Pack 版本</h2><p>在发送客户或开始搭建前保存快照</p></div><button class="button button-secondary button-small" data-save-launch-version>保存当前版本</button></div>
-      ${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-launch-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存 Launch Pack 快照。</p>`}
+      <div class="card-header"><div><h2>投放执行方案版本</h2><p>在发送客户或开始搭建前保存快照</p></div><button class="button button-secondary button-small" data-save-launch-version>保存当前版本</button></div>
+      ${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-launch-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存投放执行方案快照。</p>`}
     </section>
   </div>`;
 }
 
 function renderLaunch(project) {
   const record = launchPackRecord(project);
-  const actions = record?.result ? `<button class="button button-ghost" data-export-launch-pack>导出 Markdown</button><button class="button button-secondary" data-export-launch-html>导出 HTML</button><button class="button button-primary" data-save-launch-version>保存版本</button>` : "";
-  const mode = state.aiMode === "codex" ? `本地 Codex CLI · ${routeSummary("launchPack")}` : "Browser-local Mock · 不消耗模型额度";
-  return `${pageHeader("STAGE 03 · LAUNCH PACK", "投前作战包", "把 Strategy v0 变成可交给投放、素材、数据和客户负责人的执行文件。", actions)}
-    <section class="card launch-runbar mb-16"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 只生成计划，不会连接或修改真实广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "调用 Codex 生成 Launch Pack" : "生成 Mock Launch Pack"}</button></section>
+  const actions = record?.result ? `<button class="button button-ghost" data-export-launch-pack>导出文档</button><button class="button button-secondary" data-export-launch-html>导出网页</button><button class="button button-primary" data-save-launch-version>保存版本</button>` : "";
+  const mode = state.aiMode === "codex" ? `本机模型 · ${routeSummary("launchPack")}` : "本地演示 · 不消耗模型额度";
+  return `${pageHeader("阶段 03 · 投放执行方案", "投放执行方案", "把策略初稿变成可交给投放、素材、数据和客户负责人的执行文件。", actions)}
+    <section class="card launch-runbar mb-16"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 只生成计划，不会连接或修改真实广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "用本机模型生成投放执行方案" : "生成演示执行方案"}</button></section>
     ${renderLaunchPackResult(project)}`;
 }
 
@@ -812,7 +830,7 @@ function experimentStatusText(value) {
 }
 
 function experimentOutcomeText(value) {
-  return ({ pending: "等待结果", winner: "Variant 胜出", loser: "Control 胜出", inconclusive: "无明确结论" })[value] || value;
+  return ({ pending: "等待结果", winner: "实验组胜出", loser: "对照组胜出", inconclusive: "无明确结论" })[value] || value;
 }
 
 function feasibilityText(value) {
@@ -901,14 +919,14 @@ function renderExperimentCard(experiment, index) {
         <div class="card-header"><div><h3>结果与学习</h3><p>先填证据和结论，再把状态改为“已结束”</p></div><span class="experiment-outcome ${attr(result.outcome)}">${escapeHtml(experimentOutcomeText(result.outcome))}</span></div>
         <div class="experiment-result-grid">
           <label><span>结论</span><select data-experiment-field="result.outcome" data-experiment-id="${attr(experiment.id)}">${experimentOptions(["pending", "winner", "loser", "inconclusive"], result.outcome, experimentOutcomeText)}</select></label>
-          <label><span>Control 结果</span><input type="number" step="0.01" data-experiment-field="result.control_value" data-experiment-id="${attr(experiment.id)}" value="${attr(nullableValue(result.control_value))}" /></label>
-          <label><span>Variant 结果</span><input type="number" step="0.01" data-experiment-field="result.variant_value" data-experiment-id="${attr(experiment.id)}" value="${attr(nullableValue(result.variant_value))}" /></label>
+          <label><span>对照组结果</span><input type="number" step="0.01" data-experiment-field="result.control_value" data-experiment-id="${attr(experiment.id)}" value="${attr(nullableValue(result.control_value))}" /></label>
+          <label><span>实验组结果</span><input type="number" step="0.01" data-experiment-field="result.variant_value" data-experiment-id="${attr(experiment.id)}" value="${attr(nullableValue(result.variant_value))}" /></label>
           <label><span>相对变化</span><input value="${result.relative_change_percent === null ? "—" : `${result.relative_change_percent}%`}" disabled /></label>
           <label><span>开始日期</span><input type="date" data-experiment-field="result.started_at" data-experiment-id="${attr(experiment.id)}" value="${attr(result.started_at)}" /></label>
           <label><span>结束日期</span><input type="date" data-experiment-field="result.ended_at" data-experiment-id="${attr(experiment.id)}" value="${attr(result.ended_at)}" /></label>
           <label class="field-wide"><span>证据</span><textarea data-experiment-field="result.evidence" data-experiment-id="${attr(experiment.id)}" placeholder="原生实验截图、报表路径、数据范围与归因口径">${escapeHtml(result.evidence)}</textarea></label>
           <label class="field-wide"><span>学习结论</span><textarea data-experiment-field="result.learning" data-experiment-id="${attr(experiment.id)}" placeholder="我们学到了什么，而不只是哪个版本赢了">${escapeHtml(result.learning)}</textarea></label>
-          <label class="field-wide"><span>下一步动作</span><textarea data-experiment-field="result.next_action" data-experiment-id="${attr(experiment.id)}" placeholder="应用赢家、继续验证、扩大 MDE 或停止该方向">${escapeHtml(result.next_action)}</textarea></label>
+          <label class="field-wide"><span>下一步动作</span><textarea data-experiment-field="result.next_action" data-experiment-id="${attr(experiment.id)}" placeholder="应用优胜方案、继续验证、扩大 MDE 或停止该方向">${escapeHtml(result.next_action)}</textarea></label>
         </div>
       </section>
     </div>
@@ -920,9 +938,9 @@ function renderExperimentPlanResult(project) {
   const plan = record?.result;
   if (!plan) {
     return `<section class="card experiment-empty">
-      <div><span class="card-label">LAUNCH PACK → LEARNING</span><h2>建立第一份实验账本</h2><p>从 Launch Pack 的素材 Brief 和当前投放数据生成单变量测试队列、样本门槛、停止条件和结果记录模板。</p></div>
+      <div><span class="card-label">执行方案 → 学习沉淀</span><h2>建立第一份实验账本</h2><p>从投放执行方案的素材简报和当前投放数据生成单变量测试队列、样本门槛、停止条件和结果记录模板。</p></div>
       <div class="launch-input-summary">
-        <div><span>素材 Brief</span><strong>${project.launch?.pack?.result?.creative_briefs?.length || project.creativePlan?.length || 0}</strong></div>
+        <div><span>素材简报</span><strong>${project.launch?.pack?.result?.creative_briefs?.length || project.creativePlan?.length || 0}</strong></div>
         <div><span>已有数据</span><strong>${project.data?.metrics ? `${project.data.metrics.period?.activeDays || "—"} 天` : "未导入"}</strong></div>
         <div><span>媒体</span><strong>${escapeHtml(project.platforms.join(" · "))}</strong></div>
         <div><span>最终口径</span><strong>${escapeHtml(project.attribution || "待确认")}</strong></div>
@@ -962,17 +980,17 @@ function renderExperimentPlanResult(project) {
 
     <div class="grid grid-2">
       <section class="card"><div class="card-header"><div><h2>实验风险</h2><p>跨平台和低样本场景必须保留的判断边界</p></div><span class="card-label">GUARDRAILS</span></div><div class="launch-risk-list">${plan.risks.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div></section>
-      <section class="card version-card"><div class="card-header"><div><h2>Experiment Ledger 版本</h2><p>在实验开始和结论冻结时分别保存快照</p></div><button class="button button-secondary button-small" data-save-experiment-version>保存当前版本</button></div>${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-experiment-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存实验账本快照。</p>`}</section>
+      <section class="card version-card"><div class="card-header"><div><h2>实验账本版本</h2><p>在实验开始和结论冻结时分别保存快照</p></div><button class="button button-secondary button-small" data-save-experiment-version>保存当前版本</button></div>${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-experiment-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存实验账本快照。</p>`}</section>
     </div>
   </div>`;
 }
 
 function renderExperiments(project) {
   const record = experimentPlanRecord(project);
-  const actions = record?.result ? `<button class="button button-ghost" data-export-experiments>导出 Markdown</button><button class="button button-secondary" data-export-experiment-html>导出 HTML</button><button class="button button-primary" data-save-experiment-version>保存版本</button>` : "";
-  const mode = state.aiMode === "codex" ? `本地 Codex CLI · ${routeSummary("experiments")} · 使用 ads-test 方法` : "Browser-local Mock · 不消耗模型额度";
-  return `${pageHeader("STAGE 04 · EXPERIMENT LEDGER", "实验台", "把素材与投放想法变成有假设、样本门槛、停止条件和学习记录的测试队列。", actions)}
-    <section class="card experiment-runbar mb-16"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 只规划和记录，不会在媒体后台创建实验</span></div><button class="button button-primary" data-run-experiments ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "调用 Codex 生成实验账本" : "生成 Mock 实验账本"}</button></section>
+  const actions = record?.result ? `<button class="button button-ghost" data-export-experiments>导出文档</button><button class="button button-secondary" data-export-experiment-html>导出网页</button><button class="button button-primary" data-save-experiment-version>保存版本</button>` : "";
+  const mode = state.aiMode === "codex" ? `本机模型 · ${routeSummary("experiments")} · 按实验方法生成` : "本地演示 · 不消耗模型额度";
+  return `${pageHeader("阶段 04 · 实验账本", "实验台", "把素材与投放想法变成有假设、样本门槛、停止条件和学习记录的测试队列。", actions)}
+    <section class="card experiment-runbar mb-16"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 只规划和记录，不会在媒体后台创建实验</span></div><button class="button button-primary" data-run-experiments ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "用本机模型生成实验账本" : "生成演示实验账本"}</button></section>
     ${renderExperimentPlanResult(project)}`;
 }
 
@@ -983,7 +1001,7 @@ function mappingPanel() {
 }
 
 function renderOptimize(project) {
-  return `${pageHeader("STAGE 05 · OPTIMIZATION", "投放优化", "上传媒体或 AppsFlyer CSV，先由代码计算，再让 AI 基于证据做判断。")}
+  return `${pageHeader("阶段 05 · 投放优化", "投放优化", "上传媒体或 AppsFlyer CSV，先由代码计算，再基于证据生成判断。")}
     <section class="card mb-16">
       <div class="card-header"><div><h2>数据导入</h2><p>V1 支持 CSV；原始明细仅在当前页面解析，项目只保存聚合指标</p></div>${project.data ? `<span class="badge" style="color:var(--success);background:var(--success-soft)">${escapeHtml(project.data.fileName)}</span>` : ""}</div>
       <div class="drop-zone"><strong>导入媒体 / AppsFlyer 报表</strong><span>支持带引号的 CSV；可手动调整字段映射</span><div class="upload-actions" style="justify-content:center"><label class="button button-secondary">选择 CSV<input id="csvInput" type="file" accept=".csv,text/csv" /></label><button class="button button-ghost" data-load-demo>载入演示 CSV</button></div></div>
@@ -1013,13 +1031,13 @@ function renderReport(project) {
   const record = latestAnalysis(project);
   const result = record?.result;
   const summary = project.data?.metrics?.summary || {};
-  const actions = `<button class="button button-secondary" data-export-report>导出 HTML</button><button class="button button-primary" data-print-report>打印 / PDF</button>`;
-  return `${pageHeader("REPORT CENTER", "报告输出", "把项目输入、数据证据、诊断和下一步动作压缩为管理层可读的一页报告。", actions)}
+  const actions = `<button class="button button-secondary" data-export-report>导出网页</button><button class="button button-primary" data-print-report>打印或导出 PDF</button>`;
+  return `${pageHeader("报告中心", "报告输出", "把项目输入、数据证据、诊断和下一步动作压缩为管理层可读的一页报告。", actions)}
     <article class="report-preview">
       <div class="report-cover"><div><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h2>${escapeHtml(project.name)}<br />投放阶段复盘与下一步计划</h2></div><div class="report-meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))}<br />${escapeHtml(project.markets || "市场待设置")} · ${dateText(new Date().toISOString())}<br />${project.isDemo ? "演示数据，不代表真实客户表现" : "OpenAdOps 本地工作台生成"}</div></div>
       <section class="report-section"><h3>01 · 核心指标</h3>${metricCards(project)}</section>
       <section class="report-section"><h3>02 · 管理层摘要</h3><div class="summary-callout">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。建议先在“投放优化”导入数据并运行分析。")}</div></section>
-      <section class="report-section"><h3>03 · 关键判断</h3>${result ? result.findings.map((item) => `<article class="finding-card"><div class="finding-top"><h3>${escapeHtml(item.title)}</h3><span class="priority-badge ${attr(item.priority)}">${priorityText(item.priority)}</span></div><div class="finding-body"><div class="evidence-box"><span>Evidence</span><p>${escapeHtml(item.evidence)}</p></div><div class="action-box"><span>Action</span><p>${escapeHtml(item.action)}</p></div></div><p class="finding-diagnosis">${escapeHtml(item.diagnosis)} · 验证：${escapeHtml(item.validation)}</p></article>`).join("") : emptyState("还没有关键判断", "AI 失败时不会生成假结果；请在其他阶段重新运行。", "optimize", "去优化页")}</section>
+      <section class="report-section"><h3>03 · 关键判断</h3>${result ? result.findings.map((item) => `<article class="finding-card"><div class="finding-top"><h3>${escapeHtml(item.title)}</h3><span class="priority-badge ${attr(item.priority)}">${priorityText(item.priority)}</span></div><div class="finding-body"><div class="evidence-box"><span>证据</span><p>${escapeHtml(item.evidence)}</p></div><div class="action-box"><span>动作</span><p>${escapeHtml(item.action)}</p></div></div><p class="finding-diagnosis">${escapeHtml(item.diagnosis)} · 验证：${escapeHtml(item.validation)}</p></article>`).join("") : emptyState("还没有关键判断", "生成失败时不会写入假结果；请在其他阶段重新运行。", "optimize", "去优化页")}</section>
       <section class="report-section"><h3>04 · 实验与学习</h3>${experimentLearningTable(project)}</section>
       <section class="report-section"><h3>05 · 下一步动作</h3>${actionTable(result)}</section>
       <section class="report-section"><h3>06 · 口径说明</h3><div class="project-facts"><div class="fact-row"><span>数据来源</span><strong>${escapeHtml(project.data?.fileName || "未导入")}</strong></div><div class="fact-row"><span>归因口径</span><strong>${escapeHtml(project.attribution)}</strong></div><div class="fact-row"><span>分析来源</span><strong>${record ? escapeHtml(runRecordLabel(record)) : "未运行"}</strong></div><div class="fact-row"><span>项目备注</span><strong>${escapeHtml(project.notes || "无")}</strong></div></div></section>
@@ -1065,13 +1083,13 @@ function attachPageListeners() {
         field.value = input.value.trim();
         field.status = field.value ? "confirmed" : "missing";
         field.source = field.value ? "operator_notes" : "unknown";
-        field.evidence = field.value ? "优化师在结构化 Brief 中手动确认" : "优化师清空该字段，需要重新补充";
+        field.evidence = field.value ? "优化师在结构化简报 中手动确认" : "优化师清空该字段，需要重新补充";
         if (field.value) {
           project.intake.analysis.result.clarification_questions = project.intake.analysis.result.clarification_questions.filter((item) => item.field_key !== field.key);
         }
       });
       render();
-      showToast("Brief 字段已确认");
+      showToast("简报字段已确认");
     });
   });
   document.querySelectorAll("[data-project-field]").forEach((input) => {
@@ -1102,7 +1120,7 @@ function attachPageListeners() {
         recalculateLaunchReadiness(pack, true);
       });
       render();
-      showToast("上线 Gate 状态已更新");
+      showToast("上线检查项状态已更新");
     });
   });
   document.querySelectorAll("[data-experiment-field]").forEach((input) => {
@@ -1308,7 +1326,7 @@ async function runAnalysis(stage) {
         }));
       }
     });
-    showToast(completionMessage(payload.source === "codex" ? "Codex 分析完成" : "Mock 演示结果已生成", payload));
+    showToast(completionMessage(payload.source === "codex" ? "分析完成" : "演示结果已生成", payload));
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
     showPersistentError(error.message);
@@ -1362,7 +1380,7 @@ async function runIntake(action) {
         result: payload.result
       };
     });
-    const label = intent === "questions" ? "客户追问清单已生成" : action === "deep" ? "Strategy v0 深度复核完成" : "Strategy v0 已生成";
+    const label = intent === "questions" ? "客户追问清单已生成" : action === "deep" ? "策略初稿深度复核完成" : "策略初稿已生成";
     showToast(completionMessage(label, payload));
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
@@ -1384,7 +1402,7 @@ function recalculateLaunchReadiness(pack, updateSummary = false) {
     blockers
   };
   if (updateSummary) {
-    pack.executive_summary = `上线 Gate 已由优化师更新：当前就绪度 ${pack.readiness.score}%，${blockers.length ? `存在 ${blockers.length} 个阻塞项，正式花费前必须关闭。` : pack.readiness.status === "conditional" ? "没有硬阻塞项，但仍有待确认事项。" : "所有 Gate 已标记为可上线，仍建议由项目负责人做最终复核。"}`;
+    pack.executive_summary = `上线检查项已由优化师更新：当前就绪度 ${pack.readiness.score}%，${blockers.length ? `存在 ${blockers.length} 个阻塞项，正式花费前必须关闭。` : pack.readiness.status === "conditional" ? "没有硬阻塞项，但仍有待确认事项。" : "所有检查项已标记为可上线，仍建议由项目负责人做最终复核。"}`;
   }
 }
 
@@ -1393,7 +1411,7 @@ async function runLaunchPack() {
   const project = activeProject();
   const projectId = project.id;
   if (!project.intake?.analysis?.result && !project.strategy?.objective) {
-    showToast("建议先整理 Offer 或完善 Strategy v0，再生成投前作战包。", "error");
+    showToast("建议先整理客户资料或完善策略初稿，再生成投放执行方案。", "error");
     return;
   }
   aiBusy = true;
@@ -1415,7 +1433,7 @@ async function runLaunchPack() {
         body: JSON.stringify({ mode: state.aiMode, project, intake: project.intake || createIntake() })
       });
       payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "Launch Pack 生成失败");
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "投放执行方案生成失败");
     }
     updateProjectById(projectId, (target) => {
       if (!target.launch) target.launch = createLaunch();
@@ -1433,7 +1451,7 @@ async function runLaunchPack() {
         metric: item.success_metric
       }));
     });
-    showToast(completionMessage("Launch Pack 已生成", payload));
+    showToast(completionMessage("投放执行方案已生成", payload));
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
     showPersistentError(error.message);
@@ -1450,7 +1468,7 @@ async function runExperimentPlan() {
   const projectId = project.id;
   const launchPack = project.launch?.pack?.result || null;
   if (!launchPack && !project.creativePlan?.length) {
-    showToast("请先生成 Launch Pack 或至少准备一份素材计划。", "error");
+    showToast("请先生成投放执行方案或至少准备一份素材计划。", "error");
     return;
   }
   aiBusy = true;
@@ -1472,7 +1490,7 @@ async function runExperimentPlan() {
         body: JSON.stringify({ mode: state.aiMode, project, launchPack, metrics: metricsForAi(project) })
       });
       payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "Experiment Ledger 生成失败");
+      if (!response.ok || !payload.ok) throw new Error(payload.error || "实验账本生成失败");
     }
     updateProjectById(projectId, (target) => {
       if (!target.experiments) target.experiments = createExperiments();
@@ -1501,7 +1519,7 @@ function saveIntakeVersion() {
   const project = activeProject();
   const intake = project.intake;
   if (!intake?.analysis?.result) {
-    showToast("先生成或整理一版 Strategy v0。", "error");
+    showToast("先生成或整理一版策略初稿。", "error");
     return;
   }
   updateProject((target) => {
@@ -1509,7 +1527,7 @@ function saveIntakeVersion() {
     const number = target.intake.versions.length + 1;
     target.intake.versions.unshift({
       id: makeId(),
-      name: `Strategy v0.${number}`,
+      name: `策略初稿 v${number}`,
       savedAt: new Date().toISOString(),
       snapshot: cloneJson({
         rawOffer: target.intake.rawOffer,
@@ -1542,13 +1560,13 @@ function intakeMarkdown(project) {
   if (!result) return "";
   const draft = result.strategy_draft;
   const lines = [
-    `# ${project.name} · Strategy v0`,
+    `# ${project.name} · 策略初稿`,
     "",
     `> ${result.executive_summary}`,
     "",
     "## 原始资料",
     "",
-    "### 客户 Offer",
+    "### 客户资料",
     intake.rawOffer || "未提供",
     "",
     "### 客户已有策略",
@@ -1557,7 +1575,7 @@ function intakeMarkdown(project) {
     "### 优化师补充",
     intake.operatorNotes || "未提供",
     "",
-    "## 结构化 Brief",
+    "## 结构化简报",
     "",
     "| 字段 | 内容 | 状态 | 来源 |",
     "| --- | --- | --- | --- |",
@@ -1567,7 +1585,7 @@ function intakeMarkdown(project) {
     "",
     ...(result.clarification_questions.length ? result.clarification_questions.map((item, index) => `${index + 1}. ${item.question}\n   - 原因：${item.reason}`) : ["关键资料已覆盖，无必须追问项。"]),
     "",
-    "## Strategy v0",
+    "## 策略初稿",
     "",
     draft.positioning,
     "",
@@ -1598,17 +1616,17 @@ function exportIntakeMarkdown() {
   const project = activeProject();
   const content = intakeMarkdown(project);
   if (!content) {
-    showToast("还没有可导出的 Strategy v0。", "error");
+    showToast("还没有可导出的策略初稿。", "error");
     return;
   }
   const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `${project.name.replace(/[\\/:*?"<>|]/g, "-")}-Strategy-v0.md`;
+  link.download = `${project.name.replace(/[\\/:*?"<>|]/g, "-")}-策略初稿.md`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast("Strategy v0 Markdown 已导出");
+  showToast("策略初稿 文档已导出");
 }
 
 async function copyClarificationQuestions() {
@@ -1618,7 +1636,7 @@ async function copyClarificationQuestions() {
     await navigator.clipboard.writeText(content);
     showToast("客户追问已复制");
   } catch {
-    showToast("浏览器不允许复制，请使用导出 Markdown。", "error");
+    showToast("浏览器不允许复制，请使用导出文档。", "error");
   }
 }
 
@@ -1638,13 +1656,13 @@ function adoptIntakeStrategy() {
   });
   location.hash = "strategy";
   render();
-  showToast("Strategy v0 已同步到投放策略，可继续人工修改");
+  showToast("策略初稿已同步到投放策略，可继续人工修改");
 }
 
 function saveLaunchVersion() {
   const packRecord = activeProject().launch?.pack;
   if (!packRecord?.result) {
-    showToast("先生成一份 Launch Pack。", "error");
+    showToast("先生成一份投放执行方案。", "error");
     return;
   }
   updateProject((project) => {
@@ -1653,14 +1671,14 @@ function saveLaunchVersion() {
     const number = project.launch.versions.length + 1;
     project.launch.versions.unshift({
       id: makeId(),
-      name: `Launch Pack v0.${number}`,
+      name: `投放执行方案 v0.${number}`,
       savedAt: new Date().toISOString(),
       snapshot: cloneJson(project.launch.pack)
     });
     project.launch.versions = project.launch.versions.slice(0, 10);
   });
   render();
-  showToast("Launch Pack 版本已保存");
+  showToast("投放执行方案版本已保存");
 }
 
 function restoreLaunchVersion(versionId) {
@@ -1678,7 +1696,7 @@ function restoreLaunchVersion(versionId) {
 function saveExperimentVersion() {
   const record = activeProject().experiments?.plan;
   if (!record?.result) {
-    showToast("先生成一份 Experiment Ledger。", "error");
+    showToast("先生成一份实验账本。", "error");
     return;
   }
   updateProject((project) => {
@@ -1686,14 +1704,14 @@ function saveExperimentVersion() {
     const number = project.experiments.versions.length + 1;
     project.experiments.versions.unshift({
       id: makeId(),
-      name: `Experiment Ledger v0.${number}`,
+      name: `实验账本 v0.${number}`,
       savedAt: new Date().toISOString(),
       snapshot: cloneJson(project.experiments.plan)
     });
     project.experiments.versions = project.experiments.versions.slice(0, 10);
   });
   render();
-  showToast("Experiment Ledger 版本已保存");
+  showToast("实验账本版本已保存");
 }
 
 function restoreExperimentVersion(versionId) {
@@ -1733,7 +1751,7 @@ function launchPackMarkdown(project) {
     "| --- | --- | --- | ---: | ---: |",
     ...pack.media_plan.map((item) => `| ${markdownCell(item.platform)} | ${markdownCell(item.role)} | ${markdownCell(item.campaign_type)} | ${item.allocation_percent === null ? "—" : `${item.allocation_percent}%`} | ${markdownCell(launchBudgetText(item))} |`),
     "",
-    "## Campaign Blueprint",
+    "## Campaign 蓝图",
     "",
     ...pack.campaigns.flatMap((item, index) => [
       `### ${index + 1}. ${item.campaign_name}`,
@@ -1749,7 +1767,7 @@ function launchPackMarkdown(project) {
       ...item.audience_notes.map((value) => `  - ${value}`),
       ""
     ]),
-    "## 素材生产 Brief",
+    "## 素材生产简报",
     "",
     ...pack.creative_briefs.flatMap((item, index) => [
       `### ${index + 1}. ${item.platform} · ${item.angle}`,
@@ -1775,7 +1793,7 @@ function launchPackMarkdown(project) {
     ...markdownSection("媒体实时反馈", pack.measurement.platform_feedback),
     ...markdownSection("归因规则", pack.measurement.attribution_rules),
     ...markdownSection("追踪检查", pack.measurement.tracking_checklist),
-    "## 上线 Gate",
+    "## 上线检查项",
     "",
     "| 类别 | 检查项 | 状态 | 负责人 | 证据 / 缺口 |",
     "| --- | --- | --- | --- | --- |",
@@ -1816,11 +1834,11 @@ function exportLaunchPackMarkdown() {
   const project = activeProject();
   const content = launchPackMarkdown(project);
   if (!content) {
-    showToast("还没有可导出的 Launch Pack。", "error");
+    showToast("还没有可导出的投放执行方案。", "error");
     return;
   }
   downloadText(content, safeProjectFileName(project, "Launch-Pack.md"), "text/markdown;charset=utf-8");
-  showToast("Launch Pack Markdown 已导出");
+  showToast("投放执行方案 文档已导出");
 }
 
 function launchPackDocument(project) {
@@ -1829,18 +1847,18 @@ function launchPackDocument(project) {
   const gateRows = pack.launch_checklist.map((item) => `<tr><td>${escapeHtml(item.category)}</td><td><strong>${escapeHtml(item.item)}</strong></td><td><span class="status ${attr(item.status)}">${escapeHtml(launchStatusText(item.status))}</span></td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.evidence)}</td></tr>`).join("");
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(pack.title)}</title><style>
   :root{--ink:#17212b;--muted:#687382;--line:#dfe4e8;--paper:#fff;--bg:#edf0f2;--accent:#e86f34;--accent-soft:#fff0e8;--success:#247a55;--risk:#b8443e}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,Arial,"PingFang SC",sans-serif}main{width:min(1120px,calc(100% - 32px));margin:32px auto;background:var(--paper);padding:56px}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.14em;color:var(--accent)}h1{font-size:42px;line-height:1.12;margin:10px 0 20px}.lead{font-size:16px;line-height:1.8;color:var(--muted);max-width:860px}.readiness{margin:34px 0;display:grid;grid-template-columns:150px 1fr 220px;gap:28px;padding:26px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(135deg,#fff,var(--accent-soft))}.score strong{font-size:58px}.score span{color:var(--muted)}.state{font-size:24px;font-weight:800}.blockers{border-left:1px solid var(--line);padding-left:22px}.blockers strong{display:block;font-size:32px}.meta{display:flex;gap:18px;color:var(--muted);font-size:12px}.section{margin-top:42px}.section h2{font-size:22px;margin:0 0 16px}.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.card{border:1px solid var(--line);border-radius:12px;padding:18px;break-inside:avoid}.card span{font-size:10px;font-weight:800;color:var(--accent);letter-spacing:.08em}.card h3{font-size:16px;margin:8px 0}.card p,.card li{font-size:12px;line-height:1.7;color:var(--muted)}blockquote{margin:12px 0;padding:12px 14px;border-left:3px solid var(--accent);background:var(--accent-soft);font-weight:700}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:11px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--muted);font-size:9px;letter-spacing:.08em;text-transform:uppercase}.status{display:inline-block;padding:4px 8px;border-radius:99px;background:#eef1f3}.status.ready{color:var(--success);background:#e7f5ee}.status.blocker{color:var(--risk);background:#fdebea}.week{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.week strong{display:block;margin-bottom:8px}.foot{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:10px}@media(max-width:760px){main{width:100%;margin:0;padding:24px}.readiness,.cards,.week{grid-template-columns:1fr}.blockers{border-left:0;border-top:1px solid var(--line);padding:14px 0 0}h1{font-size:30px}}@media print{body{background:#fff}main{width:auto;margin:0;padding:28px}.section{break-inside:auto}.card{break-inside:avoid}}
-  </style></head><body><main><p class="eyebrow">OPENADOPS · LAUNCH PACK · v${APP_VERSION}</p><h1>${escapeHtml(pack.title)}</h1><p class="lead">${escapeHtml(pack.executive_summary)}</p><div class="meta"><span>${escapeHtml(project.industry)} App</span><span>${escapeHtml(project.markets || "市场待确认")}</span><span>${escapeHtml(project.platforms.join(" / "))}</span><span>${dateText(project.launch.pack.generatedAt)}</span></div><section class="readiness"><div class="score"><strong>${pack.readiness.score}</strong><span>/100</span></div><div><div class="state">${escapeHtml(launchStatusText(pack.readiness.status))}</div><p>${pack.assumptions.map((item) => escapeHtml(item)).join("<br>") || "关键输入已覆盖。"}</p></div><div class="blockers"><span>BLOCKERS</span><strong>${pack.readiness.blockers.length}</strong><p>${pack.readiness.blockers.map((item) => escapeHtml(item)).join("<br>") || "没有硬阻塞项"}</p></div></section><section class="section"><h2>01 · 媒体分工与预算</h2><table><thead><tr><th>媒体</th><th>角色</th><th>Campaign</th><th>占比</th><th>预算</th></tr></thead><tbody>${pack.media_plan.map((item) => `<tr><td><strong>${escapeHtml(item.platform)}</strong></td><td>${escapeHtml(item.role)}</td><td>${escapeHtml(item.campaign_type)}</td><td>${item.allocation_percent === null ? "—" : `${item.allocation_percent}%`}</td><td>${escapeHtml(launchBudgetText(item))}</td></tr>`).join("")}</tbody></table></section><section class="section"><h2>02 · Campaign Blueprint</h2><div class="cards">${pack.campaigns.map((item) => `<article class="card"><span>${escapeHtml(item.platform)}</span><h3>${escapeHtml(item.campaign_name)}</h3><p><strong>目标 / 事件：</strong>${escapeHtml(item.objective)} / ${escapeHtml(item.optimization_event)}<br><strong>市场：</strong>${escapeHtml(item.geo)}<br><strong>出价：</strong>${escapeHtml(item.bidding)}<br><strong>预算：</strong>${escapeHtml(item.budget_note)}</p><ul>${item.ad_group_logic.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></article>`).join("")}</div></section><section class="section"><h2>03 · 素材生产 Brief</h2><div class="cards">${pack.creative_briefs.map((item) => `<article class="card"><span>${escapeHtml(item.platform)} · ${item.variants} VARIANTS</span><h3>${escapeHtml(item.angle)}</h3><blockquote>${escapeHtml(item.hook)}</blockquote><p><strong>假设：</strong>${escapeHtml(item.hypothesis)}</p><p><strong>格式：</strong>${escapeHtml(item.format)}<br><strong>单变量：</strong>${escapeHtml(item.test_variable)}<br><strong>成功指标：</strong>${escapeHtml(item.success_metric)}</p></article>`).join("")}</div></section><section class="section"><h2>04 · 监测与归因</h2><article class="card"><h3>${escapeHtml(pack.measurement.source_of_truth)}</h3><p><strong>主要事件：</strong>${escapeHtml(pack.measurement.primary_event)}</p><ul>${[...pack.measurement.supporting_events,...pack.measurement.attribution_rules,...pack.measurement.tracking_checklist].map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></article></section><section class="section"><h2>05 · 上线 Gate</h2><table><thead><tr><th>类别</th><th>检查项</th><th>状态</th><th>负责人</th><th>证据 / 缺口</th></tr></thead><tbody>${gateRows}</tbody></table></section><section class="section"><h2>06 · 首 7 天行动</h2><div class="week">${pack.first_7_days.map((item) => `<article class="card"><strong>${escapeHtml(item.period)}</strong>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<blockquote>${escapeHtml(item.decision_rule)}</blockquote></article>`).join("")}</div></section><section class="section"><h2>07 · 待确认与风险</h2><div class="cards"><article class="card"><h3>待确认问题</h3><ol>${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>无</li>"}</ol></article><article class="card"><h3>风险说明</h3><ul>${pack.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></article></div></section><p class="foot">OpenAdOps v${APP_VERSION} · 本文件为投前工作草案，不会修改真实广告账户；正式上线前由项目负责人和相关合规人员确认。</p></main></body></html>`;
+  </style></head><body><main><p class="eyebrow">OPENADOPS · 投放执行方案 · v${APP_VERSION}</p><h1>${escapeHtml(pack.title)}</h1><p class="lead">${escapeHtml(pack.executive_summary)}</p><div class="meta"><span>${escapeHtml(project.industry)} App</span><span>${escapeHtml(project.markets || "市场待确认")}</span><span>${escapeHtml(project.platforms.join(" / "))}</span><span>${dateText(project.launch.pack.generatedAt)}</span></div><section class="readiness"><div class="score"><strong>${pack.readiness.score}</strong><span>/100</span></div><div><div class="state">${escapeHtml(launchStatusText(pack.readiness.status))}</div><p>${pack.assumptions.map((item) => escapeHtml(item)).join("<br>") || "关键输入已覆盖。"}</p></div><div class="blockers"><span>阻塞项</span><strong>${pack.readiness.blockers.length}</strong><p>${pack.readiness.blockers.map((item) => escapeHtml(item)).join("<br>") || "没有硬阻塞项"}</p></div></section><section class="section"><h2>01 · 媒体分工与预算</h2><table><thead><tr><th>媒体</th><th>角色</th><th>Campaign</th><th>占比</th><th>预算</th></tr></thead><tbody>${pack.media_plan.map((item) => `<tr><td><strong>${escapeHtml(item.platform)}</strong></td><td>${escapeHtml(item.role)}</td><td>${escapeHtml(item.campaign_type)}</td><td>${item.allocation_percent === null ? "—" : `${item.allocation_percent}%`}</td><td>${escapeHtml(launchBudgetText(item))}</td></tr>`).join("")}</tbody></table></section><section class="section"><h2>02 · Campaign 蓝图</h2><div class="cards">${pack.campaigns.map((item) => `<article class="card"><span>${escapeHtml(item.platform)}</span><h3>${escapeHtml(item.campaign_name)}</h3><p><strong>目标 / 事件：</strong>${escapeHtml(item.objective)} / ${escapeHtml(item.optimization_event)}<br><strong>市场：</strong>${escapeHtml(item.geo)}<br><strong>出价：</strong>${escapeHtml(item.bidding)}<br><strong>预算：</strong>${escapeHtml(item.budget_note)}</p><ul>${item.ad_group_logic.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></article>`).join("")}</div></section><section class="section"><h2>03 · 素材生产简报</h2><div class="cards">${pack.creative_briefs.map((item) => `<article class="card"><span>${escapeHtml(item.platform)} · ${item.variants} 个版本</span><h3>${escapeHtml(item.angle)}</h3><blockquote>${escapeHtml(item.hook)}</blockquote><p><strong>假设：</strong>${escapeHtml(item.hypothesis)}</p><p><strong>格式：</strong>${escapeHtml(item.format)}<br><strong>单变量：</strong>${escapeHtml(item.test_variable)}<br><strong>成功指标：</strong>${escapeHtml(item.success_metric)}</p></article>`).join("")}</div></section><section class="section"><h2>04 · 监测与归因</h2><article class="card"><h3>${escapeHtml(pack.measurement.source_of_truth)}</h3><p><strong>主要事件：</strong>${escapeHtml(pack.measurement.primary_event)}</p><ul>${[...pack.measurement.supporting_events,...pack.measurement.attribution_rules,...pack.measurement.tracking_checklist].map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></article></section><section class="section"><h2>05 · 上线检查项</h2><table><thead><tr><th>类别</th><th>检查项</th><th>状态</th><th>负责人</th><th>证据 / 缺口</th></tr></thead><tbody>${gateRows}</tbody></table></section><section class="section"><h2>06 · 首 7 天行动</h2><div class="week">${pack.first_7_days.map((item) => `<article class="card"><strong>${escapeHtml(item.period)}</strong>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<blockquote>${escapeHtml(item.decision_rule)}</blockquote></article>`).join("")}</div></section><section class="section"><h2>07 · 待确认与风险</h2><div class="cards"><article class="card"><h3>待确认问题</h3><ol>${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>无</li>"}</ol></article><article class="card"><h3>风险说明</h3><ul>${pack.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></article></div></section><p class="foot">OpenAdOps v${APP_VERSION} · 本文件为投前工作草案，不会修改真实广告账户；正式上线前由项目负责人和相关合规人员确认。</p></main></body></html>`;
 }
 
 function exportLaunchPackHtml() {
   const project = activeProject();
   const content = launchPackDocument(project);
   if (!content) {
-    showToast("还没有可导出的 Launch Pack。", "error");
+    showToast("还没有可导出的投放执行方案。", "error");
     return;
   }
   downloadText(content, safeProjectFileName(project, "Launch-Pack.html"), "text/html;charset=utf-8");
-  showToast("Launch Pack HTML 已导出");
+  showToast("投放执行方案网页已导出");
 }
 
 function experimentMarkdown(project) {
@@ -1874,7 +1892,7 @@ function experimentMarkdown(project) {
       "",
       `**IF** ${item.hypothesis.change} **THEN** ${item.hypothesis.metric} 将${item.hypothesis.direction === "increase" ? "提升" : "下降"}${item.hypothesis.expected_lift_percent === null ? "" : `约 ${item.hypothesis.expected_lift_percent}%`} **BECAUSE** ${item.hypothesis.because}`,
       "",
-      "| Control | 单一变量 | Variant |",
+      "| 对照组 | 单一变量 | 实验组 |",
       "| --- | --- | --- |",
       `| ${markdownCell(item.design.control)} | ${markdownCell(item.design.single_variable)} | ${markdownCell(item.design.variant)} |`,
       "",
@@ -1901,7 +1919,7 @@ function experimentMarkdown(project) {
       "",
       "#### 结果与学习",
       `- 结论：${experimentOutcomeText(item.result.outcome)}`,
-      `- Control / Variant：${item.result.control_value ?? "—"} / ${item.result.variant_value ?? "—"}`,
+      `- 对照组 / 实验组：${item.result.control_value ?? "—"} / ${item.result.variant_value ?? "—"}`,
       `- 相对变化：${item.result.relative_change_percent === null ? "—" : `${item.result.relative_change_percent}%`}`,
       `- 证据：${item.result.evidence || "待补充"}`,
       `- 学习：${item.result.learning || "待补充"}`,
@@ -1921,11 +1939,11 @@ function exportExperimentMarkdown() {
   const project = activeProject();
   const content = experimentMarkdown(project);
   if (!content) {
-    showToast("还没有可导出的 Experiment Ledger。", "error");
+    showToast("还没有可导出的实验账本。", "error");
     return;
   }
   downloadText(content, safeProjectFileName(project, "Experiment-Ledger.md"), "text/markdown;charset=utf-8");
-  showToast("Experiment Ledger Markdown 已导出");
+  showToast("实验账本 文档已导出");
 }
 
 function experimentDocument(project) {
@@ -1936,18 +1954,18 @@ function experimentDocument(project) {
   const cards = plan.experiments.map((item, index) => `<article class="experiment"><header><span>${String(index + 1).padStart(2, "0")} · ${escapeHtml(item.platform)}</span><h2>${escapeHtml(item.name)}</h2><div><em>${escapeHtml(experimentPriorityText(item.priority))}</em><em>${escapeHtml(experimentStatusText(item.status))}</em><em>${escapeHtml(feasibilityText(item.feasibility.status))}</em></div></header><blockquote><b>IF</b> ${escapeHtml(item.hypothesis.change)} <b>THEN</b> ${escapeHtml(item.hypothesis.metric)} 将${item.hypothesis.direction === "increase" ? "提升" : "下降"} <b>BECAUSE</b> ${escapeHtml(item.hypothesis.because)}</blockquote><section class="variants"><div><span>CONTROL · ${item.design.control_percent}%</span><strong>${escapeHtml(item.design.control)}</strong></div><i>${escapeHtml(item.design.single_variable)}</i><div><span>VARIANT · ${item.design.variant_percent}%</span><strong>${escapeHtml(item.design.variant)}</strong></div></section><section class="facts"><div><span>主指标</span><strong>${escapeHtml(item.design.primary_metric)}</strong></div><div><span>每版本样本</span><strong>${item.feasibility.required_sample_per_variant === null ? "—" : formatMetric(item.feasibility.required_sample_per_variant)}</strong></div><div><span>预计周期</span><strong>${item.feasibility.estimated_duration_days === null ? "—" : `${item.feasibility.estimated_duration_days} 天`}</strong></div><div><span>实验方法</span><strong>${escapeHtml(item.design.test_type)}</strong></div></section><p class="rationale">${escapeHtml(item.feasibility.rationale)}</p><section class="rules"><div><span>WIN</span><p>${escapeHtml(item.decision_rules.win)}</p></div><div><span>LOSE</span><p>${escapeHtml(item.decision_rules.lose)}</p></div><div><span>INCONCLUSIVE</span><p>${escapeHtml(item.decision_rules.inconclusive)}</p></div></section><section class="result"><div><span>结果</span><strong>${escapeHtml(experimentOutcomeText(item.result.outcome))}</strong></div><p><b>证据：</b>${escapeHtml(item.result.evidence || "待补充")}</p><p><b>学习：</b>${escapeHtml(item.result.learning || "待补充")}</p><p><b>下一步：</b>${escapeHtml(item.result.next_action || "待补充")}</p></section></article>`).join("");
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(plan.title)}</title><style>
   :root{--ink:#17212b;--muted:#687382;--line:#dfe4e8;--paper:#fff;--bg:#edf0f2;--accent:#e86f34;--soft:#fff0e8;--blue:#315d96;--green:#247a55}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,Arial,"PingFang SC",sans-serif}main{width:min(1120px,calc(100% - 32px));margin:32px auto;background:var(--paper);padding:56px}.eyebrow{font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--accent)}h1{font-size:42px;line-height:1.1;margin:10px 0 18px}.lead{max-width:850px;color:var(--muted);line-height:1.8}.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:30px 0}.summary div{padding:18px;border:1px solid var(--line);border-radius:12px}.summary strong,.summary span{display:block}.summary strong{font-size:28px}.summary span{margin-top:5px;color:var(--muted);font-size:10px}.agenda{padding:20px;border-radius:14px;background:#17212b;color:#fff}.agenda p{margin:7px 0;color:#bec7d0;font-size:12px}.experiment{margin-top:22px;padding:24px;border:1px solid var(--line);border-radius:16px;break-inside:avoid}.experiment header>span{color:var(--accent);font-size:10px;font-weight:800}.experiment h2{font-size:20px;margin:7px 0}.experiment header em{display:inline-block;margin-right:6px;padding:5px 8px;border-radius:99px;background:#eef1f4;color:var(--muted);font-size:9px;font-style:normal}blockquote{margin:18px 0;padding:15px;border-left:3px solid var(--accent);background:var(--soft);font-size:12px;line-height:1.7}.variants{display:grid;grid-template-columns:1fr 120px 1fr;align-items:stretch;gap:10px}.variants div{padding:16px;border:1px solid var(--line);border-radius:11px}.variants span,.facts span,.rules span,.result span{display:block;color:var(--muted);font-size:9px;font-weight:800}.variants strong{display:block;margin-top:9px;font-size:12px}.variants i{display:grid;place-items:center;padding:10px;border-radius:11px;background:#17212b;color:#fff;font-size:10px;font-style:normal;text-align:center}.facts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}.facts div{padding:12px;background:#f6f7f8;border-radius:9px}.facts strong{display:block;margin-top:6px;font-size:11px}.rationale{font-size:10px;color:var(--muted);line-height:1.6}.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.rules div{padding:13px;border-top:2px solid var(--accent);background:#fafbfc}.rules p,.result p{font-size:10px;line-height:1.6;color:var(--muted)}.result{margin-top:12px;padding:15px;border:1px dashed var(--line);border-radius:10px}.result>div{display:flex;justify-content:space-between}.foot{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:9px}@media(max-width:760px){main{width:100%;margin:0;padding:24px}h1{font-size:30px}.summary,.facts,.rules,.variants{grid-template-columns:1fr}.variants i{min-height:44px}}@media print{body{background:#fff}main{width:auto;margin:0;padding:24px}.experiment{break-inside:avoid}}
-  </style></head><body><main><p class="eyebrow">OPENADOPS · EXPERIMENT LEDGER · v${APP_VERSION}</p><h1>${escapeHtml(plan.title)}</h1><p class="lead">${escapeHtml(plan.executive_summary)}</p><section class="summary"><div><strong>${summary.total}</strong><span>实验总数</span></div><div><strong>${summary.ready}</strong><span>周期可行</span></div><div><strong>${summary.running}</strong><span>进行中</span></div><div><strong>${summary.learnings}</strong><span>已沉淀学习</span></div></section><section class="agenda">${plan.learning_agenda.map((item, index) => `<p>${String(index + 1).padStart(2, "0")} · ${escapeHtml(item)}</p>`).join("")}</section>${cards}<p class="foot">OpenAdOps v${APP_VERSION} · 生成来源：${escapeHtml(runRecordLabel(record))} · 只规划和记录实验，不会修改真实广告账户。</p></main></body></html>`;
+  </style></head><body><main><p class="eyebrow">OPENADOPS · 实验账本 · v${APP_VERSION}</p><h1>${escapeHtml(plan.title)}</h1><p class="lead">${escapeHtml(plan.executive_summary)}</p><section class="summary"><div><strong>${summary.total}</strong><span>实验总数</span></div><div><strong>${summary.ready}</strong><span>周期可行</span></div><div><strong>${summary.running}</strong><span>进行中</span></div><div><strong>${summary.learnings}</strong><span>已沉淀学习</span></div></section><section class="agenda">${plan.learning_agenda.map((item, index) => `<p>${String(index + 1).padStart(2, "0")} · ${escapeHtml(item)}</p>`).join("")}</section>${cards}<p class="foot">OpenAdOps v${APP_VERSION} · 生成来源：${escapeHtml(runRecordLabel(record))} · 只规划和记录实验，不会修改真实广告账户。</p></main></body></html>`;
 }
 
 function exportExperimentHtml() {
   const project = activeProject();
   const content = experimentDocument(project);
   if (!content) {
-    showToast("还没有可导出的 Experiment Ledger。", "error");
+    showToast("还没有可导出的实验账本。", "error");
     return;
   }
   downloadText(content, safeProjectFileName(project, "Experiment-Ledger.html"), "text/html;charset=utf-8");
-  showToast("Experiment Ledger HTML 已导出");
+  showToast("实验账本网页已导出");
 }
 
 function reportDocument(project) {
@@ -1977,7 +1995,7 @@ function exportReport() {
   link.download = `${project.name.replace(/[\\/:*?"<>|]/g, "-")}-投放报告.html`;
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast("报告 HTML 已导出");
+  showToast("报告网页已导出");
 }
 
 projectSelect.addEventListener("change", () => {

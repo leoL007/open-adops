@@ -13,7 +13,7 @@ const DEFAULT_ROUTES = {
   },
   intakeStrategy: {
     key: "intakeStrategy",
-    label: "快速生成 Strategy v0",
+    label: "快速生成策略初稿",
     modelTier: "terra",
     model: "gpt-5.6-terra",
     effort: "medium",
@@ -23,7 +23,7 @@ const DEFAULT_ROUTES = {
   },
   intakeDeep: {
     key: "intakeDeep",
-    label: "深度复核 Strategy v0",
+    label: "深度复核策略初稿",
     modelTier: "deep",
     model: "gpt-5.6",
     effort: "high",
@@ -43,7 +43,7 @@ const DEFAULT_ROUTES = {
   },
   launchPack: {
     key: "launchPack",
-    label: "生成 Launch Pack",
+    label: "生成投放执行方案",
     modelTier: "deep",
     model: "gpt-5.6",
     effort: "high",
@@ -53,7 +53,7 @@ const DEFAULT_ROUTES = {
   },
   experiments: {
     key: "experiments",
-    label: "生成 Experiment Ledger",
+    label: "生成实验账本",
     modelTier: "terra",
     model: "gpt-5.6-terra",
     effort: "medium",
@@ -96,7 +96,7 @@ export function resolveAiRoute(routeKey, env = process.env) {
           model: deepModel,
           effort: "medium",
           timeoutMs: 180000,
-          label: "结构校验自动复核"
+          label: "结构校验后自动复核"
         }
       : null
   };

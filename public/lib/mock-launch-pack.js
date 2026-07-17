@@ -206,8 +206,8 @@ export function buildMockLaunchPack(project = {}, intakeResult = null) {
 
   return {
     schema_version: "1.0",
-    title: `${project.name || "未命名项目"} · Launch Pack v0`,
-    executive_summary: `【Mock 演示】已将当前 Offer、Strategy v0 和项目设置转化为投前作战包。首轮建议启用 ${activePlatforms.join("、") || "待确认媒体"}；当前就绪度 ${score}%，${blockers.length ? `仍有 ${blockers.length} 个上线阻塞项。` : "没有硬阻塞项，但仍需负责人复核。"}`,
+    title: `${project.name || "未命名项目"} · 投放执行方案 v0`,
+    executive_summary: `【演示】已将当前资料、策略初稿和项目设置转化为投放执行方案。首轮建议启用 ${activePlatforms.join("、") || "待确认媒体"}；当前就绪度 ${score}%，${blockers.length ? `仍有 ${blockers.length} 个上线阻塞项。` : "没有硬阻塞项，但仍需负责人复核。"}`,
     readiness: { score, status: blockers.length ? "blocked" : launchChecklist.some((item) => item.status === "needs_confirmation") ? "conditional" : "ready", blockers },
     assumptions: [
       ...(!budget ? ["预算尚未确认，所有媒体金额保持为空。"] : []),

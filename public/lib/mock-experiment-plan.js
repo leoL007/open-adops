@@ -16,7 +16,7 @@ function platformMethod(platform) {
       confidence: 95,
       setup: [
         "在 Google Ads Experiments 中选择 App asset experiment，不用手工复制 Campaign 冒充随机实验。",
-        "Control 保持当前资产组合，Variant 只替换本次定义的单一素材变量。",
+        "对照组保持当前资产组合，实验组只替换本次定义的单一素材变量。",
         "冻结优化事件、市场、预算逻辑和其他资产，记录实验开始与结束日期。"
       ]
     };
@@ -27,7 +27,7 @@ function platformMethod(platform) {
       confidence: 95,
       setup: [
         "在 Ads Manager 发布流程中开启 A/B test，使用平台分流而不是手工复制 Ad Set。",
-        "Control 与 Variant 保持相同受众、预算、版位和优化事件，只改变本次素材变量。",
+        "对照组与实验组保持相同受众、预算、版位和优化事件，只改变本次素材变量。",
         "开始前保存 Campaign、Ad Set、Ad 名称与素材版本证据。"
       ]
     };
@@ -38,7 +38,7 @@ function platformMethod(platform) {
       confidence: 90,
       setup: [
         "在 TikTok Ads Manager 创建 Split Test，确保两个组互斥曝光。",
-        "Control 与 Variant 使用相同受众、预算、版位和优化事件，只测试一个变量。",
+        "对照组与实验组使用相同受众、预算、版位和优化事件，只测试一个变量。",
         "优先测试前 2–3 秒 Hook，并保存广告审核与实验状态截图。"
       ]
     };
@@ -49,7 +49,7 @@ function platformMethod(platform) {
     setup: [
       "优先使用媒体后台提供的原生实验能力，并保存随机分流与实验状态证据。",
       "如果媒体不支持原生实验，不把手工复制广告组描述成随机实验。",
-      "Control 与 Variant 保持预算、受众、版位、优化事件和其他素材变量一致。"
+      "对照组与实验组保持预算、受众、版位、优化事件和其他素材变量一致。"
     ]
   };
 }
@@ -111,11 +111,11 @@ export function buildMockExperimentPlan(project = {}, launchPack = null) {
       status: "draft",
       category: "creative",
       hypothesis: {
-        change: `将 Control 的现有开场替换为“${brief.hook}”，其他变量保持一致`,
+        change: `将 对照组的现有开场替换为“${brief.hook}”，其他变量保持一致`,
         metric: primaryMetric,
         direction: metric.metricType === "cost" ? "decrease" : "increase",
         expected_lift_percent: null,
-        because: text(brief.hypothesis) || `当前素材 Brief 将“${brief.variable}”列为首要不确定性。`
+        because: text(brief.hypothesis) || `当前素材简报 将“${brief.variable}”列为首要不确定性。`
       },
       design: {
         test_type: method.testType,
@@ -149,7 +149,7 @@ export function buildMockExperimentPlan(project = {}, launchPack = null) {
       ],
       decision_rules: {
         win: "达到预设置信度和样本门槛，主指标改善不低于 MDE，且护栏指标没有业务上不可接受的恶化。",
-        lose: "达到样本门槛后主指标劣于 Control，或护栏指标触发预先定义的止损条件。",
+        lose: "达到样本门槛后主指标劣于对照组，或护栏指标触发预先定义的止损条件。",
         inconclusive: "周期结束仍未达到样本门槛，或提升小于 MDE；记录为无结论，不包装成胜负。"
       },
       owner: "投放 + 素材",
@@ -170,8 +170,8 @@ export function buildMockExperimentPlan(project = {}, launchPack = null) {
 
   return enrichExperimentPlan({
     schema_version: "1.0",
-    title: `${project.name || "未命名项目"} · Experiment Ledger`,
-    executive_summary: `【Mock 演示】已从当前 Launch Pack / 素材计划生成 ${experiments.length} 个单变量实验。样本和周期由代码计算；流量不足时会明确显示“暂不可判断”。`,
+    title: `${project.name || "未命名项目"} · 实验账本`,
+    executive_summary: `【演示】已从当前投放执行方案与素材计划生成 ${experiments.length} 个单变量实验。样本和周期由代码计算；流量不足时会明确显示“暂不可判断”。`,
     learning_agenda: [
       "先验证高影响的素材概念和 Hook，再测试受众、出价或结构微调。",
       "每个实验在上线前冻结主指标、MDE、最短周期、护栏指标和止损条件。",
