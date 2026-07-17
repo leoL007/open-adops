@@ -2,6 +2,13 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.4.3] - 2026-07-17
+
+### Added
+
+- Workspace backup: export all projects or the active project as JSON, and import with merge or full replace.
+- Deterministic backup helpers and tests for workspace/project formats.
+
 ## [0.4.2] - 2026-07-17
 
 ### Fixed

@@ -324,7 +324,23 @@ select {
 }
 
 .topbar-actions {
-  gap: 12px;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.backup-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+.backup-actions .button {
+  box-shadow: none;
 }
 
 .mode-switch {

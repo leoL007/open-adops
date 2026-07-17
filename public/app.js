@@ -9,6 +9,13 @@ import { buildMockAnalysis } from "./lib/mock-analysis.js";
 import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
 import { buildMockLaunchPack } from "./lib/mock-launch-pack.js";
+import {
+  backupFileName,
+  buildProjectBackup,
+  buildWorkspaceBackup,
+  mergeProjects,
+  parseBackupJson
+} from "./lib/workspace-backup.js";
 import { APP_VERSION } from "./version.js";
 
 const STORAGE_KEY = "openadops:v4";
@@ -19,6 +26,10 @@ const app = document.querySelector("#app");
 const projectSelect = document.querySelector("#projectSelect");
 const aiModeSelect = document.querySelector("#aiMode");
 const newProjectButton = document.querySelector("#newProjectButton");
+const exportWorkspaceButton = document.querySelector("#exportWorkspaceButton");
+const exportProjectButton = document.querySelector("#exportProjectButton");
+const importWorkspaceButton = document.querySelector("#importWorkspaceButton");
+const importWorkspaceFile = document.querySelector("#importWorkspaceFile");
 const demoBadge = document.querySelector("#demoBadge");
 const versionBadge = document.querySelector("#appVersion");
 const projectDialog = document.querySelector("#projectDialog");
@@ -1860,6 +1871,112 @@ function downloadText(content, fileName, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function normalizeImportedProject(project) {
+  return {
+    ...project,
+    id: project.id || makeId(),
+    name: project.name || "导入项目",
+    platforms: Array.isArray(project.platforms) && project.platforms.length ? project.platforms : ["Google Ads"],
+    intake: createIntake(project.intake || {}),
+    launch: createLaunch(project.launch || {}),
+    experiments: createExperiments(project.experiments || {}),
+    strategy: project.strategy && typeof project.strategy === "object"
+      ? project.strategy
+      : { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: {} },
+    creativePlan: Array.isArray(project.creativePlan) ? project.creativePlan : [],
+    ai: project.ai && typeof project.ai === "object" ? project.ai : {},
+    createdAt: project.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function exportWorkspaceBackup() {
+  try {
+    const backup = buildWorkspaceBackup(state, { appVersion: APP_VERSION });
+    downloadText(
+      JSON.stringify(backup, null, 2),
+      backupFileName({ kind: "workspace", exportedAt: backup.exportedAt }),
+      "application/json;charset=utf-8"
+    );
+    showToast(`已导出全部工作区（${backup.projectCount} 个项目）`);
+  } catch (error) {
+    showToast(`导出失败：${error.message}`, "error");
+  }
+}
+
+function exportActiveProjectBackup() {
+  try {
+    const project = activeProject();
+    if (!project) {
+      showToast("没有可导出的项目", "error");
+      return;
+    }
+    const backup = buildProjectBackup(project, { appVersion: APP_VERSION });
+    downloadText(
+      JSON.stringify(backup, null, 2),
+      backupFileName({ kind: "project", projectName: project.name, exportedAt: backup.exportedAt }),
+      "application/json;charset=utf-8"
+    );
+    showToast(`已导出项目「${project.name}」`);
+  } catch (error) {
+    showToast(`导出失败：${error.message}`, "error");
+  }
+}
+
+async function importWorkspaceBackupFile(file) {
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const parsed = parseBackupJson(text);
+    const incoming = parsed.projects.map(normalizeImportedProject);
+    if (!incoming.length) {
+      showToast("备份里没有可导入的项目", "error");
+      return;
+    }
+
+    const mode = window.confirm(
+      `将导入 ${incoming.length} 个项目。\n\n确定 = 合并到当前工作区（同名 ID 会生成新 ID）\n取消 = 中止导入`
+    );
+    if (!mode) {
+      showToast("已取消导入");
+      return;
+    }
+
+    const replaceAll = window.confirm(
+      "是否用备份替换当前全部项目？\n\n确定 = 替换全部（请确认已有备份）\n取消 = 仅合并新增"
+    );
+
+    if (replaceAll) {
+      const ok = window.confirm(`确认替换？当前 ${state.projects.length} 个项目将被覆盖为备份中的 ${incoming.length} 个。`);
+      if (!ok) {
+        showToast("已取消导入");
+        return;
+      }
+      state = {
+        activeProjectId: incoming.find((item) => item.id === parsed.activeProjectId)?.id || incoming[0].id,
+        aiMode: isStaticDemo ? "mock" : parsed.aiMode || state.aiMode,
+        projects: incoming
+      };
+    } else {
+      const { projects, imported } = mergeProjects(state.projects, incoming, { makeId, reassignOnConflict: true });
+      if (!imported.length) {
+        showToast("没有新项目被导入", "error");
+        return;
+      }
+      state.projects = projects.map(normalizeImportedProject);
+      state.activeProjectId = imported[0].id;
+    }
+
+    saveState();
+    render();
+    showToast(replaceAll ? `已用备份替换工作区（${state.projects.length} 个项目）` : `已合并导入 ${incoming.length} 个项目`);
+  } catch (error) {
+    showToast(`导入失败：${error.message}`, "error");
+  } finally {
+    if (importWorkspaceFile) importWorkspaceFile.value = "";
+  }
+}
+
 function safeProjectFileName(project, suffix) {
   return `${project.name.replace(/[\\/:*?"<>|]/g, "-")}-${suffix}`;
 }
@@ -2059,6 +2176,13 @@ if (aiModeSelect) {
 }
 
 newProjectButton.addEventListener("click", () => projectDialog.showModal());
+exportWorkspaceButton?.addEventListener("click", exportWorkspaceBackup);
+exportProjectButton?.addEventListener("click", exportActiveProjectBackup);
+importWorkspaceButton?.addEventListener("click", () => importWorkspaceFile?.click());
+importWorkspaceFile?.addEventListener("change", () => {
+  const file = importWorkspaceFile.files?.[0];
+  importWorkspaceBackupFile(file);
+});
 aiCancelButton.addEventListener("click", cancelAiJob);
 aiErrorDismiss.addEventListener("click", clearPersistentError);
 document.querySelectorAll("[data-close-dialog]").forEach((button) => button.addEventListener("click", () => projectDialog.close()));

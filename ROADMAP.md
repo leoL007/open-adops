@@ -48,7 +48,7 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 ## v0.5 — Workflow portability
 
 - [ ] XLSX import.
-- [ ] Project JSON export/import and backup.
+- [x] Project JSON export/import and backup. *(shipped in v0.4.3)*
 - [ ] Saved mapping profiles for common platform exports.
 - [ ] Date-range comparison and change annotations.
 - [ ] English UI and runtime locale switch.

@@ -10,7 +10,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <title>OpenAdOps｜付费媒体工作台</title>
     <link rel="icon" href="./og.png" type="image/png" />
-    <link rel="stylesheet" href="./styles.css?v=0.4.2-ui" />
+    <link rel="stylesheet" href="./styles.css?v=0.4.3" />
   </head>
   <body>
     <div class="app-shell">
@@ -51,7 +51,7 @@
             <span id="demoBadge" class="demo-badge" hidden>演示数据</span>
           </div>
           <div class="topbar-actions">
-            <span class="app-version" id="appVersion">v0.4.2</span>
+            <span class="app-version" id="appVersion">v0.4.3</span>
             <div class="mode-switch" role="group" aria-label="分析模式" title="本地演示不耗额度；GPT-5.6 智能路由调用本机 Codex">
               <button type="button" class="mode-switch-btn" data-ai-mode="mock" id="modeMockBtn">本地演示</button>
               <button type="button" class="mode-switch-btn" data-ai-mode="codex" id="modeCodexBtn">GPT-5.6</button>
@@ -60,6 +60,12 @@
               <option value="mock">本地演示</option>
               <option value="codex">GPT-5.6</option>
             </select>
+            <div class="backup-actions" title="项目保存在本机浏览器；请定期导出备份">
+              <button class="button button-ghost button-small" id="exportProjectButton" type="button">导出当前</button>
+              <button class="button button-ghost button-small" id="exportWorkspaceButton" type="button">导出全部</button>
+              <button class="button button-secondary button-small" id="importWorkspaceButton" type="button">导入备份</button>
+              <input id="importWorkspaceFile" type="file" accept="application/json,.json" hidden />
+            </div>
             <button class="button button-secondary" id="newProjectButton" type="button">＋ 新建项目</button>
           </div>
         </header>
@@ -152,6 +158,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js?v=0.4.2-ui"></script>
+    <script type="module" src="./app.js?v=0.4.3"></script>
   </body>
 </html>
