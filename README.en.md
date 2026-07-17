@@ -2,54 +2,67 @@
 
 # OpenAdOps
 
-### From fragmented client input to a defensible paid-media strategy.
+### From fragmented client input to defensible paid-media decisions
 
-OpenAdOps is a local-first AI workspace that turns client offers, fragmented strategy notes, and Google Ads, Meta Ads, TikTok Ads, and AppsFlyer data into structured briefs, launch packs, experiment ledgers, optimization actions, and client-ready reports.
+OpenAdOps is a **local-first** AI workspace for overseas app growth operators. It turns client briefs, rough media notes, and Google Ads / Meta Ads / TikTok Ads / AppsFlyer data into a structured strategy draft, an execution plan, an experiment ledger, optimization judgments, and client-ready reports.
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
 [![Release](https://img.shields.io/badge/Release-v0.4.2-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
-[简体中文](./README.md) · [English](./README.en.md) · [Roadmap](./ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
+[简体中文](./README.md) · [English](./README.en.md) · [Product](./PRODUCT.md) · [Roadmap](./ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
 
 </div>
 
 ![OpenAdOps overview](./assets/openadops-overview.jpg)
 
+## Current release (v0.4.2)
+
+- **End-to-end loop**: intake → strategy draft → plan / creative → **execution plan** → **experiment ledger** → optimize → report  
+- **Chinese-first UI** in the product (English docs keep clear English names)  
+- **Task-aware model routing**: lighter models for questions/fast draft; stronger models for deep review and execution plans; automatic structure retry  
+- **Code does the math**: KPI and experiment sizing are deterministic  
+- **v0.4.2 fixes**: AF-only install columns no longer bind to media installs; launch-gate confirmation text is not duplicated; localStorage quota failures are surfaced  
+
 ## Why OpenAdOps
 
-Paid-media work is fragmented across dashboards, spreadsheets, screenshots, and chat threads. A generic chat can draft an answer, but it does not preserve the operating context or guarantee the metric math.
+Paid media work is usually scattered across ad UIs, spreadsheets, screenshots, and chat. A generic LLM can write prose, but it rarely:
 
-OpenAdOps keeps the workflow in one project:
+- keeps multi-step project context  
+- separates confirmed / inferred / missing facts  
+- guarantees CPI vs AF-CPI and sample-size math  
 
-1. **Intake** — paste client offers and notes, then separate confirmed, inferred, and missing information.
-2. **Plan** — generate clarification questions, Strategy v0, platform roles, budget scenarios, and test hypotheses.
-3. **Create** — platform-aware creative angles, hooks, variables, and success metrics.
-4. **Launch Pack** — campaign blueprints, media budgets, production briefs, measurement rules, launch gates, and a first-seven-day plan.
-5. **Experiment Ledger** — a Now / Next / Later test backlog with sample thresholds, stop rules, evidence, and learnings.
-6. **Optimize** — deterministic KPI calculation plus evidence-backed AI recommendations.
-7. **Report** — management-ready HTML and print/PDF output.
+OpenAdOps keeps one local project for the full loop:
+
+1. **Intake** — paste client material and media notes; structure a brief and clarification list  
+2. **Strategy draft** — fast draft or deep review of a working strategy  
+3. **Plan / creative** — goals, media roles, budgets, angles, single-variable tests  
+4. **Execution plan** — campaign blueprints, production briefs, measurement layers, launch checks, first 7 days  
+5. **Experiment ledger** — now / next / later queue with thresholds, evidence, and learnings  
+6. **Optimize** — CSV metrics by code, then evidence-backed diagnosis  
+7. **Report** — management HTML and print / PDF  
 
 ## What makes it different
 
-- **Code does the math.** CSV metrics, experiment sample size, estimated duration, and relative change are deterministic.
-- **AI does the judgment.** Strategy, diagnosis, creative tests, and next actions are returned as schema-validated JSON.
-- **Evidence stays attached.** Every finding separates evidence, diagnosis, action, confidence, and validation.
-- **Unknowns stay visible.** The brief distinguishes client-confirmed information, AI inference, and missing input.
-- **Pre-flight output is operational.** Campaign naming, events, bidding prerequisites, creative variables, owners, and evidence stay in one deliverable.
-- **Inconclusive is a valid result.** Tests that miss their sample threshold are not rewritten as winners.
-- **Local-first by design.** Projects live in browser storage; raw CSV rows are not sent to the AI bridge, and pasted intake text is submitted to local Codex only on explicit request.
-- **Safe failure behavior.** A failed AI request produces an explicit error instead of a fabricated recommendation.
-- **Useful without an account.** The browser-local Mock demo works on GitHub Pages and does not require Codex or an API key.
+- **Code calculates.** Metrics, sample size, duration, relative change  
+- **AI judges.** Schema-validated strategy, diagnosis, and next actions  
+- **Evidence stays attached** to every claim  
+- **Unknowns stay visible** (confirmed / inferred / missing)  
+- **Execution output is handoff-ready** (names, events, bids, single variables, owners)  
+- **Launch checks have owners**; blockers block “ready”  
+- **Inconclusive is valid** when sample thresholds are not met  
+- **Local-first**: browser storage; raw CSV rows are not sent to the model bridge  
+- **Safe failure**: errors instead of fabricated success  
+- **Usable without an account**: [GitHub Pages mock demo](https://leol007.github.io/open-adops/)  
 
 ## 60-second start
 
-### Try the browser demo
+### Browser demo (mock only)
 
-Open the [live Mock demo](https://leol007.github.io/open-adops/). It runs entirely in the browser with clearly labeled demo data.
+Open the [live demo](https://leol007.github.io/open-adops/). Browser-only labeled demo data; **no** local model calls.
 
-### Run locally
+### Run locally (full features)
 
 ```bash
 git clone https://github.com/leoL007/open-adops.git
@@ -57,71 +70,75 @@ cd open-adops
 npm start
 ```
 
-After startup, open the local workspace at `http://127.0.0.1:4173`. No `npm install` is required; the project uses Node.js built-in modules only.
-
-Run the complete quality gate:
+Open `http://127.0.0.1:4173`. No `npm install` — Node built-ins only.
 
 ```bash
 npm run check
 ```
 
-## AI modes
+## Analysis modes
 
-| Mode | Requirements | What happens |
+| UI label | Requirements | Behavior |
 | --- | --- | --- |
-| Browser-local Mock | None | Generates deterministic, clearly labeled demo recommendations without a server AI call. |
-| Codex CLI | Signed-in Codex CLI | Sends pasted intake text, project context, and aggregated metrics through the local Node bridge to `codex exec`. |
+| **Local demo** | None | Deterministic mock output; no model usage |
+| **GPT-5.6 · smart routing** (backed by local Codex CLI) | Signed-in Codex CLI | Local Node bridge → `codex exec` with task-aware models |
 
-OpenAdOps uses task-aware routing and does not inherit a global Codex `xhigh` reasoning setting:
+Default routing (does not inherit a global ultra-high reasoning setting):
 
 | Task | Default model | Effort |
 | --- | --- | --- |
 | Client questions | `gpt-5.6-terra` | low |
-| Fast Strategy v0 | `gpt-5.6-terra` | medium |
-| Deep Strategy v0 review | `gpt-5.6` | high |
-| Data and creative diagnosis | `gpt-5.6-terra` | medium |
-| Launch Pack | `gpt-5.6` | high |
-| Experiment Ledger | `gpt-5.6-terra` | medium |
+| Fast strategy draft | `gpt-5.6-terra` | medium |
+| Deep strategy review | `gpt-5.6` | high |
+| Data / creative diagnosis | `gpt-5.6-terra` | medium |
+| Execution plan | `gpt-5.6` | high |
+| Experiment ledger | `gpt-5.6-terra` | medium |
 
-If a Terra response fails structural validation, OpenAdOps retries once with `gpt-5.6 + medium`. The UI shows the active model, reasoning level, elapsed time, expected range, cancel control, and persistent failures.
-
-Override the workspace models without changing global Codex configuration:
+Failed structure validation on Terra triggers one `gpt-5.6 + medium` retry. The UI shows model, effort, timing, cancel, and sticky errors.
 
 ```bash
 OPENADOPS_TERRA_MODEL=gpt-5.6-terra OPENADOPS_DEEP_MODEL=gpt-5.6 npm start
 ```
 
-Legacy all-task overrides remain supported: `OPENADOPS_MODEL`, `OPENADOPS_REASONING_EFFORT`, and `OPENADOPS_TIMEOUT_MS`.
+Legacy overrides: `OPENADOPS_MODEL`, `OPENADOPS_REASONING_EFFORT`, `OPENADOPS_TIMEOUT_MS` (apply to all tasks — use carefully).
 
-For deeper paid-media reasoning, install a compatible Ads skill such as [Claude Ads](https://github.com/AgriciDaniel/claude-ads) for your agent runtime. OpenAdOps remains usable in Mock mode without it.
+Optional Ads skills (e.g. [Claude Ads](https://github.com/AgriciDaniel/claude-ads)) can deepen analysis; mock mode works without them.
 
-## Launch Pack
+## Execution plan
 
-The Launch Pack turns Offer Intake and Strategy v0 into platform roles, budget allocation, campaign-ready naming and setup logic, production-ready creative briefs, layered measurement rules, owner-based launch gates, and Day 0–7 decision rules. It can be exported as Markdown or a standalone HTML document and saved as local snapshots.
+Turns intake + strategy draft into an operator handoff:
 
-Missing budgets remain blank. Regulated financial projects surface licensing, local policy, disclaimer, and platform-category approval as pre-launch blockers.
+- Media roles and budget shares (no invented budgets)  
+- Campaign-ready naming, goals, events, geos, bidding, split logic  
+- Per-platform creative production briefs with one primary variable  
+- Media / MMP / business source-of-truth layers  
+- Launch checklist with status, owner, evidence (finance compliance gates included)  
+- Day 0–7 actions and decision rules  
+- Document / HTML export and local snapshots  
 
-## Experiment Ledger
+## Experiment ledger
 
-The Experiment Ledger converts Launch Pack creative briefs into an operating test queue:
+Builds a cross-platform test queue from execution-plan creative briefs:
 
-- One primary variable per experiment, with Control, Variant, primary metric, and guardrails frozen before launch.
-- Platform-aware guidance for Google App asset experiments, Meta A/B tests, and TikTok Split Testing.
-- Deterministic sample-size and duration estimates for rate metrics; missing traffic inputs remain blank.
-- Evidence, Winner / Loser / Inconclusive, learning, and next-action records.
-- Markdown, standalone HTML, local snapshots, and management-report rollup.
+- One primary variable; control / variant / primary metric / guardrails frozen first  
+- Native methods for Google App asset experiments, Meta A/B, TikTok Split Testing  
+- Deterministic sizing for rate metrics; blank when baseline or traffic is missing  
+- Evidence, win / lose / inconclusive, learning, next action  
+- Exports and management-report rollup  
 
-See [the experiment method and boundaries](./docs/EXPERIMENTS.md).
+See [experiment methods](./docs/EXPERIMENTS.md).
 
 ## CSV input
 
-CSV import requires `Spend` plus at least one of `Media Installs` or `AF Installs`. Recommended fields:
+Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
 
-| Dimension fields | Metric fields |
+| Dimensions | Metrics |
 | --- | --- |
 | Date, Platform, Country, Campaign, Ad group / Ad set, Creative, Conversion Event | Spend, Impressions, Clicks, Media Installs, AF Installs, Conversions, Revenue, D1 Retained |
 
-OpenAdOps auto-detects common English and Chinese field aliases and lets the user correct each mapping before calculation. See [the demo CSV](./public/data/openadops-demo.csv).
+- Common EN/ZH aliases; user can correct mapping before calc  
+- **Media installs and AF installs stay separate** — an AF-only column is not bound to media installs  
+- Demo file: [openadops-demo.csv](./public/data/openadops-demo.csv)  
 
 ## Validation
 
@@ -129,21 +146,23 @@ OpenAdOps auto-detects common English and Chinese field aliases and lets the use
 npm run check
 ```
 
-Thirty-three tests cover intake, Launch Pack, Experiment Ledger, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform-alias aggregation, missing-data protection, quoted CSV parsing, active date ranges, media CPI versus AppsFlyer CPI, aggregation, and schema validation. The test suite never calls a real model.
+**37** automated tests cover intake, execution plan, experiment ledger, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, CSV parsing and AF/media install mapping, date ranges, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
 
 ## Current scope
 
-- Direct CSV import; XLSX can be exported to CSV first.
-- Intake accepts pasted text; OCR and document parsing are not included yet.
-- Local browser persistence; no multi-user sync yet.
-- Strategy, experiment planning, and recommendation generation only; no live ad-account mutations.
-- Google Ads, Meta Ads, TikTok Ads, and AppsFlyer-oriented App UA workflow.
-- Attribution windows, event definitions, and profit assumptions still require operator confirmation.
+- CSV import (export XLSX to CSV first)  
+- Paste-text intake; no OCR yet  
+- Browser-local projects; no multi-user sync  
+- Planning and recommendations only — **no** live ad-account writes  
+- Google / Meta / TikTok + AppsFlyer app UA focus  
+- Attribution windows and profit definitions still need operator judgment  
+
+More: [PRODUCT.md](./PRODUCT.md) · [benchmarks](./docs/BENCHMARKS.md) · [experiments](./docs/EXPERIMENTS.md) · [user cases](./docs/USER_CASES.md) · [decisions](./docs/DECISIONS.md) · [releasing](./docs/RELEASING.md)
 
 ## Project status
 
-OpenAdOps is an early public release built in the open. See the [roadmap](./ROADMAP.md), open a [feature request](https://github.com/leoL007/open-adops/issues/new?template=feature_request.yml), or contribute a platform/data adapter.
+Early public release. See the [roadmap](./ROADMAP.md), open a [feature request](https://github.com/leoL007/open-adops/issues/new?template=feature_request.yml), or contribute adapters.
 
 ## License
 
-[MIT](./LICENSE). OpenAdOps is an independent open-source project and is not affiliated with Google, Meta, TikTok, AppsFlyer, or OpenAI.
+[MIT](./LICENSE). Independent open-source project; not affiliated with Google, Meta, TikTok, AppsFlyer, or OpenAI.
