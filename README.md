@@ -4,12 +4,12 @@
 
 ### 从客户碎片信息到有证据、可执行、可验证的投放策略
 
-OpenAdOps 是一个本地优先的 AI 付费媒体工作台，把客户 Offer、零散策略以及 Google Ads、Meta Ads、TikTok Ads 和 AppsFlyer 数据转化为结构化 Brief、投前作战包、实验账本、优化动作与客户报告。
+OpenAdOps 是一个本地优先的 AI 付费媒体工作台，把客户 Offer、零散策略以及 Google Ads、Meta Ads、TikTok Ads 和 AppsFlyer 数据转化为结构化 Brief、投放执行方案、实验账本、优化动作与客户报告。
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.4.0-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Release](https://img.shields.io/badge/Release-v0.4.2-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
 [简体中文](./README.md) · [English](./README.en.md) · [产品定义](./PRODUCT.md) · [路线图](./ROADMAP.md) · [参与贡献](./CONTRIBUTING.md)
 
@@ -26,7 +26,7 @@ OpenAdOps 把完整投放链路放进一个项目：
 1. **需求接收（Intake）**：粘贴客户 Offer 和零散策略，标记已确认、AI 推断与缺失信息。
 2. **策略（Plan）**：生成客户追问、Strategy v0、媒体分工、预算场景和测试假设。
 3. **素材（Create）**：生成适配平台的素材角度、Hook、测试变量和成功指标。
-4. **投前（Launch Pack）**：形成 Campaign 蓝图、媒体预算、素材生产 Brief、监测口径、上线 Gate 和首 7 天计划。
+4. **执行（投放执行方案）**：形成 Campaign 蓝图、媒体预算、素材生产 Brief、监测口径、上线 Gate 和首 7 天计划。
 5. **实验（Experiment Ledger）**：将素材与投放假设排成 Now / Next / Later 队列，计算样本门槛并记录学习。
 6. **优化（Optimize）**：代码计算 KPI，AI 基于证据给出判断和下一步动作。
 7. **报告（Report）**：输出管理层或客户可读的 HTML 与打印/PDF 报告。
@@ -75,23 +75,32 @@ npm run check
 | Browser-local Mock | 无 | 生成确定性、明确标记的演示建议，不调用服务端 AI。 |
 | Codex CLI | 本机已登录 Codex CLI | 本地 Node Bridge 将粘贴资料、项目上下文和聚合指标发送给 `codex exec`。 |
 
-OpenAdOps 默认使用 Codex 当前配置的模型。如有需要，可以通过环境变量指定：
+OpenAdOps 默认使用任务级智能路由，不会继承全局 Codex 的 `xhigh` 推理配置：
+
+| 任务 | 默认模型 | 推理档 |
+| --- | --- | --- |
+| 客户追问 | `gpt-5.6-terra` | low |
+| Strategy v0 快速生成 | `gpt-5.6-terra` | medium |
+| Strategy v0 深度复核 | `gpt-5.6` | high |
+| 数据诊断 / 素材判断 | `gpt-5.6-terra` | medium |
+| Launch Pack | `gpt-5.6` | high |
+| Experiment Ledger | `gpt-5.6-terra` | medium |
+
+Terra 结果如果未通过结构校验，会自动使用 `gpt-5.6 + medium` 复核一次。运行中会显示实际模型、推理档位、耗时和预计区间，也可以主动取消；失败原因会常驻显示。
+
+如需覆盖默认路由，可以仅调整 OpenAdOps，不修改 Codex 全局配置：
 
 ```bash
-OPENADOPS_MODEL=your-model-name npm start
+OPENADOPS_TERRA_MODEL=gpt-5.6-terra OPENADOPS_DEEP_MODEL=gpt-5.6 npm start
 ```
 
-复杂作战包如果继承了过高的全局推理强度，可能超过默认 4 分钟。可以单独为 OpenAdOps 调整推理强度与超时，不影响 Codex 的全局配置：
-
-```bash
-OPENADOPS_REASONING_EFFORT=high OPENADOPS_TIMEOUT_MS=360000 npm start
-```
+兼容旧版的全局覆盖变量：`OPENADOPS_MODEL`、`OPENADOPS_REASONING_EFFORT`、`OPENADOPS_TIMEOUT_MS`。
 
 如需更深入的付费媒体分析，可以为 Agent Runtime 安装兼容的 Ads Skill，例如 [Claude Ads](https://github.com/AgriciDaniel/claude-ads)。即使不安装，OpenAdOps 仍可使用 Mock 模式。
 
-## Launch Pack
+## 投放执行方案
 
-在“投前作战包”页面，可以把 Offer Intake 与 Strategy v0 转换为：
+在“投放执行方案”页面，可以把 Offer Intake 与 Strategy v0 转换为：
 
 - 媒体角色、预算占比与金额。
 - 可直接搭建的 Campaign 名称、目标、优化事件、市场、出价和拆分逻辑。
@@ -105,7 +114,7 @@ OPENADOPS_REASONING_EFFORT=high OPENADOPS_TIMEOUT_MS=360000 npm start
 
 ## Experiment Ledger
 
-“实验台”会把 Launch Pack 的素材 Brief 转换为跨媒体测试队列：
+“实验台”会把投放执行方案的素材简报 转换为跨媒体测试队列：
 
 - 每个实验只改变一个主要变量，并预先冻结 Control、Variant、主指标和护栏指标。
 - Google App、Meta、TikTok 分别使用适合自己的原生实验方法，不用手工复制广告组冒充随机实验。

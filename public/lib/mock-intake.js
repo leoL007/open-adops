@@ -1,5 +1,5 @@
 export const INTAKE_BRIEF_FIELDS = [
-  ["product", "产品 / Offer"],
+  ["product", "产品 / 需求"],
   ["industry", "行业"],
   ["markets", "市场与语言"],
   ["objective", "投放目标"],
@@ -130,7 +130,7 @@ export function buildMockIntake(project = {}, intake = {}, intent = "strategy") 
   const constraintText = [intake.strategyAuthority === "mandatory" ? "客户已有策略视为必须执行" : "客户已有策略仅供参考", intake.operatorNotes].filter(Boolean).join("；");
 
   const fields = [
-    makeField("product", project.name || "未命名 Offer", sourceFor(intake, [/产品|offer|app|应用|项目/i]) || "operator_notes", "confirmed", "项目名称或客户 Offer"),
+    makeField("product", project.name || "未命名项目", sourceFor(intake, [/产品|offer|app|应用|项目/i]) || "operator_notes", "confirmed", "项目名称或客户资料"),
     makeField("industry", industry, sourceFor(intake, [/行业|金融|游戏|工具|finance|game|utility/i]) || "operator_notes", "confirmed", "客户描述或项目行业"),
     marketSource ? makeField("markets", markets, marketSource, "confirmed", "客户资料中的市场信息") : inferredField("markets", markets, markets ? "沿用项目设置，需客户确认语言与国家范围" : ""),
     makeField("objective", project.goal || "", sourceFor(intake, [/目标|objective|安装|注册|付费|roas/i]) || (project.goal ? "operator_notes" : "unknown"), project.goal ? "confirmed" : "missing", "客户资料或项目设置"),
@@ -179,7 +179,7 @@ export function buildMockIntake(project = {}, intake = {}, intent = "strategy") 
     : "预算未确认：分别输出小预算验证、标准测试和放量三档，不编造固定金额。";
 
   return {
-    executive_summary: `【Mock 演示】已把客户碎片资料整理为 ${fields.length} 个 Brief 字段；当前有 ${fields.filter((field) => field.status === "confirmed").length} 项已确认、${fields.filter((field) => field.status === "inferred").length} 项待确认、${fields.filter((field) => field.status === "missing").length} 项缺失。${intent === "questions" ? "建议先发送追问清单，再冻结 Strategy v0。" : "可先生成带假设的 Strategy v0，同时向客户补齐关键信息。"}`,
+    executive_summary: `【演示】已把客户碎片资料整理为 ${fields.length} 个 Brief 字段；当前有 ${fields.filter((field) => field.status === "confirmed").length} 项已确认、${fields.filter((field) => field.status === "inferred").length} 项待确认、${fields.filter((field) => field.status === "missing").length} 项缺失。${intent === "questions" ? "建议先发送追问清单，再冻结策略初稿。" : "可先生成带假设的策略初稿，同时向客户补齐关键信息。"}`,
     brief_fields: fields,
     clarification_questions: clarificationQuestions,
     strategy_draft: {

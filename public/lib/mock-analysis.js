@@ -16,7 +16,7 @@ export function buildMockAnalysis(project = {}, metrics = {}) {
   const currencyCode = project.currency || "USD";
 
   return {
-    executive_summary: `【Mock 演示】${project.name || "当前项目"}已覆盖 ${platformText}。当前样例数据花费 ${currency(summary.spend, currencyCode)}，AF-CPI ${currency(summary.afCpi, currencyCode)}，D1 留存 ${percent(summary.d1Retention)}。建议先处理高成本单元，再以单变量素材测试验证增长假设。`,
+    executive_summary: `【演示】${project.name || "当前项目"}已覆盖 ${platformText}。当前样例数据花费 ${currency(summary.spend, currencyCode)}，AF-CPI ${currency(summary.afCpi, currencyCode)}，D1 留存 ${percent(summary.d1Retention)}。建议先处理高成本单元，再以单变量素材测试验证增长假设。`,
     findings: [
       {
         title: weakestPlatform ? `${weakestPlatform.name} 成本优先排查` : "数据量不足，先完成基础验证",

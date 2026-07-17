@@ -85,18 +85,58 @@ export function parseCsv(text) {
   return { headers, rows };
 }
 
+function isAppsFlyerInstallHeader(normalizedHeader) {
+  return (
+    normalizedHeader.includes("afinstall")
+    || normalizedHeader.includes("appsflyerinstall")
+    || normalizedHeader.includes("af安装")
+    || (normalizedHeader.includes("appsflyer") && (normalizedHeader.includes("install") || normalizedHeader.includes("安装")))
+    || (/^af/.test(normalizedHeader) && (normalizedHeader.includes("install") || normalizedHeader.includes("安装")))
+  );
+}
+
+function matchHeader(field, item, candidates) {
+  const exact = candidates.includes(item.normalized);
+  if (exact) {
+    if (field === "installs" && isAppsFlyerInstallHeader(item.normalized)) return false;
+    return true;
+  }
+  const fuzzy = candidates.some((candidate) => candidate.length > 3 && item.normalized.includes(candidate));
+  if (!fuzzy) return false;
+  // "AF Installs" contains "installs" — do not bind it to media installs.
+  if (field === "installs" && isAppsFlyerInstallHeader(item.normalized)) return false;
+  // Media-only install headers should not satisfy af_installs via weak substrings.
+  if (field === "af_installs" && !isAppsFlyerInstallHeader(item.normalized) && !candidates.includes(item.normalized)) {
+    return false;
+  }
+  return true;
+}
+
 export function detectMapping(headers) {
   const normalized = headers.map((header) => ({ header, normalized: normalizeHeader(header) }));
-  return Object.fromEntries(
-    Object.entries(FIELD_ALIASES).map(([field, aliases]) => {
-      const candidates = aliases.map(normalizeHeader);
-      const exact = normalized.find((item) => candidates.includes(item.normalized));
-      const fuzzy = normalized.find((item) =>
-        candidates.some((candidate) => candidate.length > 3 && item.normalized.includes(candidate))
-      );
-      return [field, exact?.header || fuzzy?.header || ""];
-    })
-  );
+  const claimed = new Set();
+  // Resolve AF installs before media installs so shared substrings cannot collide.
+  const fieldOrder = [
+    "af_installs",
+    "installs",
+    ...Object.keys(FIELD_ALIASES).filter((field) => field !== "af_installs" && field !== "installs")
+  ];
+  const mapping = Object.fromEntries(Object.keys(FIELD_ALIASES).map((field) => [field, ""]));
+
+  for (const field of fieldOrder) {
+    const candidates = FIELD_ALIASES[field].map(normalizeHeader);
+    const available = normalized.filter((item) => !claimed.has(item.header));
+    const exact = available.find((item) => candidates.includes(item.normalized) && matchHeader(field, item, candidates));
+    const fuzzy = available.find(
+      (item) => !candidates.includes(item.normalized) && matchHeader(field, item, candidates)
+    );
+    const match = exact || fuzzy;
+    if (match) {
+      mapping[field] = match.header;
+      claimed.add(match.header);
+    }
+  }
+  return mapping;
 }
 
 function numberValue(value) {

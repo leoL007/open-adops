@@ -37,6 +37,14 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Record running state, outcome, learning, next action, and local versions.
 - [x] Export Markdown and standalone HTML; feed experiment status into the management report.
 
+### v0.4.1 — Task-aware AI runtime
+
+- [x] Route routine intake, diagnosis, and experiment tasks to Terra low/medium.
+- [x] Keep deep Strategy review and Launch Pack generation on GPT-5.6 high.
+- [x] Show model, reasoning effort, elapsed time, expected duration, and cancel state.
+- [x] Retry schema-invalid Terra output once with GPT-5.6 medium.
+- [x] Keep errors visible and store runtime metadata with generated artifacts.
+
 ## v0.5 — Workflow portability
 
 - [ ] XLSX import.

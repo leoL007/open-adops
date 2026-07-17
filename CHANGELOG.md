@@ -2,6 +2,37 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.4.2] - 2026-07-17
+
+### Fixed
+
+- CSV field mapping no longer binds AppsFlyer-only install columns to media installs, so media CPI and AF-CPI stay distinct when only AF installs are present.
+- Launch gate evidence no longer appends “优化师已人工确认” on every ready toggle.
+- Local project save now surfaces a clear error when browser storage quota is exceeded instead of failing silently.
+
+## [0.4.1] - 2026-07-16
+
+### Changed
+
+- 界面主流程改为中文优先：按钮、状态、生成提示与导出文案统一。
+- 「投前作战包 / Launch Pack」界面名称统一为「投放执行方案」；导航简称「执行方案」。
+- Strategy v0 显示为「策略初稿」，Experiment Ledger 显示为「实验账本」。
+
+### Added
+
+- Task-aware Codex routing: Terra low/medium for routine intake, analysis, and experiments; GPT-5.6 high for deep Strategy review and Launch Pack generation.
+- One-click deep Strategy v0 review alongside the faster default Strategy generation.
+- Live generation status with active model, reasoning effort, elapsed time, expected duration, and cancel control.
+- Persistent AI failure messages that remain visible until dismissed.
+- Automatic GPT-5.6 medium retry when a Terra result fails structural validation.
+- Generation metadata stored with each result, including model, effort, duration, route, and fallback state.
+
+### Changed
+
+- OpenAdOps no longer inherits the global Codex model and reasoning effort by default.
+- Per-task timeouts now match task complexity instead of using one four-minute limit for every request.
+- Local health status now exposes routing configuration and the active AI job without exposing customer input.
+
 ## [0.4.0] - 2026-07-16
 
 ### Added

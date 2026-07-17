@@ -9,7 +9,7 @@ OpenAdOps is a local-first AI workspace that turns client offers, fragmented str
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.4.0-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Release](https://img.shields.io/badge/Release-v0.4.2-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
 [简体中文](./README.md) · [English](./README.en.md) · [Roadmap](./ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
 
@@ -72,17 +72,26 @@ npm run check
 | Browser-local Mock | None | Generates deterministic, clearly labeled demo recommendations without a server AI call. |
 | Codex CLI | Signed-in Codex CLI | Sends pasted intake text, project context, and aggregated metrics through the local Node bridge to `codex exec`. |
 
-OpenAdOps uses the model configured in Codex by default. Override it only when needed:
+OpenAdOps uses task-aware routing and does not inherit a global Codex `xhigh` reasoning setting:
+
+| Task | Default model | Effort |
+| --- | --- | --- |
+| Client questions | `gpt-5.6-terra` | low |
+| Fast Strategy v0 | `gpt-5.6-terra` | medium |
+| Deep Strategy v0 review | `gpt-5.6` | high |
+| Data and creative diagnosis | `gpt-5.6-terra` | medium |
+| Launch Pack | `gpt-5.6` | high |
+| Experiment Ledger | `gpt-5.6-terra` | medium |
+
+If a Terra response fails structural validation, OpenAdOps retries once with `gpt-5.6 + medium`. The UI shows the active model, reasoning level, elapsed time, expected range, cancel control, and persistent failures.
+
+Override the workspace models without changing global Codex configuration:
 
 ```bash
-OPENADOPS_MODEL=your-model-name npm start
+OPENADOPS_TERRA_MODEL=gpt-5.6-terra OPENADOPS_DEEP_MODEL=gpt-5.6 npm start
 ```
 
-Complex Launch Packs can exceed the default four-minute limit when the global reasoning effort is very high. You can tune the local bridge without changing your global Codex configuration:
-
-```bash
-OPENADOPS_REASONING_EFFORT=high OPENADOPS_TIMEOUT_MS=360000 npm start
-```
+Legacy all-task overrides remain supported: `OPENADOPS_MODEL`, `OPENADOPS_REASONING_EFFORT`, and `OPENADOPS_TIMEOUT_MS`.
 
 For deeper paid-media reasoning, install a compatible Ads skill such as [Claude Ads](https://github.com/AgriciDaniel/claude-ads) for your agent runtime. OpenAdOps remains usable in Mock mode without it.
 
