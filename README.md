@@ -9,7 +9,7 @@ OpenAdOps 是一个本地优先的 AI 付费媒体工作台，把客户 Offer、
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.4.1-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Release](https://img.shields.io/badge/Release-v0.4.2-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
 [简体中文](./README.md) · [English](./README.en.md) · [产品定义](./PRODUCT.md) · [路线图](./ROADMAP.md) · [参与贡献](./CONTRIBUTING.md)
 

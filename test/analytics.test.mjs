@@ -18,6 +18,20 @@ test("detectMapping recognizes common media and AppsFlyer fields", () => {
   assert.equal(mapping.conversion_event, "Event Name");
 });
 
+test("detectMapping does not bind AF-only install columns to media installs", () => {
+  const afOnly = detectMapping(["Date", "Platform", "Spend", "Clicks", "AF Installs"]);
+  assert.equal(afOnly.af_installs, "AF Installs");
+  assert.equal(afOnly.installs, "");
+
+  const appsFlyerOnly = detectMapping(["Date", "Platform", "Spend", "Clicks", "AppsFlyer Installs"]);
+  assert.equal(appsFlyerOnly.af_installs, "AppsFlyer Installs");
+  assert.equal(appsFlyerOnly.installs, "");
+
+  const both = detectMapping(["Date", "Platform", "Spend", "Clicks", "Media Installs", "AF Installs"]);
+  assert.equal(both.installs, "Media Installs");
+  assert.equal(both.af_installs, "AF Installs");
+});
+
 test("calculateMetrics keeps media CPI and AF-CPI separate", () => {
   const parsed = parseCsv("Platform,Country,Spend,Impressions,Clicks,Media Installs,AF Installs,Revenue,D1 Retained\nGoogle Ads,JP,100,10000,500,100,80,150,20\nMeta Ads,US,200,20000,600,120,100,180,25\n");
   const rows = mapRows(parsed.rows, detectMapping(parsed.headers));

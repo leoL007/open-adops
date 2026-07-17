@@ -213,7 +213,17 @@ if (isStaticDemo) {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    const quota = error?.name === "QuotaExceededError" || /quota|storage/i.test(String(error?.message || error));
+    showToast(
+      quota
+        ? "浏览器存储空间不足，本次修改可能未保存。请导出文档备份或删除旧项目后再试。"
+        : `本地保存失败：${error.message || error}`,
+      "error"
+    );
+  }
 }
 
 function activeProject() {
@@ -1116,7 +1126,13 @@ function attachPageListeners() {
         const item = pack?.launch_checklist?.find((entry) => entry.id === select.dataset.launchStatus);
         if (!item) return;
         item.status = select.value;
-        item.evidence = select.value === "ready" ? `${item.evidence}；优化师已人工确认` : item.evidence;
+        if (select.value === "ready") {
+          const stamp = "优化师已人工确认";
+          const evidence = String(item.evidence || "").trim();
+          if (!evidence.includes(stamp)) {
+            item.evidence = evidence ? `${evidence}；${stamp}` : stamp;
+          }
+        }
         recalculateLaunchReadiness(pack, true);
       });
       render();

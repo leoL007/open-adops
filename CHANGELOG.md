@@ -2,6 +2,14 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.4.2] - 2026-07-17
+
+### Fixed
+
+- CSV field mapping no longer binds AppsFlyer-only install columns to media installs, so media CPI and AF-CPI stay distinct when only AF installs are present.
+- Launch gate evidence no longer appends “优化师已人工确认” on every ready toggle.
+- Local project save now surfaces a clear error when browser storage quota is exceeded instead of failing silently.
+
 ## [0.4.1] - 2026-07-16
 
 ### Changed
