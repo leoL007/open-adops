@@ -205,11 +205,6 @@ let state = loadState();
 const isStaticDemo = location.hostname.endsWith("github.io") || location.protocol === "file:";
 if (isStaticDemo) {
   state.aiMode = "mock";
-  const codexOption = aiModeSelect.querySelector('option[value="codex"]');
-  if (codexOption) {
-    codexOption.disabled = true;
-    codexOption.textContent = "请在本地启动后使用";
-  }
 }
 
 function saveState() {
@@ -435,24 +430,23 @@ function setNested(object, path, value) {
 
 function pageHeader(eyebrow, title, description, actions = "") {
   return `<header class="page-header">
-    <div>
+    <div class="page-header-copy">
       <p class="eyebrow">${escapeHtml(eyebrow)}</p>
       <h1>${escapeHtml(title)}</h1>
-      <p>${escapeHtml(description)}</p>
+      ${description ? `<p class="page-lead">${escapeHtml(description)}</p>` : ""}
     </div>
-    ${actions ? `<div class="inline-actions">${actions}</div>` : ""}
+    ${actions ? `<div class="inline-actions page-header-actions">${actions}</div>` : ""}
   </header>`;
 }
 
 function metricCards(project) {
   const summary = project.data?.metrics?.summary || {};
   const currency = project.currency || "USD";
+  // Keep four primary operator metrics on the overview; detail lives in tables below.
   const cards = [
-    ["Spend", formatMetric(summary.spend, "currency", currency), project.data ? `${project.data.metrics.rowCount} rows` : "待导入"],
-    ["AF Installs", formatMetric(summary.af_installs || summary.installs), "归因安装"],
+    ["花费", formatMetric(summary.spend, "currency", currency), project.data ? `${project.data.metrics.rowCount} 行数据` : "待导入 CSV"],
+    ["AF 安装", formatMetric(summary.af_installs || summary.installs), summary.af_installs ? "AppsFlyer 归因" : "媒体安装回退"],
     ["AF-CPI", formatMetric(summary.afCpi, "currency", currency), `目标 ${formatMetric(project.targetCpi, "currency", currency)}`],
-    ["CTR", formatMetric(summary.ctr, "percent"), "点击 / 展示"],
-    ["D1 Retention", formatMetric(summary.d1Retention, "percent"), "留存质量"],
     ["ROAS", formatMetric(summary.roas, "ratio"), `目标 ${Number(project.targetRoas || 0).toFixed(2)}x`]
   ];
   return `<div class="metric-grid">${cards
@@ -494,10 +488,10 @@ function emptyState(title, description, targetRoute, buttonLabel) {
 }
 
 function analysisToolbar(stage) {
-  const mode = state.aiMode === "codex" ? `本机模型 · ${routeSummary("analysis")}` : "本地演示（无需账号）";
+  const mode = state.aiMode === "codex" ? `GPT-5.6 智能路由 · ${routeSummary("analysis")}` : "本地演示 · 不耗额度";
   return `<div class="analysis-toolbar">
-    <div><strong>结构化 AI 判断</strong><span>${escapeHtml(mode)} · 结果需通过 JSON Schema</span></div>
-    <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : state.aiMode === "codex" ? "用本机模型分析" : "运行演示分析"}</button>
+    <div><strong>结构化判断</strong><span>${escapeHtml(mode)}</span></div>
+    <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : state.aiMode === "codex" ? "生成分析" : "运行演示分析"}</button>
   </div>`;
 }
 
@@ -614,19 +608,28 @@ function renderIntakeResult(project) {
 function renderIntake(project) {
   const intake = project.intake || createIntake();
   const result = intakeRecord(project)?.result;
-  const actions = result ? `<button class="button button-secondary" data-export-intake>导出文档</button><button class="button button-primary" data-save-intake-version>保存版本</button>` : "";
+  const actions = result
+    ? `<button class="button button-ghost" data-export-intake>导出文档</button><button class="button button-secondary" data-save-intake-version>保存版本</button>`
+    : "";
   const mode = state.aiMode === "codex"
-    ? `智能路由 · 追问 ${routeSummary("intakeQuestions")} / 快速策略 ${routeSummary("intakeStrategy")}`
-    : "本地演示 · 不消耗模型额度";
-  return `${pageHeader("阶段 00 · 需求接收", "需求接收台", "把客户资料、零散策略和会议记录整理成可追溯简报，再生成带假设的策略初稿。", actions)}
+    ? `GPT-5.6 · 追问 ${routeSummary("intakeQuestions")} / 策略 ${routeSummary("intakeStrategy")}`
+    : "本地演示 · 不耗额度";
+  return `${pageHeader("阶段 00 · 需求接收", "需求接收", "粘贴客户资料与投放意见，整理简报、追问与策略初稿。", actions)}
     <section class="card intake-source-card mb-16">
-      <div class="card-header"><div><h2>原始资料</h2><p>资料不完整也可以开始；未知信息会被显式标记，不会偷偷编造补齐</p></div><span class="card-label">本地项目数据</span></div>
+      <div class="card-header"><div><h2>原始资料</h2><p>资料不完整也可以开始；缺失项会明确标出</p></div><span class="card-label">本地保存</span></div>
       <div class="intake-source-grid">
         <label class="source-panel offer"><span><strong>客户资料</strong><em>${textLength(intake.rawOffer)} 字</em></span><textarea data-intake-field="rawOffer" placeholder="粘贴客户发来的产品、市场、目标、预算、KPI、素材、时间等信息……">${escapeHtml(intake.rawOffer)}</textarea></label>
         <label class="source-panel strategy"><span><strong>客户已有策略</strong><em>${textLength(intake.clientStrategy)} 字</em></span><select data-intake-field="strategyAuthority"><option value="reference" ${intake.strategyAuthority !== "mandatory" ? "selected" : ""}>仅供参考，可调整</option><option value="mandatory" ${intake.strategyAuthority === "mandatory" ? "selected" : ""}>必须执行的约束</option></select><textarea data-intake-field="clientStrategy" placeholder="粘贴客户给出的媒体、预算或素材建议；没有可以留空。">${escapeHtml(intake.clientStrategy)}</textarea></label>
         <label class="source-panel notes"><span><strong>我的补充</strong><em>${textLength(intake.operatorNotes)} 字</em></span><textarea data-intake-field="operatorNotes" placeholder="补充会议记录、自己的判断、待确认问题与不能忽略的限制……">${escapeHtml(intake.operatorNotes)}</textarea></label>
       </div>
-      <div class="intake-runbar"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 原始资料只在你主动运行时提交给本地服务</span></div><div class="inline-actions"><button class="button button-secondary" data-run-intake="questions" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在处理…" : "生成客户追问"}</button><button class="button button-primary" data-run-intake="strategy" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "快速生成策略初稿" : "生成演示策略初稿"}</button><button class="button button-ghost" data-run-intake="deep" ${aiBusy ? "disabled" : ""}>${aiBusy ? "请稍候…" : "深度复核"}</button></div></div>
+      <div class="intake-runbar">
+        <div><strong>本页主操作</strong><span>${escapeHtml(mode)}</span></div>
+        <div class="inline-actions">
+          <button class="button button-ghost" data-run-intake="questions" ${aiBusy ? "disabled" : ""}>${aiBusy ? "处理中…" : "生成追问"}</button>
+          <button class="button button-ghost" data-run-intake="deep" ${aiBusy ? "disabled" : ""}>${aiBusy ? "请稍候…" : "深度复核"}</button>
+          <button class="button button-primary" data-run-intake="strategy" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "生成策略初稿" : "生成演示策略"}</button>
+        </div>
+      </div>
     </section>
     ${renderIntakeResult(project)}`;
 }
@@ -643,18 +646,18 @@ function renderOverview(project) {
   const launchReady = Boolean(launchPack);
   const hasExperiments = Boolean(project.experiments?.plan?.result?.experiments?.length);
   const hasOptimize = Boolean(project.data?.metrics && (project.ai?.optimize || project.ai?.strategy));
-  return `${pageHeader("项目指挥台", project.name, "把策略、素材、广告搭建和优化证据沉淀在同一个项目里。")}
+  return `${pageHeader("项目总览", project.name, "一眼查看关键指标与全链路进度。")}
     ${metricCards(project)}
     <div class="grid overview-grid mb-16">
       <section class="card">
-        <div class="card-header"><div><h2>全链路进度</h2><p>六个核心阶段完成后，自动汇总为老板可读报告</p></div><button class="button button-secondary button-small" data-go-route="report">查看报告</button></div>
+        <div class="card-header"><div><h2>全链路进度</h2><p>点击阶段可跳转；完成后可在报告页汇总</p></div><button class="button button-primary button-small" data-go-route="report">查看报告</button></div>
         <div class="stage-flow">
-          <article class="stage-step ${hasIntake ? "complete" : ""}" data-step="00"><h3>需求接收</h3><p>碎片资料、缺失项、客户追问与策略初稿</p></article>
-          <article class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01"><h3>投放策略</h3><p>目标、市场、媒体、预算与测试逻辑</p></article>
-          <article class="stage-step ${hasCreative ? "complete" : ""}" data-step="02"><h3>素材计划</h3><p>角度、Hook、单变量与成功指标</p></article>
-          <article class="stage-step ${launchReady ? "complete" : ""}" data-step="03"><h3>投放执行方案</h3><p>Campaign、素材、监测、阻塞项与首周计划</p></article>
-          <article class="stage-step ${hasExperiments ? "complete" : ""}" data-step="04"><h3>实验学习</h3><p>假设、样本门槛、结论与下一步</p></article>
-          <article class="stage-step ${hasOptimize ? "complete" : ""}" data-step="05"><h3>投放优化</h3><p>数据证据、诊断、动作和验证</p></article>
+          <button type="button" class="stage-step ${hasIntake ? "complete" : ""}" data-step="00" data-go-route="intake"><h3>需求接收</h3><p>资料、追问与策略初稿</p></button>
+          <button type="button" class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01" data-go-route="strategy"><h3>投放策略</h3><p>目标、媒体与预算逻辑</p></button>
+          <button type="button" class="stage-step ${hasCreative ? "complete" : ""}" data-step="02" data-go-route="creative"><h3>素材计划</h3><p>角度、Hook 与单变量</p></button>
+          <button type="button" class="stage-step ${launchReady ? "complete" : ""}" data-step="03" data-go-route="launch"><h3>执行方案</h3><p>Campaign 与上线检查</p></button>
+          <button type="button" class="stage-step ${hasExperiments ? "complete" : ""}" data-step="04" data-go-route="experiments"><h3>实验台</h3><p>样本门槛与学习</p></button>
+          <button type="button" class="stage-step ${hasOptimize ? "complete" : ""}" data-step="05" data-go-route="optimize"><h3>投放优化</h3><p>数据诊断与动作</p></button>
         </div>
       </section>
       <aside class="card">
@@ -820,10 +823,12 @@ function renderLaunchPackResult(project) {
 
 function renderLaunch(project) {
   const record = launchPackRecord(project);
-  const actions = record?.result ? `<button class="button button-ghost" data-export-launch-pack>导出文档</button><button class="button button-secondary" data-export-launch-html>导出网页</button><button class="button button-primary" data-save-launch-version>保存版本</button>` : "";
-  const mode = state.aiMode === "codex" ? `本机模型 · ${routeSummary("launchPack")}` : "本地演示 · 不消耗模型额度";
-  return `${pageHeader("阶段 03 · 投放执行方案", "投放执行方案", "把策略初稿变成可交给投放、素材、数据和客户负责人的执行文件。", actions)}
-    <section class="card launch-runbar mb-16"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 只生成计划，不会连接或修改真实广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "用本机模型生成投放执行方案" : "生成演示执行方案"}</button></section>
+  const actions = record?.result
+    ? `<button class="button button-ghost" data-export-launch-pack>导出文档</button><button class="button button-ghost" data-export-launch-html>导出网页</button><button class="button button-secondary" data-save-launch-version>保存版本</button>`
+    : "";
+  const mode = state.aiMode === "codex" ? `GPT-5.6 · ${routeSummary("launchPack")}` : "本地演示 · 不耗额度";
+  return `${pageHeader("阶段 03 · 执行方案", "投放执行方案", "把策略初稿变成可交接的搭建、素材与上线检查文件。", actions)}
+    <section class="card launch-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只生成计划，不改广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "生成执行方案" : "生成演示执行方案"}</button></section>
     ${renderLaunchPackResult(project)}`;
 }
 
@@ -997,10 +1002,12 @@ function renderExperimentPlanResult(project) {
 
 function renderExperiments(project) {
   const record = experimentPlanRecord(project);
-  const actions = record?.result ? `<button class="button button-ghost" data-export-experiments>导出文档</button><button class="button button-secondary" data-export-experiment-html>导出网页</button><button class="button button-primary" data-save-experiment-version>保存版本</button>` : "";
-  const mode = state.aiMode === "codex" ? `本机模型 · ${routeSummary("experiments")} · 按实验方法生成` : "本地演示 · 不消耗模型额度";
-  return `${pageHeader("阶段 04 · 实验账本", "实验台", "把素材与投放想法变成有假设、样本门槛、停止条件和学习记录的测试队列。", actions)}
-    <section class="card experiment-runbar mb-16"><div><strong>生成方式</strong><span>${escapeHtml(mode)} · 只规划和记录，不会在媒体后台创建实验</span></div><button class="button button-primary" data-run-experiments ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "用本机模型生成实验账本" : "生成演示实验账本"}</button></section>
+  const actions = record?.result
+    ? `<button class="button button-ghost" data-export-experiments>导出文档</button><button class="button button-ghost" data-export-experiment-html>导出网页</button><button class="button button-secondary" data-save-experiment-version>保存版本</button>`
+    : "";
+  const mode = state.aiMode === "codex" ? `GPT-5.6 · ${routeSummary("experiments")}` : "本地演示 · 不耗额度";
+  return `${pageHeader("阶段 04 · 实验台", "实验台", "把素材假设排成队列，并记录样本门槛与学习。", actions)}
+    <section class="card experiment-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只规划记录，不创建后台实验</span></div><button class="button button-primary" data-run-experiments ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "生成实验账本" : "生成演示实验账本"}</button></section>
     ${renderExperimentPlanResult(project)}`;
 }
 
@@ -1059,8 +1066,19 @@ const renderers = { overview: renderOverview, intake: renderIntake, strategy: re
 function refreshShell(project) {
   projectSelect.innerHTML = state.projects.map((item) => `<option value="${attr(item.id)}" ${item.id === project.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
   projectSelect.disabled = aiBusy;
-  aiModeSelect.value = state.aiMode;
-  aiModeSelect.disabled = aiBusy;
+  if (aiModeSelect) {
+    aiModeSelect.value = state.aiMode;
+    aiModeSelect.disabled = aiBusy;
+  }
+  document.querySelectorAll("[data-ai-mode]").forEach((button) => {
+    const active = button.dataset.aiMode === state.aiMode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
+    button.disabled = aiBusy || (isStaticDemo && button.dataset.aiMode === "codex");
+    if (isStaticDemo && button.dataset.aiMode === "codex") {
+      button.title = "请在本地启动后使用 GPT-5.6";
+    }
+  });
   newProjectButton.disabled = aiBusy;
   demoBadge.hidden = !project.isDemo;
   if (versionBadge) versionBadge.textContent = `v${APP_VERSION}`;
@@ -2021,11 +2039,24 @@ projectSelect.addEventListener("change", () => {
   render();
 });
 
-aiModeSelect.addEventListener("change", () => {
-  state.aiMode = aiModeSelect.value;
+function setAiMode(mode) {
+  if (aiBusy) return;
+  if (isStaticDemo && mode === "codex") {
+    showToast("在线演示只能使用本地演示模式，请本机 npm start 后使用 GPT-5.6。", "error");
+    return;
+  }
+  state.aiMode = mode === "codex" ? "codex" : "mock";
+  if (aiModeSelect) aiModeSelect.value = state.aiMode;
   saveState();
   render();
+}
+
+document.querySelectorAll("[data-ai-mode]").forEach((button) => {
+  button.addEventListener("click", () => setAiMode(button.dataset.aiMode));
 });
+if (aiModeSelect) {
+  aiModeSelect.addEventListener("change", () => setAiMode(aiModeSelect.value));
+}
 
 newProjectButton.addEventListener("click", () => projectDialog.showModal());
 aiCancelButton.addEventListener("click", cancelAiJob);

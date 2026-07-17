@@ -10,7 +10,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <title>OpenAdOps｜付费媒体工作台</title>
     <link rel="icon" href="./og.png" type="image/png" />
-    <link rel="stylesheet" href="./styles.css?v=0.4.2" />
+    <link rel="stylesheet" href="./styles.css?v=0.4.2-ui" />
   </head>
   <body>
     <div class="app-shell">
@@ -52,13 +52,14 @@
           </div>
           <div class="topbar-actions">
             <span class="app-version" id="appVersion">v0.4.2</span>
-            <div class="ai-mode-control" title="演示模式不耗额度；本机模式会调用本地模型">
-              <span>分析模式</span>
-              <select id="aiMode">
-                <option value="mock">本地演示</option>
-                <option value="codex">本机模型 · 智能路由</option>
-              </select>
+            <div class="mode-switch" role="group" aria-label="分析模式" title="本地演示不耗额度；GPT-5.6 智能路由调用本机 Codex">
+              <button type="button" class="mode-switch-btn" data-ai-mode="mock" id="modeMockBtn">本地演示</button>
+              <button type="button" class="mode-switch-btn" data-ai-mode="codex" id="modeCodexBtn">GPT-5.6</button>
             </div>
+            <select id="aiMode" hidden aria-hidden="true">
+              <option value="mock">本地演示</option>
+              <option value="codex">GPT-5.6</option>
+            </select>
             <button class="button button-secondary" id="newProjectButton" type="button">＋ 新建项目</button>
           </div>
         </header>
@@ -151,6 +152,6 @@
     </dialog>
 
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js?v=0.4.2"></script>
+    <script type="module" src="./app.js?v=0.4.2-ui"></script>
   </body>
 </html>
