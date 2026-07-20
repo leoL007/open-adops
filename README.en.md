@@ -9,7 +9,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.4.5-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Release](https://img.shields.io/badge/Release-v0.4.6-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
 [简体中文](./README.md) · [English](./README.en.md) · [Product](./PRODUCT.md) · [Roadmap](./ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
 
@@ -17,7 +17,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 
 ![OpenAdOps overview](./assets/openadops-overview.jpg)
 
-## Current release (v0.4.5)
+## Current release (v0.4.6)
 
 - **End-to-end loop**: intake → strategy draft → plan / creative → **execution plan** → **experiment ledger** → optimize → report  
 - **Chinese-first UI** in the product (English docs keep clear English names)  
@@ -26,6 +26,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 - **Code does the math**: KPI and experiment sizing are deterministic  
 - **Workspace backup**: export current project or full workspace as JSON; import with merge or replace  
 - **Consistent model identity**: all generation surfaces show the actual Terra / Sol variant and reasoning effort
+- **Sol for optimization diagnosis**: optimization uses Sol high while strategy and creative judgments stay on Terra medium
 
 ## Why OpenAdOps
 
@@ -93,7 +94,8 @@ Default routing (does not inherit a global ultra-high reasoning setting):
 | Client questions | `gpt-5.6-terra` | low |
 | Fast strategy draft | `gpt-5.6-terra` | medium |
 | Deep strategy review | `gpt-5.6-sol` | high |
-| Data / creative diagnosis | `gpt-5.6-terra` | medium |
+| Strategy / creative diagnosis | `gpt-5.6-terra` | medium |
+| Optimization diagnosis | `gpt-5.6-sol` | high |
 | Execution plan | `gpt-5.6-sol` | high |
 | Experiment ledger | `gpt-5.6-terra` | medium |
 
@@ -149,7 +151,7 @@ Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
 npm run check
 ```
 
-**42** automated tests cover intake, execution plan, experiment ledger, workspace backup, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, CSV parsing and AF/media install mapping, date ranges, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
+**56** automated tests cover intake, execution plans, experiment ledgers, workspace backup, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, CSV parsing and AF/media install mapping, date ranges, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
 
 ## Current scope
 

@@ -52,6 +52,12 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Keep zero and missing thresholds out of AI stop-loss and scaling rules.
 - [x] Preserve CPA event identity, ROAS window, and legacy-project migration.
 
+### v0.4.6 — Focused optimization reasoning
+
+- [x] Route optimization diagnosis to GPT-5.6 Sol high without changing strategy or creative analysis.
+- [x] Keep model and reasoning labels aligned with the actual server route.
+- [x] Remove nonessential interface explanations while preserving metric and safety boundaries.
+
 ## v0.5 — Workflow portability
 
 - [ ] XLSX import.
