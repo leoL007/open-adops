@@ -58,6 +58,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Keep model and reasoning labels aligned with the actual server route.
 - [x] Remove nonessential interface explanations while preserving metric and safety boundaries.
 
+### v0.4.7 — Creative production plan
+
+- [x] Turn creative angles into editable production tasks with delivery fields and workflow status.
+- [x] Preserve manual tasks and operational edits when AI-generated directions are refreshed.
+- [x] Migrate legacy creative plans and Launch Pack briefs without losing the experiment input contract.
+- [x] Export production tasks as CSV and Markdown.
+
 ## v0.5 — Workflow portability
 
 - [ ] XLSX import.
