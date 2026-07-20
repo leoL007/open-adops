@@ -32,6 +32,13 @@ import {
 } from "./lib/creative-production.js";
 import { modelFullName, modelRouteDetail, modelVariantName } from "./lib/model-labels.js";
 import {
+  OPTIMIZATION_RUN_STATUSES,
+  appendOptimizationRun,
+  buildOptimizationRun,
+  normalizeOptimizationHistory,
+  updateOptimizationRun
+} from "./lib/optimization-history.js";
+import {
   applyMappingProfile,
   mappingProfileCompatibility,
   mergeMappingProfiles,
@@ -165,6 +172,14 @@ function createExperiments(overrides = {}) {
   };
 }
 
+function projectOptimizationHistory(project) {
+  const history = normalizeOptimizationHistory(project.optimizationHistory);
+  if (history.length || !project.ai?.optimize?.result) return history;
+  return [buildOptimizationRun(project.ai.optimize, project.data || {}, {
+    id: `legacy-${project.ai.optimize.generatedAt || project.id || "optimize"}`
+  })];
+}
+
 function syncCreativeProduction(project, tasks = null) {
   const now = new Date().toISOString();
   const normalized = tasks
@@ -233,6 +248,7 @@ function createDemoProject() {
       operatorNotes: "AF-CPI 测试阈值 2.2 USD。客户当前每周可提供 3 条录屏素材，需要确认 D1/D7 留存目标和各市场优先级。",
       strategyAuthority: "reference"
     }),
+    optimizationHistory: [],
     ai: {}
   };
   project.intake.analysis = {
@@ -279,7 +295,8 @@ function loadState() {
               targetReview: String(project.targetReview || ""),
               intake: createIntake(project.intake || {}),
               launch: createLaunch(project.launch || {}),
-              experiments: createExperiments(project.experiments || {})
+              experiments: createExperiments(project.experiments || {}),
+              optimizationHistory: projectOptimizationHistory(project)
             };
             syncCreativeProduction(normalizedProject);
             return normalizedProject;
@@ -348,6 +365,20 @@ function attr(value) {
 function dateText(value) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+}
+
+function dateTimeText(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  }).format(date);
 }
 
 function showToast(message, type = "success") {
@@ -1286,6 +1317,64 @@ function periodComparison(project) {
   }).join("")}</tbody></table></div></section>`;
 }
 
+const OPTIMIZATION_STATUS_LABELS = {
+  pending: "待复核",
+  accepted: "已采纳",
+  executing: "执行中",
+  validated: "已验证",
+  rejected: "不采纳"
+};
+
+function optimizationStatusText(status) {
+  return OPTIMIZATION_STATUS_LABELS[status] || "待复核";
+}
+
+function optimizationPeriodText(run) {
+  const ranges = run.dataContext?.comparisonRanges;
+  if (ranges?.currentStart && ranges?.currentEnd) {
+    return `本期 ${ranges.currentStart}–${ranges.currentEnd} · 对比 ${ranges.previousStart}–${ranges.previousEnd}`;
+  }
+  const period = run.dataContext?.period;
+  if (period?.startDate && period?.endDate) return `数据期 ${period.startDate}–${period.endDate}`;
+  return "未记录日期区间";
+}
+
+function optimizationSnapshot(run, currency) {
+  const fields = new Set(run.dataContext?.availableFields || []);
+  const summary = run.dataContext?.summary || {};
+  const values = [
+    ["花费", fields.has("spend") ? formatMetric(summary.spend, "currency", currency) : "—"],
+    ["媒体安装", fields.has("installs") ? formatMetric(summary.installs) : "—"],
+    ["AF 安装", fields.has("af_installs") ? formatMetric(summary.af_installs) : "—"],
+    ["AF-CPI", fields.has("spend") && fields.has("af_installs") ? formatMetric(summary.afCpi, "currency", currency) : "—"],
+    ["CPA", fields.has("spend") && fields.has("conversions") ? formatMetric(summary.cpa, "currency", currency) : "—"],
+    ["ROAS", fields.has("spend") && fields.has("revenue") ? formatMetric(summary.roas, "ratio") : "—"]
+  ];
+  return `<div class="optimization-snapshot">${values.map(([label, value]) => `<div><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>`;
+}
+
+function optimizationHistoryPanel(project) {
+  const runs = projectOptimizationHistory(project);
+  return `<section class="card optimization-history-card">
+    <div class="card-header"><div><h2>优化决策记录</h2><p>保留每次诊断的数据口径、模型建议与人工结论。</p></div><span class="card-label">${runs.length} 次诊断</span></div>
+    ${runs.length ? `<div class="optimization-history">${runs.map((run, index) => `<details class="optimization-run">
+      <summary><div><span>诊断 ${String(runs.length - index).padStart(2, "0")}</span><strong>${escapeHtml(dateTimeText(run.generatedAt))}</strong><small>${escapeHtml(run.dataContext?.sourceFile || "未记录数据文件")}</small></div><p>${escapeHtml(run.result?.executive_summary || "无诊断摘要")}</p><em class="optimization-status ${attr(run.status)}">${escapeHtml(optimizationStatusText(run.status))}</em></summary>
+      <div class="optimization-run-body">
+        <div class="optimization-run-meta"><span>${escapeHtml(runRecordLabel(run))}</span><span>${escapeHtml(optimizationPeriodText(run))}</span></div>
+        ${optimizationSnapshot(run, project.currency || "USD")}
+        <div class="optimization-review-grid" data-optimization-review="${attr(run.id)}"><label><span>人工状态</span><select data-optimization-run-status>${OPTIMIZATION_RUN_STATUSES.map((status) => `<option value="${status}" ${run.status === status ? "selected" : ""}>${escapeHtml(optimizationStatusText(status))}</option>`).join("")}</select></label><label><span>人工结论</span><textarea data-optimization-run-note placeholder="记录采纳或不采纳原因、执行结果与后续验证。">${escapeHtml(run.note)}</textarea></label><button class="button button-secondary button-small" type="button" data-save-optimization-review="${attr(run.id)}">保存人工复核</button></div>
+        <div class="optimization-run-content"><div><h3>诊断摘要</h3><p>${escapeHtml(run.result?.executive_summary || "无")}</p></div><div><h3>建议动作</h3><ol>${(run.result?.next_actions || []).map((action) => `<li><strong>${escapeHtml(action.action)}</strong><span>${escapeHtml(action.owner)} · ${escapeHtml(action.timing)} · ${escapeHtml(action.success_metric)}</span></li>`).join("") || "<li>无结构化动作</li>"}</ol></div></div>
+      </div>
+    </details>`).join("")}</div>` : `<p class="muted">运行一次投放优化诊断后，记录会自动出现在这里。</p>`}
+  </section>`;
+}
+
+function optimizationDecisionTable(project, limit = 5) {
+  const runs = projectOptimizationHistory(project).slice(0, limit);
+  if (!runs.length) return `<p class="muted">还没有优化决策记录。</p>`;
+  return `<div class="table-wrap"><table><thead><tr><th>诊断时间</th><th>数据与周期</th><th>状态</th><th>人工结论</th></tr></thead><tbody>${runs.map((run) => `<tr><td>${escapeHtml(dateTimeText(run.generatedAt))}</td><td class="cell-wrap"><strong>${escapeHtml(run.dataContext?.sourceFile || "未记录")}</strong><small>${escapeHtml(optimizationPeriodText(run))}</small></td><td><span class="optimization-status ${attr(run.status)}">${escapeHtml(optimizationStatusText(run.status))}</span></td><td class="cell-wrap">${escapeHtml(run.note || "待补充")}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
 function renderOptimize(project) {
   return `${pageHeader("阶段 05 · 投放优化", "投放优化", "上传 CSV，由代码计算指标，AI 基于证据判断。")}
     <section class="card mb-16">
@@ -1296,7 +1385,8 @@ function renderOptimize(project) {
     ${metricCards(project)}
     ${periodComparison(project)}
     <div class="grid grid-2 mb-16"><section class="card"><div class="card-header"><div><h2>媒体对比</h2></div></div>${platformTable(project)}</section><section class="card"><div class="card-header"><div><h2>国家效率</h2><p>横条为花费，右侧优先显示 AF-CPI；缺失时显示媒体 CPI</p></div></div>${spendBars(project)}</section></div>
-    <section class="card">${analysisToolbar("optimize")}${aiResult(project, "optimize")}</section>`;
+    <section class="card mb-16">${analysisToolbar("optimize")}${aiResult(project, "optimize")}</section>
+    ${optimizationHistoryPanel(project)}`;
 }
 
 function latestAnalysis(project) {
@@ -1327,7 +1417,8 @@ function renderReport(project) {
       <section class="report-section"><h3>03 · 关键判断</h3>${result ? result.findings.map((item) => `<article class="finding-card"><div class="finding-top"><h3>${escapeHtml(item.title)}</h3><span class="priority-badge ${attr(item.priority)}">${priorityText(item.priority)}</span></div><div class="finding-body"><div class="evidence-box"><span>证据</span><p>${escapeHtml(item.evidence)}</p></div><div class="action-box"><span>动作</span><p>${escapeHtml(item.action)}</p></div></div><p class="finding-diagnosis">${escapeHtml(item.diagnosis)} · 验证：${escapeHtml(item.validation)}</p></article>`).join("") : emptyState("还没有关键判断", "生成失败时不会写入假结果；请在其他阶段重新运行。", "optimize", "去优化页")}</section>
       <section class="report-section"><h3>04 · 实验与学习</h3>${experimentLearningTable(project)}</section>
       <section class="report-section"><h3>05 · 下一步动作</h3>${actionTable(result)}</section>
-      <section class="report-section"><h3>06 · 口径说明</h3><div class="project-facts"><div class="fact-row"><span>数据来源</span><strong>${escapeHtml(project.data?.fileName || "未导入")}</strong></div><div class="fact-row"><span>归因口径</span><strong>${escapeHtml(project.attribution)}</strong></div><div class="fact-row"><span>分析来源</span><strong>${record ? escapeHtml(runRecordLabel(record)) : "未运行"}</strong></div><div class="fact-row"><span>项目备注</span><strong>${escapeHtml(project.notes || "无")}</strong></div></div></section>
+      <section class="report-section"><h3>06 · 优化决策记录</h3>${optimizationDecisionTable(project)}</section>
+      <section class="report-section"><h3>07 · 口径说明</h3><div class="project-facts"><div class="fact-row"><span>数据来源</span><strong>${escapeHtml(project.data?.fileName || "未导入")}</strong></div><div class="fact-row"><span>归因口径</span><strong>${escapeHtml(project.attribution)}</strong></div><div class="fact-row"><span>分析来源</span><strong>${record ? escapeHtml(runRecordLabel(record)) : "未运行"}</strong></div><div class="fact-row"><span>项目备注</span><strong>${escapeHtml(project.notes || "无")}</strong></div></div></section>
     </article>`;
 }
 
@@ -1582,6 +1673,16 @@ function attachPageListeners() {
       );
     });
   });
+  document.querySelectorAll("[data-save-optimization-review]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const review = button.closest("[data-optimization-review]");
+      if (!review) return;
+      saveOptimizationReview(button.dataset.saveOptimizationReview, {
+        status: review.querySelector("[data-optimization-run-status]")?.value,
+        note: review.querySelector("[data-optimization-run-note]")?.value || ""
+      });
+    });
+  });
   document.querySelectorAll("[data-go-route]").forEach((button) => button.addEventListener("click", () => { location.hash = button.dataset.goRoute; }));
   document.querySelectorAll("[data-scroll-experiment]").forEach((button) => button.addEventListener("click", () => {
     const target = document.querySelector(`#experiment-${CSS.escape(button.dataset.scrollExperiment)}`);
@@ -1826,11 +1927,20 @@ async function runAnalysis(stage) {
     }
     const saved = updateProjectById(projectId, (target) => {
       if (!target.ai) target.ai = {};
-      target.ai[stage] = {
+      const record = {
         ...aiRecordMeta(payload),
         generatedAt: new Date().toISOString(),
         result: payload.result
       };
+      target.ai[stage] = record;
+      if (stage === "optimize") {
+        target.optimizationHistory = appendOptimizationRun(
+          target.optimizationHistory,
+          record,
+          target.data || {},
+          { makeId }
+        );
+      }
       if (stage === "creative" && payload.result.creative_tests?.length) {
         const current = syncCreativeProduction(target).tasks;
         const generated = tasksFromCreativeTests(payload.result.creative_tests, target, {
@@ -1855,6 +1965,18 @@ async function runAnalysis(stage) {
     finishAiJob();
     aiBusy = false;
     render();
+  }
+}
+
+function saveOptimizationReview(runId, patch) {
+  try {
+    const saved = updateProject((project) => {
+      project.optimizationHistory = updateOptimizationRun(projectOptimizationHistory(project), runId, patch);
+    });
+    render();
+    if (saved) showToast("人工复核已保存");
+  } catch (error) {
+    showToast(`更新失败：${error.message}`, "error");
   }
 }
 
@@ -2399,6 +2521,7 @@ function normalizeImportedProject(project) {
       : { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: {} },
     creativePlan: Array.isArray(project.creativePlan) ? project.creativePlan : [],
     ai: isRecord(project.ai) ? project.ai : {},
+    optimizationHistory: projectOptimizationHistory(project),
     performanceTargets: normalizePerformanceTargets(project, { makeId }),
     targetReview: String(project.targetReview || ""),
     createdAt: project.createdAt || new Date().toISOString(),
@@ -2663,9 +2786,10 @@ function reportDocument(project) {
     ["ROAS", dataHasField(project, "revenue") ? formatMetric(summary.roas, "ratio") : "—"]
   ];
   const experimentRows = (project.experiments?.plan?.result?.experiments || []).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(experimentStatusText(item.status))}</td><td>${escapeHtml(feasibilityText(item.feasibility.status))}</td><td>${escapeHtml(experimentOutcomeText(item.result.outcome))}</td><td>${escapeHtml(item.result.learning || item.result.next_action || "等待结果")}</td></tr>`).join("");
+  const decisionRows = projectOptimizationHistory(project).slice(0, 5).map((run) => `<tr><td>${escapeHtml(dateTimeText(run.generatedAt))}</td><td>${escapeHtml(run.dataContext?.sourceFile || "未记录")}<br>${escapeHtml(optimizationPeriodText(run))}</td><td>${escapeHtml(optimizationStatusText(run.status))}</td><td>${escapeHtml(run.note || "待补充")}</td></tr>`).join("");
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escapeHtml(project.name)}投放报告</title><style>
   body{margin:0;background:#f3f4f6;color:#1b2430;font-family:Arial,"PingFang SC",sans-serif}main{width:1040px;margin:32px auto;padding:50px;background:#fff;box-sizing:border-box}.eyebrow{color:#e77436;font-size:11px;font-weight:700;letter-spacing:.12em}h1{font-size:34px;margin:8px 0 38px}h2{font-size:18px;margin:34px 0 14px}.meta{color:#77808b;font-size:12px}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric,.finding{border:1px solid #e5e8ec;border-radius:10px;padding:16px}.metric span{display:block;color:#77808b;font-size:11px}.metric strong{display:block;margin-top:9px;font-size:21px}.summary{border-left:3px solid #e77436;background:#fff1e8;padding:17px;line-height:1.7}.finding{margin-top:10px}.finding h3{margin:0 0 9px;font-size:15px}.finding p{font-size:12px;line-height:1.7;color:#5f6b79}.actions{width:100%;border-collapse:collapse}.actions th,.actions td{padding:11px;border-bottom:1px solid #e5e8ec;text-align:left;font-size:11px}.notice{margin-top:34px;color:#8c96a3;font-size:10px}@media print{body{background:#fff}main{width:auto;margin:0;padding:24px}}
-  </style></head><body><main><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h1>${escapeHtml(project.name)}<br>投放阶段复盘与下一步计划</h1><p class="meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))} · ${escapeHtml(project.markets)} · ${dateText(new Date().toISOString())}</p><h2>核心指标</h2><div class="metrics">${metricRows.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><h2>管理层摘要</h2><div class="summary">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。")}</div><h2>关键判断</h2>${result?.findings?.map((item) => `<section class="finding"><h3>${escapeHtml(item.title)}</h3><p><strong>证据：</strong>${escapeHtml(item.evidence)}</p><p><strong>判断：</strong>${escapeHtml(item.diagnosis)}</p><p><strong>动作：</strong>${escapeHtml(item.action)}</p><p><strong>验证：</strong>${escapeHtml(item.validation)}</p></section>`).join("") || "<p>暂无。</p>"}<h2>实验与学习</h2><table class="actions"><thead><tr><th>实验</th><th>状态</th><th>可行性</th><th>结果</th><th>学习</th></tr></thead><tbody>${experimentRows}</tbody></table><h2>下一步动作</h2><table class="actions"><thead><tr><th>动作</th><th>负责人</th><th>时间</th><th>成功指标</th></tr></thead><tbody>${result?.next_actions?.map((item) => `<tr><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.timing)}</td><td>${escapeHtml(item.success_metric)}</td></tr>`).join("") || ""}</tbody></table><p class="notice">数据来源：${escapeHtml(project.data?.fileName || "未导入")} · 归因口径：${escapeHtml(project.attribution)} · ${project.isDemo ? "演示数据，不代表任何真实客户表现。" : "由 OpenAdOps 本地工作台生成。"}</p></main></body></html>`;
+  </style></head><body><main><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h1>${escapeHtml(project.name)}<br>投放阶段复盘与下一步计划</h1><p class="meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))} · ${escapeHtml(project.markets)} · ${dateText(new Date().toISOString())}</p><h2>核心指标</h2><div class="metrics">${metricRows.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><h2>管理层摘要</h2><div class="summary">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。")}</div><h2>关键判断</h2>${result?.findings?.map((item) => `<section class="finding"><h3>${escapeHtml(item.title)}</h3><p><strong>证据：</strong>${escapeHtml(item.evidence)}</p><p><strong>判断：</strong>${escapeHtml(item.diagnosis)}</p><p><strong>动作：</strong>${escapeHtml(item.action)}</p><p><strong>验证：</strong>${escapeHtml(item.validation)}</p></section>`).join("") || "<p>暂无。</p>"}<h2>实验与学习</h2><table class="actions"><thead><tr><th>实验</th><th>状态</th><th>可行性</th><th>结果</th><th>学习</th></tr></thead><tbody>${experimentRows}</tbody></table><h2>下一步动作</h2><table class="actions"><thead><tr><th>动作</th><th>负责人</th><th>时间</th><th>成功指标</th></tr></thead><tbody>${result?.next_actions?.map((item) => `<tr><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.timing)}</td><td>${escapeHtml(item.success_metric)}</td></tr>`).join("") || ""}</tbody></table><h2>优化决策记录</h2><table class="actions"><thead><tr><th>诊断时间</th><th>数据与周期</th><th>状态</th><th>人工结论</th></tr></thead><tbody>${decisionRows || "<tr><td colspan=\"4\">暂无记录</td></tr>"}</tbody></table><p class="notice">数据来源：${escapeHtml(project.data?.fileName || "未导入")} · 归因口径：${escapeHtml(project.attribution)} · ${project.isDemo ? "演示数据，不代表任何真实客户表现。" : "由 OpenAdOps 本地工作台生成。"}</p></main></body></html>`;
 }
 
 function exportReport() {
@@ -2760,6 +2884,7 @@ projectForm.addEventListener("submit", (event) => {
     launch: createLaunch(),
     experiments: createExperiments(),
     intake: createIntake(),
+    optimizationHistory: [],
     ai: {}
   };
   const nextState = {
