@@ -9,7 +9,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.5.1-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Release](https://img.shields.io/badge/Release-v0.5.2-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
 [简体中文](./README.md) · [English](./README.en.md) · [Product](./PRODUCT.md) · [Roadmap](./ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
 
@@ -17,7 +17,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 
 ![OpenAdOps overview](./assets/openadops-overview.jpg)
 
-## Current release (v0.5.1)
+## Current release (v0.5.2)
 
 - **End-to-end loop**: intake → strategy draft → plan → **creative production** → **execution plan** → **experiment ledger** → optimize → report
 - **Chinese-first UI** in the product (English docs keep clear English names)  
@@ -31,6 +31,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 - **Reusable mapping profiles**: save common media / AppsFlyer mappings at workspace level, auto-apply exact header matches, and carry them in full-workspace backups
 - **Traceable period comparison**: compare two non-overlapping ranges with deterministic changes for spend, installs, CPI, CPA, and ROAS
 - **Optimization decision history**: preserve every diagnosis with its data range, aggregate evidence, model metadata, operator review state, and report trail
+- **Actionable Codex failures**: distinguish exit codes from termination signals, hide unrelated Skill logs, and limit Skill loading by task
 
 ## Why OpenAdOps
 

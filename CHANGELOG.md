@@ -2,6 +2,17 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.5.2] - 2026-07-20
+
+### Fixed
+
+- Codex 子进程被信号终止时显示真实信号，不再误报为「退出码 null」。
+- 用户侧错误信息只保留简短运行诊断，不再把 Ads Skill 文档和无关密钥说明当作报错展示。
+
+### Changed
+
+- AI 提示词按任务限制 Skill 读取范围，避免一次加载完整 Ads 技能树及无关图片、拍摄、报告技能。
+
 ## [0.5.1] - 2026-07-20
 
 ### Added
