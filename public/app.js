@@ -218,18 +218,26 @@ if (isStaticDemo) {
   state.aiMode = "mock";
 }
 
-function saveState() {
+function saveState(nextState = state) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
+    return true;
   } catch (error) {
     const quota = error?.name === "QuotaExceededError" || /quota|storage/i.test(String(error?.message || error));
     showToast(
       quota
-        ? "浏览器存储空间不足，本次修改可能未保存。请导出文档备份或删除旧项目后再试。"
+        ? "浏览器存储空间不足，本次修改未保存。请导出文档备份或删除旧项目后再试。"
         : `本地保存失败：${error.message || error}`,
       "error"
     );
+    return false;
   }
+}
+
+function commitState(nextState) {
+  if (!saveState(nextState)) return false;
+  state = nextState;
+  return true;
 }
 
 function activeProject() {
@@ -417,12 +425,14 @@ async function cancelAiJob() {
 }
 
 function updateProjectById(projectId, mutator) {
-  const project = state.projects.find((item) => item.id === projectId);
-  if (!project) return false;
+  const projectIndex = state.projects.findIndex((item) => item.id === projectId);
+  if (projectIndex < 0) return false;
+  const project = cloneJson(state.projects[projectIndex]);
   mutator(project);
   project.updatedAt = new Date().toISOString();
-  saveState();
-  return true;
+  const projects = [...state.projects];
+  projects[projectIndex] = project;
+  return commitState({ ...state, projects });
 }
 
 function updateProject(mutator) {
@@ -1091,6 +1101,7 @@ function refreshShell(project) {
     }
   });
   newProjectButton.disabled = aiBusy;
+  if (importWorkspaceButton) importWorkspaceButton.disabled = aiBusy;
   demoBadge.hidden = !project.isDemo;
   if (versionBadge) versionBadge.textContent = `v${APP_VERSION}`;
   document.querySelectorAll("[data-route]").forEach((link) => link.classList.toggle("active", link.dataset.route === route()));
@@ -1107,16 +1118,16 @@ function render() {
 function attachPageListeners() {
   document.querySelectorAll("[data-intake-field]").forEach((input) => {
     input.addEventListener("change", () => {
-      updateProject((project) => {
+      const saved = updateProject((project) => {
         if (!project.intake) project.intake = createIntake();
         project.intake[input.dataset.intakeField] = input.value;
       });
-      showToast("原始资料已保存");
+      if (saved) showToast("原始资料已保存");
     });
   });
   document.querySelectorAll("[data-brief-key]").forEach((input) => {
     input.addEventListener("change", () => {
-      updateProject((project) => {
+      const saved = updateProject((project) => {
         const field = project.intake?.analysis?.result?.brief_fields?.find((item) => item.key === input.dataset.briefKey);
         if (!field) return;
         field.value = input.value.trim();
@@ -1128,14 +1139,14 @@ function attachPageListeners() {
         }
       });
       render();
-      showToast("简报字段已确认");
+      if (saved) showToast("简报字段已确认");
     });
   });
   document.querySelectorAll("[data-project-field]").forEach((input) => {
     input.addEventListener("change", () => {
       const value = input.type === "number" ? Number(input.value) : input.value;
-      updateProject((project) => setNested(project, input.dataset.projectField, value));
-      showToast("项目已保存");
+      const saved = updateProject((project) => setNested(project, input.dataset.projectField, value));
+      if (saved) showToast("项目已保存");
     });
   });
   document.querySelectorAll("[data-budget-platform]").forEach((input) => {
@@ -1150,7 +1161,7 @@ function attachPageListeners() {
   });
   document.querySelectorAll("[data-launch-status]").forEach((select) => {
     select.addEventListener("change", () => {
-      updateProject((project) => {
+      const saved = updateProject((project) => {
         const pack = project.launch?.pack?.result;
         const item = pack?.launch_checklist?.find((entry) => entry.id === select.dataset.launchStatus);
         if (!item) return;
@@ -1165,7 +1176,7 @@ function attachPageListeners() {
         recalculateLaunchReadiness(pack, true);
       });
       render();
-      showToast("上线检查项状态已更新");
+      if (saved) showToast("上线检查项状态已更新");
     });
   });
   document.querySelectorAll("[data-experiment-field]").forEach((input) => {
@@ -1188,7 +1199,7 @@ function attachPageListeners() {
         }
       }
       let reopened = false;
-      updateProject((project) => {
+      const saved = updateProject((project) => {
         const plan = project.experiments?.plan?.result;
         const target = plan?.experiments?.find((item) => item.id === input.dataset.experimentId);
         if (!target) return;
@@ -1200,7 +1211,7 @@ function attachPageListeners() {
         project.experiments.plan.result = enrichExperimentPlan(plan);
       });
       render();
-      showToast(
+      if (saved) showToast(
         reopened
           ? "结论资料不完整，实验已恢复为“进行中”。"
           : field.startsWith("design.")
@@ -1276,7 +1287,7 @@ function applyImport() {
   }
   try {
     const metrics = calculateMetrics(mapRows(importSession.parsed.rows, mapping));
-    updateProject((project) => {
+    const saved = updateProject((project) => {
       project.data = {
         fileName: importSession.name,
         importedAt: new Date().toISOString(),
@@ -1285,6 +1296,7 @@ function applyImport() {
       };
       if (!importSession.isDemo) project.isDemo = false;
     });
+    if (!saved) return;
     importSession = null;
     render();
     showToast("数据已计算并写入项目");
@@ -1354,7 +1366,7 @@ async function runAnalysis(stage) {
       payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "分析失败");
     }
-    updateProjectById(projectId, (target) => {
+    const saved = updateProjectById(projectId, (target) => {
       if (!target.ai) target.ai = {};
       target.ai[stage] = {
         ...aiRecordMeta(payload),
@@ -1371,6 +1383,7 @@ async function runAnalysis(stage) {
         }));
       }
     });
+    if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
     showToast(completionMessage(payload.source === "codex" ? "分析完成" : "演示结果已生成", payload));
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
@@ -1415,7 +1428,7 @@ async function runIntake(action) {
       payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "需求整理失败");
     }
-    updateProjectById(projectId, (target) => {
+    const saved = updateProjectById(projectId, (target) => {
       if (!target.intake) target.intake = createIntake();
       target.intake.analysis = {
         ...aiRecordMeta(payload),
@@ -1425,6 +1438,7 @@ async function runIntake(action) {
         result: payload.result
       };
     });
+    if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
     const label = intent === "questions" ? "客户追问清单已生成" : action === "deep" ? "策略初稿深度复核完成" : "策略初稿已生成";
     showToast(completionMessage(label, payload));
   } catch (error) {
@@ -1480,7 +1494,7 @@ async function runLaunchPack() {
       payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "投放执行方案生成失败");
     }
-    updateProjectById(projectId, (target) => {
+    const saved = updateProjectById(projectId, (target) => {
       if (!target.launch) target.launch = createLaunch();
       target.launch.pack = {
         ...aiRecordMeta(payload),
@@ -1496,6 +1510,7 @@ async function runLaunchPack() {
         metric: item.success_metric
       }));
     });
+    if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
     showToast(completionMessage("投放执行方案已生成", payload));
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
@@ -1537,7 +1552,7 @@ async function runExperimentPlan() {
       payload = await response.json();
       if (!response.ok || !payload.ok) throw new Error(payload.error || "实验账本生成失败");
     }
-    updateProjectById(projectId, (target) => {
+    const saved = updateProjectById(projectId, (target) => {
       if (!target.experiments) target.experiments = createExperiments();
       target.experiments.plan = {
         ...aiRecordMeta(payload),
@@ -1545,6 +1560,7 @@ async function runExperimentPlan() {
         result: enrichExperimentPlan(payload.result)
       };
     });
+    if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
     showToast(completionMessage("实验账本已生成", payload));
   } catch (error) {
     showToast(`没有写入结果：${error.message}`, "error");
@@ -1567,7 +1583,7 @@ function saveIntakeVersion() {
     showToast("先生成或整理一版策略初稿。", "error");
     return;
   }
-  updateProject((target) => {
+  const saved = updateProject((target) => {
     if (!target.intake.versions) target.intake.versions = [];
     const number = target.intake.versions.length + 1;
     target.intake.versions.unshift({
@@ -1585,18 +1601,18 @@ function saveIntakeVersion() {
     target.intake.versions = target.intake.versions.slice(0, 10);
   });
   render();
-  showToast("当前策略版本已保存");
+  if (saved) showToast("当前策略版本已保存");
 }
 
 function restoreIntakeVersion(versionId) {
   const version = activeProject().intake?.versions?.find((item) => item.id === versionId);
   if (!version?.snapshot) return;
-  updateProject((project) => {
+  const saved = updateProject((project) => {
     const versions = project.intake.versions || [];
     project.intake = { ...createIntake(), ...cloneJson(version.snapshot), versions };
   });
   render();
-  showToast(`已恢复 ${version.name}`);
+  if (saved) showToast(`已恢复 ${version.name}`);
 }
 
 function intakeMarkdown(project) {
@@ -1689,7 +1705,7 @@ function adoptIntakeStrategy() {
   const result = activeProject().intake?.analysis?.result;
   if (!result) return;
   const draft = result.strategy_draft;
-  updateProject((project) => {
+  const saved = updateProject((project) => {
     const markets = briefFieldValue(result, "markets");
     const audience = briefFieldValue(result, "audience");
     if (markets) project.markets = markets;
@@ -1699,6 +1715,7 @@ function adoptIntakeStrategy() {
     project.strategy.budgetLogic = draft.platform_plan.map((item) => `${item.platform}：${item.budget_scenario}`).join("\n");
     project.strategy.testLogic = draft.first_week_plan.join("\n");
   });
+  if (!saved) return;
   location.hash = "strategy";
   render();
   showToast("策略初稿已同步到投放策略，可继续人工修改");
@@ -1710,7 +1727,7 @@ function saveLaunchVersion() {
     showToast("先生成一份投放执行方案。", "error");
     return;
   }
-  updateProject((project) => {
+  const saved = updateProject((project) => {
     if (!project.launch) project.launch = createLaunch();
     if (!project.launch.versions) project.launch.versions = [];
     const number = project.launch.versions.length + 1;
@@ -1723,19 +1740,19 @@ function saveLaunchVersion() {
     project.launch.versions = project.launch.versions.slice(0, 10);
   });
   render();
-  showToast("投放执行方案版本已保存");
+  if (saved) showToast("投放执行方案版本已保存");
 }
 
 function restoreLaunchVersion(versionId) {
   const version = activeProject().launch?.versions?.find((item) => item.id === versionId);
   if (!version?.snapshot) return;
-  updateProject((project) => {
+  const saved = updateProject((project) => {
     if (!project.launch) project.launch = createLaunch();
     project.launch.pack = cloneJson(version.snapshot);
     project.launch.checklist = Object.fromEntries(project.launch.pack.result.launch_checklist.map((item) => [item.id, item.status === "ready"]));
   });
   render();
-  showToast(`已恢复 ${version.name}`);
+  if (saved) showToast(`已恢复 ${version.name}`);
 }
 
 function saveExperimentVersion() {
@@ -1744,7 +1761,7 @@ function saveExperimentVersion() {
     showToast("先生成一份实验账本。", "error");
     return;
   }
-  updateProject((project) => {
+  const saved = updateProject((project) => {
     if (!project.experiments) project.experiments = createExperiments();
     const number = project.experiments.versions.length + 1;
     project.experiments.versions.unshift({
@@ -1756,18 +1773,18 @@ function saveExperimentVersion() {
     project.experiments.versions = project.experiments.versions.slice(0, 10);
   });
   render();
-  showToast("实验账本版本已保存");
+  if (saved) showToast("实验账本版本已保存");
 }
 
 function restoreExperimentVersion(versionId) {
   const version = activeProject().experiments?.versions?.find((item) => item.id === versionId);
   if (!version?.snapshot) return;
-  updateProject((project) => {
+  const saved = updateProject((project) => {
     if (!project.experiments) project.experiments = createExperiments();
     project.experiments.plan = cloneJson(version.snapshot);
   });
   render();
-  showToast(`已恢复 ${version.name}`);
+  if (saved) showToast(`已恢复 ${version.name}`);
 }
 
 function launchPackMarkdown(project) {
@@ -1871,6 +1888,10 @@ function downloadText(content, fileName, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function normalizeImportedProject(project) {
   return {
     ...project,
@@ -1880,11 +1901,11 @@ function normalizeImportedProject(project) {
     intake: createIntake(project.intake || {}),
     launch: createLaunch(project.launch || {}),
     experiments: createExperiments(project.experiments || {}),
-    strategy: project.strategy && typeof project.strategy === "object"
+    strategy: isRecord(project.strategy)
       ? project.strategy
       : { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: {} },
     creativePlan: Array.isArray(project.creativePlan) ? project.creativePlan : [],
-    ai: project.ai && typeof project.ai === "object" ? project.ai : {},
+    ai: isRecord(project.ai) ? project.ai : {},
     createdAt: project.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -1925,6 +1946,11 @@ function exportActiveProjectBackup() {
 
 async function importWorkspaceBackupFile(file) {
   if (!file) return;
+  if (aiBusy) {
+    showToast("请等待当前 AI 任务完成或取消后再导入备份。", "error");
+    if (importWorkspaceFile) importWorkspaceFile.value = "";
+    return;
+  }
   try {
     const text = await file.text();
     const parsed = parseBackupJson(text);
@@ -1946,13 +1972,14 @@ async function importWorkspaceBackupFile(file) {
       "是否用备份替换当前全部项目？\n\n确定 = 替换全部（请确认已有备份）\n取消 = 仅合并新增"
     );
 
+    let nextState;
     if (replaceAll) {
       const ok = window.confirm(`确认替换？当前 ${state.projects.length} 个项目将被覆盖为备份中的 ${incoming.length} 个。`);
       if (!ok) {
         showToast("已取消导入");
         return;
       }
-      state = {
+      nextState = {
         activeProjectId: incoming.find((item) => item.id === parsed.activeProjectId)?.id || incoming[0].id,
         aiMode: isStaticDemo ? "mock" : parsed.aiMode || state.aiMode,
         projects: incoming
@@ -1963,11 +1990,14 @@ async function importWorkspaceBackupFile(file) {
         showToast("没有新项目被导入", "error");
         return;
       }
-      state.projects = projects.map(normalizeImportedProject);
-      state.activeProjectId = imported[0].id;
+      nextState = {
+        ...state,
+        projects,
+        activeProjectId: imported[0].id
+      };
     }
 
-    saveState();
+    if (!commitState(nextState)) return;
     render();
     showToast(replaceAll ? `已用备份替换工作区（${state.projects.length} 个项目）` : `已合并导入 ${incoming.length} 个项目`);
   } catch (error) {
@@ -2150,9 +2180,12 @@ function exportReport() {
 }
 
 projectSelect.addEventListener("change", () => {
-  state.activeProjectId = projectSelect.value;
+  const nextState = { ...state, activeProjectId: projectSelect.value };
+  if (!commitState(nextState)) {
+    render();
+    return;
+  }
   importSession = null;
-  saveState();
   render();
 });
 
@@ -2162,9 +2195,12 @@ function setAiMode(mode) {
     showToast("在线演示只能使用本地演示模式，请本机 npm start 后使用 GPT-5.6。", "error");
     return;
   }
-  state.aiMode = mode === "codex" ? "codex" : "mock";
+  const nextState = { ...state, aiMode: mode === "codex" ? "codex" : "mock" };
+  if (!commitState(nextState)) {
+    render();
+    return;
+  }
   if (aiModeSelect) aiModeSelect.value = state.aiMode;
-  saveState();
   render();
 }
 
@@ -2178,7 +2214,13 @@ if (aiModeSelect) {
 newProjectButton.addEventListener("click", () => projectDialog.showModal());
 exportWorkspaceButton?.addEventListener("click", exportWorkspaceBackup);
 exportProjectButton?.addEventListener("click", exportActiveProjectBackup);
-importWorkspaceButton?.addEventListener("click", () => importWorkspaceFile?.click());
+importWorkspaceButton?.addEventListener("click", () => {
+  if (aiBusy) {
+    showToast("请等待当前 AI 任务完成或取消后再导入备份。", "error");
+    return;
+  }
+  importWorkspaceFile?.click();
+});
 importWorkspaceFile?.addEventListener("change", () => {
   const file = importWorkspaceFile.files?.[0];
   importWorkspaceBackupFile(file);
@@ -2219,9 +2261,12 @@ projectForm.addEventListener("submit", (event) => {
     intake: createIntake(),
     ai: {}
   };
-  state.projects.push(project);
-  state.activeProjectId = project.id;
-  saveState();
+  const nextState = {
+    ...state,
+    projects: [...state.projects, project],
+    activeProjectId: project.id
+  };
+  if (!commitState(nextState)) return;
   projectForm.reset();
   projectDialog.close();
   location.hash = "intake";
