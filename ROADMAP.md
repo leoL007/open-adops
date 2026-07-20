@@ -81,10 +81,17 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Compare two non-overlapping periods with deterministic relative-change calculations.
 - [x] Keep raw CSV rows transient and persist only aggregate evidence.
 
+### v0.5.1 — Optimization decision history
+
+- [x] Keep every optimization diagnosis instead of overwriting the prior run.
+- [x] Snapshot model metadata, source file, date ranges, and aggregate metrics without raw CSV rows.
+- [x] Record operator review state and a manual conclusion with an explicit save action.
+- [x] Feed the latest decision records into the management report and standalone HTML export.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.
-- [ ] Versioned analysis runs and decision history.
+- [x] Versioned optimization runs and decision history. *(shipped in v0.5.1)*
 - [ ] Shareable read-only report bundle.
 - [ ] Optional local database persistence.
 - [ ] Configurable KPI and validation rules.
