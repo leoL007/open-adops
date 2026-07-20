@@ -604,7 +604,7 @@ function renderIntakeResult(project) {
 
     <div class="grid intake-decision-grid">
       <section class="card">
-        <div class="card-header"><div><h2>客户追问清单</h2><p>按对策略影响排序，可直接复制给客户</p></div><div class="inline-actions"><span class="badge question-badge">${questions.length} QUESTIONS</span>${questions.length ? `<button class="button button-ghost button-small" data-copy-questions>复制追问</button>` : ""}</div></div>
+        <div class="card-header"><div><h2>客户追问清单</h2><p>按策略影响排序</p></div><div class="inline-actions"><span class="badge question-badge">${questions.length} QUESTIONS</span>${questions.length ? `<button class="button button-ghost button-small" data-copy-questions>复制追问</button>` : ""}</div></div>
         ${questions.length ? `<div class="question-list">${questions.map((item, index) => `<article class="question-item"><span>${String(index + 1).padStart(2, "0")}</span><div><div class="question-top"><strong>${escapeHtml(item.question)}</strong><em class="${attr(item.priority)}">${item.priority === "required" ? "必须确认" : "建议确认"}</em></div><p>${escapeHtml(item.reason)}</p></div></article>`).join("")}</div>` : `<div class="success-note">关键资料已覆盖，建议由项目负责人做最后口径确认。</div>`}
       </section>
       <section class="card strategy-v0-hero">
@@ -628,7 +628,7 @@ function renderIntakeResult(project) {
     </div>
 
     <section class="card version-card">
-      <div class="card-header"><div><h2>策略版本</h2><p>保存客户资料和策略初稿的当前快照</p></div><button class="button button-secondary button-small" data-save-intake-version>保存当前版本</button></div>
+      <div class="card-header"><div><h2>策略版本</h2></div><button class="button button-secondary button-small" data-save-intake-version>保存当前版本</button></div>
       ${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-intake-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存版本。正式发送或采用策略前，建议先保存一份快照。</p>`}
     </section>
   </div>`;
@@ -643,7 +643,7 @@ function renderIntake(project) {
   const mode = state.aiMode === "codex"
     ? `智能路由 · 追问：${routeSummary("intakeQuestions")} ｜ 策略初稿：${routeSummary("intakeStrategy")} ｜ 深度复核：${routeSummary("intakeDeep")}`
     : "本地演示 · 不耗额度";
-  return `${pageHeader("阶段 00 · 需求接收", "需求接收", "粘贴客户资料与投放意见，整理简报、追问与策略初稿。", actions)}
+  return `${pageHeader("阶段 00 · 需求接收", "需求接收", "", actions)}
     <section class="card intake-source-card mb-16">
       <div class="card-header"><div><h2>原始资料</h2><p>资料不完整也可以开始；缺失项会明确标出</p></div><span class="card-label">本地保存</span></div>
       <div class="intake-source-grid">
@@ -675,11 +675,11 @@ function renderOverview(project) {
   const launchReady = Boolean(launchPack);
   const hasExperiments = Boolean(project.experiments?.plan?.result?.experiments?.length);
   const hasOptimize = Boolean(project.data?.metrics && (project.ai?.optimize || project.ai?.strategy));
-  return `${pageHeader("项目总览", project.name, "一眼查看关键指标与全链路进度。")}
+  return `${pageHeader("项目总览", project.name, "")}
     ${metricCards(project)}
     <div class="grid overview-grid mb-16">
       <section class="card">
-        <div class="card-header"><div><h2>全链路进度</h2><p>点击阶段可跳转；完成后可在报告页汇总</p></div><button class="button button-primary button-small" data-go-route="report">查看报告</button></div>
+        <div class="card-header"><div><h2>全链路进度</h2></div><button class="button button-primary button-small" data-go-route="report">查看报告</button></div>
         <div class="stage-flow">
           <button type="button" class="stage-step ${hasIntake ? "complete" : ""}" data-step="00" data-go-route="intake"><h3>需求接收</h3><p>资料、追问与策略初稿</p></button>
           <button type="button" class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01" data-go-route="strategy"><h3>投放策略</h3><p>目标、媒体与预算逻辑</p></button>
@@ -690,7 +690,7 @@ function renderOverview(project) {
         </div>
       </section>
       <aside class="card">
-        <div class="card-header"><div><h2>项目档案</h2><p>${project.isDemo ? "演示项目，可直接体验完整链路" : "项目设定自动保存"}</p></div></div>
+        <div class="card-header"><div><h2>项目档案</h2></div></div>
         <div class="project-facts">
           <div class="fact-row"><span>行业</span><strong>${escapeHtml(project.industry)} App</strong></div>
           <div class="fact-row"><span>媒体</span><strong>${escapeHtml(project.platforms.join(" · "))}</strong></div>
@@ -702,16 +702,7 @@ function renderOverview(project) {
       </aside>
     </div>
     <section class="card mb-16"><div class="card-header"><div><h2>媒体表现矩阵</h2><p>媒体口径与 AF 口径并列，避免只看平台安装</p></div><span class="card-label">MEDIA × ATTRIBUTION</span></div>${platformTable(project)}</section>
-    <div class="grid grid-2">
-      <section class="card"><div class="card-header"><div><h2>国家效率</h2><p>横条为花费占比，右侧显示 AF-CPI</p></div></div>${spendBars(project)}</section>
-      <section class="card"><div class="card-header"><div><h2>述职产出就绪度</h2><p>不是单次结果，而是可复用方法与案例证据</p></div><span class="badge" style="color:var(--success);background:var(--success-soft)">${[hasIntake, hasStrategy, hasCreative, launchReady, hasExperiments, hasOptimize].filter(Boolean).length}/6</span></div>
-        <div class="timeline">
-          <div class="timeline-item"><strong>方法层</strong><p>多行业 × 多媒体的统一项目结构与指标口径</p></div>
-          <div class="timeline-item"><strong>执行层</strong><p>从策略到优化动作，全程留下负责人和验证标准</p></div>
-          <div class="timeline-item"><strong>证据层</strong><p>CSV 数据、结构化判断和报告预览可追溯</p></div>
-        </div>
-      </section>
-    </div>`;
+    <section class="card"><div class="card-header"><div><h2>国家效率</h2><p>横条为花费占比，右侧显示 AF-CPI</p></div></div>${spendBars(project)}</section>`;
 }
 
 function performanceTargetEditor(project) {
@@ -763,7 +754,7 @@ function nextPerformanceTargetMetric(project, targets) {
 }
 
 function renderStrategy(project) {
-  return `${pageHeader("阶段 01 · 投放策略", "投放策略", "建立可复用的业务输入、媒体分工、预算逻辑和测试假设。")}
+  return `${pageHeader("阶段 01 · 投放策略", "投放策略", "")}
     <div class="grid grid-2 mb-16">
       <section class="card">
         <div class="card-header"><div><h2>项目输入</h2><p>这些信息会随聚合指标一起发送给本机模型</p></div></div>
@@ -779,7 +770,7 @@ function renderStrategy(project) {
         </div>
       </section>
       <section class="card">
-        <div class="card-header"><div><h2>策略假设</h2><p>先写判断，再用数据验证，避免事后解释</p></div></div>
+        <div class="card-header"><div><h2>策略假设</h2></div></div>
         <div class="form-grid">
           <label class="field"><span>阶段目标</span><textarea data-project-field="strategy.objective">${escapeHtml(project.strategy?.objective || "")}</textarea></label>
           <label class="field"><span>核心用户</span><textarea data-project-field="strategy.audience">${escapeHtml(project.strategy?.audience || "")}</textarea></label>
@@ -807,12 +798,7 @@ function creativeTable(project) {
 }
 
 function renderCreative(project) {
-  return `${pageHeader("阶段 02 · 素材计划", "素材计划", "把素材从“多做几条”变成可验证的角度、Hook 和单变量测试矩阵。")}
-    <div class="grid grid-3 mb-16">
-      <article class="card"><span class="card-label">GOOGLE ADS</span><h3>信息覆盖</h3><p class="muted">功能证明、不同长度资产、国家语言匹配与商店页一致性。</p></article>
-      <article class="card"><span class="card-label">META ADS</span><h3>概念多样性</h3><p class="muted">差异化角度、首帧可读性、UGC 与结果展示，减少素材聚类。</p></article>
-      <article class="card"><span class="card-label">TIKTOK ADS</span><h3>原生注意力</h3><p class="muted">前 3 秒 Hook、人物/录屏节奏、平台语境与安全区。</p></article>
-    </div>
+  return `${pageHeader("阶段 02 · 素材计划", "素材计划", "")}
     <section class="card mb-16"><div class="card-header"><div><h2>跨媒体素材测试矩阵</h2><p>每行只改变一个变量，成功指标写在上线前</p></div><span class="badge" style="color:var(--accent-deep);background:var(--accent-soft)">${getCreativeTests(project).length} TESTS</span></div>${creativeTable(project)}</section>
     <section class="card">${analysisToolbar("creative")}${aiResult(project, "creative")}</section>`;
 }
@@ -836,7 +822,7 @@ function renderLaunchPackResult(project) {
   const pack = record?.result;
   if (!pack) {
     return `<section class="card launch-empty-card">
-      <div class="launch-empty-copy"><span class="card-label">需求 → 执行</span><h2>生成第一份投放执行方案</h2><p>OpenAdOps 会把简报、策略初稿和项目设置组合成 Campaign 蓝图、素材生产简报、监测方案、上线阻塞项和首 7 天计划。</p></div>
+      <div class="launch-empty-copy"><span class="card-label">需求 → 执行</span><h2>生成第一份投放执行方案</h2><p>生成 Campaign 蓝图、上线检查和首 7 天行动。</p></div>
       <div class="launch-input-summary">
         <div><span>行业</span><strong>${escapeHtml(project.industry || "待确认")}</strong></div>
         <div><span>市场</span><strong>${escapeHtml(project.markets || "待确认")}</strong></div>
@@ -865,7 +851,7 @@ function renderLaunchPackResult(project) {
     </section>
 
     <section class="card">
-      <div class="card-header"><div><h2>Campaign 蓝图</h2><p>命名、目标、事件、出价和拆分逻辑可直接交给投手</p></div><span class="badge launch-count">${pack.campaigns.length} CAMPAIGNS</span></div>
+      <div class="card-header"><div><h2>Campaign 蓝图</h2></div><span class="badge launch-count">${pack.campaigns.length} CAMPAIGNS</span></div>
       <div class="campaign-blueprint-grid">${pack.campaigns.map((item) => `<article class="campaign-blueprint"><div class="campaign-code"><span>${escapeHtml(item.platform)}</span><strong>${escapeHtml(item.campaign_name)}</strong></div><div class="campaign-facts"><div><span>优化事件</span><strong>${escapeHtml(item.optimization_event)}</strong></div><div><span>市场</span><strong>${escapeHtml(item.geo)}</strong></div><div><span>出价</span><strong>${escapeHtml(item.bidding)}</strong></div><div><span>预算</span><strong>${escapeHtml(item.budget_note)}</strong></div></div><div class="campaign-lists"><div><span>结构逻辑</span>${item.ad_group_logic.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div><div><span>受众与排除</span>${item.audience_notes.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div></div></article>`).join("")}</div>
     </section>
 
@@ -876,7 +862,7 @@ function renderLaunchPackResult(project) {
 
     <div class="grid launch-measurement-grid">
       <section class="card"><div class="card-header"><div><h2>监测与归因</h2><p>媒体反馈、MMP 和业务真相分层使用</p></div><span class="card-label">监测口径</span></div><div class="measurement-hero"><span>最终口径</span><strong>${escapeHtml(pack.measurement.source_of_truth)}</strong></div>${renderStrategyList("主要与辅助事件", [pack.measurement.primary_event, ...pack.measurement.supporting_events])}${renderStrategyList("归因规则", pack.measurement.attribution_rules)}${renderStrategyList("追踪检查", pack.measurement.tracking_checklist)}</section>
-      <section class="card"><div class="card-header"><div><h2>首 7 天行动</h2><p>先定义观察和动作边界，避免上线后临时解释</p></div><span class="card-label">第 0–7 天</span></div><div class="launch-week">${pack.first_7_days.map((item) => `<article><span>${escapeHtml(item.period)}</span><div>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<strong>${escapeHtml(item.decision_rule)}</strong></div></article>`).join("")}</div></section>
+      <section class="card"><div class="card-header"><div><h2>首 7 天行动</h2></div><span class="card-label">第 0–7 天</span></div><div class="launch-week">${pack.first_7_days.map((item) => `<article><span>${escapeHtml(item.period)}</span><div>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<strong>${escapeHtml(item.decision_rule)}</strong></div></article>`).join("")}</div></section>
     </div>
 
     <section class="card">
@@ -885,7 +871,7 @@ function renderLaunchPackResult(project) {
     </section>
 
     <div class="grid grid-2">
-      <section class="card"><div class="card-header"><div><h2>待确认问题</h2><p>在正式上线前关闭高影响缺口</p></div><span class="badge question-badge">${pack.open_questions.length}</span></div>${pack.open_questions.length ? `<ol class="launch-question-list">${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : `<div class="success-note">当前没有未记录的问题。</div>`}</section>
+      <section class="card"><div class="card-header"><div><h2>待确认问题</h2></div><span class="badge question-badge">${pack.open_questions.length}</span></div>${pack.open_questions.length ? `<ol class="launch-question-list">${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : `<div class="success-note">当前没有未记录的问题。</div>`}</section>
       <section class="card"><div class="card-header"><div><h2>风险说明</h2><p>不把 AI 草案伪装成正式客户结论</p></div><span class="card-label">RISK REGISTER</span></div><div class="launch-risk-list">${pack.risks.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div></section>
     </div>
 
@@ -902,7 +888,7 @@ function renderLaunch(project) {
     ? `<button class="button button-ghost" data-export-launch-pack>导出文档</button><button class="button button-ghost" data-export-launch-html>导出网页</button><button class="button button-secondary" data-save-launch-version>保存版本</button>`
     : "";
   const mode = state.aiMode === "codex" ? routeDetail("launchPack") : "本地演示 · 不耗额度";
-  return `${pageHeader("阶段 03 · 执行方案", "投放执行方案", "把策略初稿变成可交接的搭建、素材与上线检查文件。", actions)}
+  return `${pageHeader("阶段 03 · 执行方案", "投放执行方案", "", actions)}
     <section class="card launch-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只生成计划，不改广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "生成执行方案" : "生成演示执行方案"}</button></section>
     ${renderLaunchPackResult(project)}`;
 }
@@ -1028,7 +1014,7 @@ function renderExperimentPlanResult(project) {
   const plan = record?.result;
   if (!plan) {
     return `<section class="card experiment-empty">
-      <div><span class="card-label">执行方案 → 学习沉淀</span><h2>建立第一份实验账本</h2><p>从投放执行方案的素材简报和当前投放数据生成单变量测试队列、样本门槛、停止条件和结果记录模板。</p></div>
+      <div><span class="card-label">执行方案 → 学习沉淀</span><h2>建立第一份实验账本</h2><p>生成实验队列、样本门槛和结果记录模板。</p></div>
       <div class="launch-input-summary">
         <div><span>素材简报</span><strong>${project.launch?.pack?.result?.creative_briefs?.length || project.creativePlan?.length || 0}</strong></div>
         <div><span>已有数据</span><strong>${project.data?.metrics ? `${project.data.metrics.period?.activeDays || "—"} 天` : "未导入"}</strong></div>
@@ -1053,7 +1039,7 @@ function renderExperimentPlanResult(project) {
     </section>
 
     <section class="card">
-      <div class="card-header"><div><h2>学习议程</h2><p>每次只推进最重要的不确定性，不把所有想法同时上线</p></div><span class="card-label">TEST & LEARN</span></div>
+      <div class="card-header"><div><h2>学习议程</h2></div><span class="card-label">TEST & LEARN</span></div>
       <div class="learning-agenda">${plan.learning_agenda.map((item, index) => `<article><span>${String(index + 1).padStart(2, "0")}</span><p>${escapeHtml(item)}</p></article>`).join("")}</div>
     </section>
 
@@ -1064,12 +1050,12 @@ function renderExperimentPlanResult(project) {
     </section>
 
     <section class="experiment-detail-stack">
-      <div class="section-title"><div><span class="card-label">EXPERIMENT REGISTRY</span><h2>实验设计与结果记录</h2></div><p>样本计算、运行状态和学习结论都会保存在当前项目。</p></div>
+      <div class="section-title"><div><span class="card-label">EXPERIMENT REGISTRY</span><h2>实验设计与结果记录</h2></div></div>
       ${plan.experiments.map(renderExperimentCard).join("")}
     </section>
 
     <div class="grid grid-2">
-      <section class="card"><div class="card-header"><div><h2>实验风险</h2><p>跨平台和低样本场景必须保留的判断边界</p></div><span class="card-label">GUARDRAILS</span></div><div class="launch-risk-list">${plan.risks.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div></section>
+      <section class="card"><div class="card-header"><div><h2>实验风险</h2></div><span class="card-label">GUARDRAILS</span></div><div class="launch-risk-list">${plan.risks.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div></section>
       <section class="card version-card"><div class="card-header"><div><h2>实验账本版本</h2><p>在实验开始和结论冻结时分别保存快照</p></div><button class="button button-secondary button-small" data-save-experiment-version>保存当前版本</button></div>${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-experiment-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存实验账本快照。</p>`}</section>
     </div>
   </div>`;
@@ -1081,7 +1067,7 @@ function renderExperiments(project) {
     ? `<button class="button button-ghost" data-export-experiments>导出文档</button><button class="button button-ghost" data-export-experiment-html>导出网页</button><button class="button button-secondary" data-save-experiment-version>保存版本</button>`
     : "";
   const mode = state.aiMode === "codex" ? routeDetail("experiments") : "本地演示 · 不耗额度";
-  return `${pageHeader("阶段 04 · 实验台", "实验台", "把素材假设排成队列，并记录样本门槛与学习。", actions)}
+  return `${pageHeader("阶段 04 · 实验台", "实验台", "", actions)}
     <section class="card experiment-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只规划记录，不创建后台实验</span></div><button class="button button-primary" data-run-experiments ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "生成实验账本" : "生成演示实验账本"}</button></section>
     ${renderExperimentPlanResult(project)}`;
 }
@@ -1093,14 +1079,14 @@ function mappingPanel() {
 }
 
 function renderOptimize(project) {
-  return `${pageHeader("阶段 05 · 投放优化", "投放优化", "上传媒体或 AppsFlyer CSV，先由代码计算，再基于证据生成判断。")}
+  return `${pageHeader("阶段 05 · 投放优化", "投放优化", "上传 CSV，由代码计算指标，AI 基于证据判断。")}
     <section class="card mb-16">
       <div class="card-header"><div><h2>数据导入</h2><p>V1 支持 CSV；原始明细仅在当前页面解析，项目只保存聚合指标</p></div>${project.data ? `<span class="badge" style="color:var(--success);background:var(--success-soft)">${escapeHtml(project.data.fileName)}</span>` : ""}</div>
       <div class="drop-zone"><strong>导入媒体 / AppsFlyer 报表</strong><span>支持带引号的 CSV；可手动调整字段映射</span><div class="upload-actions" style="justify-content:center"><label class="button button-secondary">选择 CSV<input id="csvInput" type="file" accept=".csv,text/csv" /></label><button class="button button-ghost" data-load-demo>载入演示 CSV</button></div></div>
       ${mappingPanel()}
     </section>
     ${metricCards(project)}
-    <div class="grid grid-2 mb-16"><section class="card"><div class="card-header"><div><h2>媒体对比</h2><p>重点看 AF-CPI、CVR 与留存是否同步</p></div></div>${platformTable(project)}</section><section class="card"><div class="card-header"><div><h2>国家效率</h2><p>右侧为 AF-CPI</p></div></div>${spendBars(project)}</section></div>
+    <div class="grid grid-2 mb-16"><section class="card"><div class="card-header"><div><h2>媒体对比</h2></div></div>${platformTable(project)}</section><section class="card"><div class="card-header"><div><h2>国家效率</h2><p>右侧为 AF-CPI</p></div></div>${spendBars(project)}</section></div>
     <section class="card">${analysisToolbar("optimize")}${aiResult(project, "optimize")}</section>`;
 }
 
@@ -1124,7 +1110,7 @@ function renderReport(project) {
   const result = record?.result;
   const summary = project.data?.metrics?.summary || {};
   const actions = `<button class="button button-secondary" data-export-report>导出网页</button><button class="button button-primary" data-print-report>打印或导出 PDF</button>`;
-  return `${pageHeader("报告中心", "报告输出", "把项目输入、数据证据、诊断和下一步动作压缩为管理层可读的一页报告。", actions)}
+  return `${pageHeader("报告中心", "报告输出", "", actions)}
     <article class="report-preview">
       <div class="report-cover"><div><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h2>${escapeHtml(project.name)}<br />投放阶段复盘与下一步计划</h2></div><div class="report-meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))}<br />${escapeHtml(project.markets || "市场待设置")} · ${dateText(new Date().toISOString())}<br />${project.isDemo ? "演示数据，不代表真实客户表现" : "OpenAdOps 本地工作台生成"}</div></div>
       <section class="report-section"><h3>01 · 核心指标</h3>${metricCards(project)}</section>
