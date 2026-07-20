@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { publicAiRoutes, resolveAiRoute } from "../src/ai-router.mjs";
 
-test("AI router uses Terra for lightweight work and GPT-5.6 for deep work", () => {
+test("AI router uses Terra for lightweight work and Sol for deep work", () => {
   assert.deepEqual(
     {
       model: resolveAiRoute("intakeQuestions", {}).model,
@@ -22,13 +22,13 @@ test("AI router uses Terra for lightweight work and GPT-5.6 for deep work", () =
       model: resolveAiRoute("launchPack", {}).model,
       effort: resolveAiRoute("launchPack", {}).effort
     },
-    { model: "gpt-5.6", effort: "high" }
+    { model: "gpt-5.6-sol", effort: "high" }
   );
 });
 
-test("Terra routes expose a GPT-5.6 medium structure fallback", () => {
+test("Terra routes expose a Sol medium structure fallback", () => {
   const route = resolveAiRoute("analysis", {});
-  assert.equal(route.fallback.model, "gpt-5.6");
+  assert.equal(route.fallback.model, "gpt-5.6-sol");
   assert.equal(route.fallback.effort, "medium");
   assert.equal(resolveAiRoute("intakeDeep", {}).fallback, null);
 });

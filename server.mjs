@@ -703,7 +703,7 @@ const server = http.createServer(async (request, response) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`OpenAdOps: http://127.0.0.1:${PORT}`);
-  console.log("AI routing: Terra low/medium for routine work · GPT-5.6 high for deep review and 投放执行方案");
+  console.log("AI routing: GPT-5.6 Terra low/medium for routine work · GPT-5.6 Sol high for deep review and 投放执行方案");
 });
 
 export { activeJobPayload, buildAnalysisPrompt, buildExperimentPrompt, buildIntakePrompt, buildLaunchPackPrompt, server };

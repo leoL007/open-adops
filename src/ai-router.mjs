@@ -25,7 +25,7 @@ const DEFAULT_ROUTES = {
     key: "intakeDeep",
     label: "深度复核策略初稿",
     modelTier: "deep",
-    model: "gpt-5.6",
+    model: "gpt-5.6-sol",
     effort: "high",
     timeoutMs: 300000,
     expectedSeconds: [120, 300],
@@ -45,7 +45,7 @@ const DEFAULT_ROUTES = {
     key: "launchPack",
     label: "生成投放执行方案",
     modelTier: "deep",
-    model: "gpt-5.6",
+    model: "gpt-5.6-sol",
     effort: "high",
     timeoutMs: 300000,
     expectedSeconds: [120, 300],
@@ -81,7 +81,7 @@ export function resolveAiRoute(routeKey, env = process.env) {
   const legacyEffort = validEffort(env.OPENADOPS_REASONING_EFFORT);
   const legacyTimeout = validTimeout(env.OPENADOPS_TIMEOUT_MS);
   const terraModel = env.OPENADOPS_TERRA_MODEL || "gpt-5.6-terra";
-  const deepModel = env.OPENADOPS_DEEP_MODEL || "gpt-5.6";
+  const deepModel = env.OPENADOPS_DEEP_MODEL || "gpt-5.6-sol";
   const model = legacyModel || (base.modelTier === "terra" ? terraModel : deepModel);
   const effort = legacyEffort || base.effort;
   const timeoutMs = legacyTimeout || base.timeoutMs;
@@ -121,4 +121,3 @@ export function publicAiRoutes(env = process.env) {
     })
   );
 }
-

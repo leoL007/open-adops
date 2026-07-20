@@ -2,6 +2,21 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.4.4] - 2026-07-20
+
+### Changed
+
+- AI labels now separate routing mode, model variant, and reasoning effort: Terra for routine work and Sol for deep work.
+- Every main-operation bar now uses the same `智能路由 · 模型 · 推理` label structure; the legacy `gpt-5.6` deep ID is displayed as Sol.
+- Deep strategy review and execution-plan generation now explicitly route to `gpt-5.6-sol`; Terra structure fallback also uses Sol medium.
+- Generation status, saved results, reports, exports, and completion messages show the actual Terra / Sol model name consistently.
+
+### Fixed
+
+- Workspace mutations are persisted transactionally, so a localStorage failure no longer produces a false success state.
+- Backup import is disabled while an AI task is active, preventing completed model output from being detached from its project.
+- Backup imports reject unsupported schema versions, malformed projects, and duplicate project IDs.
+
 ## [0.4.3] - 2026-07-17
 
 ### Added

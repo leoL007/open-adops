@@ -9,6 +9,7 @@ import { buildMockAnalysis } from "./lib/mock-analysis.js";
 import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
 import { buildMockLaunchPack } from "./lib/mock-launch-pack.js";
+import { modelFullName, modelRouteDetail, modelVariantName } from "./lib/model-labels.js";
 import {
   backupFileName,
   buildProjectBackup,
@@ -52,9 +53,9 @@ let aiJobTicks = 0;
 let aiRoutes = {
   intakeQuestions: { label: "生成客户追问", model: "gpt-5.6-terra", effort: "low", expectedSeconds: [30, 90] },
   intakeStrategy: { label: "快速生成策略初稿", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
-  intakeDeep: { label: "深度复核策略初稿", model: "gpt-5.6", effort: "high", expectedSeconds: [120, 300] },
+  intakeDeep: { label: "深度复核策略初稿", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   analysis: { label: "投放数据诊断", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
-  launchPack: { label: "生成投放执行方案", model: "gpt-5.6", effort: "high", expectedSeconds: [120, 300] },
+  launchPack: { label: "生成投放执行方案", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   experiments: { label: "生成实验账本", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] }
 };
 
@@ -288,13 +289,6 @@ function formatClock(milliseconds) {
   return `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-function modelShortName(model) {
-  if (model === "gpt-5.6-terra") return "Terra 轻量";
-  if (model === "gpt-5.6") return "GPT-5.6 深度";
-  if (!model || model === "codex-default" || model === "Codex") return "本机模型";
-  return model;
-}
-
 function effortLabel(effort) {
   return ({ low: "低", medium: "中", high: "高", xhigh: "极高" })[effort] || effort || "默认";
 }
@@ -308,17 +302,22 @@ function expectedLabel(expectedSeconds = []) {
 
 function routeSummary(routeKey) {
   const config = aiRoutes[routeKey] || {};
-  return `${modelShortName(config.model)} · ${effortLabel(config.effort)}`;
+  return `${modelVariantName(config.model)} · ${effortLabel(config.effort)}`;
+}
+
+function routeDetail(routeKey) {
+  const config = aiRoutes[routeKey] || {};
+  return modelRouteDetail(config.model, effortLabel(config.effort));
 }
 
 function runRecordLabel(record) {
   if (!record) return "";
   if (record.source !== "codex") return "演示结果";
-  const details = [modelShortName(record.model)];
-  if (record.reasoningEffort) details.push(effortLabel(record.reasoningEffort));
+  const details = [modelFullName(record.model)];
+  if (record.reasoningEffort) details.push(`推理：${effortLabel(record.reasoningEffort)}`);
   if (record.durationMs) details.push(formatDuration(record.durationMs));
   if (record.fallbackUsed) details.push("自动复核");
-  return `本机模型 · ${details.join(" · ")}`;
+  return `本机 Codex · ${details.join(" · ")}`;
 }
 
 function displayRouteLabel(label) {
@@ -339,7 +338,7 @@ function renderAiJobPanel() {
   const live = currentAiJob.live || {};
   aiJobPanel.hidden = false;
   aiJobLabel.textContent = displayRouteLabel(live.label || config.label || "正在生成");
-  aiJobMeta.textContent = `${modelShortName(live.model || config.model)} · ${effortLabel(live.effort || config.effort)}${live.fallbackUsed ? " · 结构校验后自动复核中" : ""} · 本机运行`;
+  aiJobMeta.textContent = `${modelFullName(live.model || config.model)} · 推理：${effortLabel(live.effort || config.effort)}${live.fallbackUsed ? " · 结构校验后自动复核中" : ""} · 本机运行`;
   aiJobElapsed.textContent = formatClock(Date.now() - currentAiJob.startedAt);
   aiJobExpected.textContent = expectedLabel(config.expectedSeconds);
   aiCancelButton.disabled = currentAiJob.cancelling;
@@ -509,7 +508,7 @@ function emptyState(title, description, targetRoute, buttonLabel) {
 }
 
 function analysisToolbar(stage) {
-  const mode = state.aiMode === "codex" ? `GPT-5.6 智能路由 · ${routeSummary("analysis")}` : "本地演示 · 不耗额度";
+  const mode = state.aiMode === "codex" ? routeDetail("analysis") : "本地演示 · 不耗额度";
   return `<div class="analysis-toolbar">
     <div><strong>结构化判断</strong><span>${escapeHtml(mode)}</span></div>
     <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : state.aiMode === "codex" ? "生成分析" : "运行演示分析"}</button>
@@ -633,7 +632,7 @@ function renderIntake(project) {
     ? `<button class="button button-ghost" data-export-intake>导出文档</button><button class="button button-secondary" data-save-intake-version>保存版本</button>`
     : "";
   const mode = state.aiMode === "codex"
-    ? `GPT-5.6 · 追问 ${routeSummary("intakeQuestions")} / 策略 ${routeSummary("intakeStrategy")}`
+    ? `智能路由 · 追问：${routeSummary("intakeQuestions")} ｜ 策略初稿：${routeSummary("intakeStrategy")} ｜ 深度复核：${routeSummary("intakeDeep")}`
     : "本地演示 · 不耗额度";
   return `${pageHeader("阶段 00 · 需求接收", "需求接收", "粘贴客户资料与投放意见，整理简报、追问与策略初稿。", actions)}
     <section class="card intake-source-card mb-16">
@@ -847,7 +846,7 @@ function renderLaunch(project) {
   const actions = record?.result
     ? `<button class="button button-ghost" data-export-launch-pack>导出文档</button><button class="button button-ghost" data-export-launch-html>导出网页</button><button class="button button-secondary" data-save-launch-version>保存版本</button>`
     : "";
-  const mode = state.aiMode === "codex" ? `GPT-5.6 · ${routeSummary("launchPack")}` : "本地演示 · 不耗额度";
+  const mode = state.aiMode === "codex" ? routeDetail("launchPack") : "本地演示 · 不耗额度";
   return `${pageHeader("阶段 03 · 执行方案", "投放执行方案", "把策略初稿变成可交接的搭建、素材与上线检查文件。", actions)}
     <section class="card launch-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只生成计划，不改广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "生成执行方案" : "生成演示执行方案"}</button></section>
     ${renderLaunchPackResult(project)}`;
@@ -1026,7 +1025,7 @@ function renderExperiments(project) {
   const actions = record?.result
     ? `<button class="button button-ghost" data-export-experiments>导出文档</button><button class="button button-ghost" data-export-experiment-html>导出网页</button><button class="button button-secondary" data-save-experiment-version>保存版本</button>`
     : "";
-  const mode = state.aiMode === "codex" ? `GPT-5.6 · ${routeSummary("experiments")}` : "本地演示 · 不耗额度";
+  const mode = state.aiMode === "codex" ? routeDetail("experiments") : "本地演示 · 不耗额度";
   return `${pageHeader("阶段 04 · 实验台", "实验台", "把素材假设排成队列，并记录样本门槛与学习。", actions)}
     <section class="card experiment-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只规划记录，不创建后台实验</span></div><button class="button button-primary" data-run-experiments ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "生成实验账本" : "生成演示实验账本"}</button></section>
     ${renderExperimentPlanResult(project)}`;
@@ -1334,8 +1333,8 @@ function aiRecordMeta(payload) {
 
 function completionMessage(label, payload) {
   if (payload.source !== "codex") return label;
-  const details = [modelShortName(payload.model)];
-  if (payload.reasoningEffort) details.push(effortLabel(payload.reasoningEffort));
+  const details = [modelFullName(payload.model)];
+  if (payload.reasoningEffort) details.push(`推理：${effortLabel(payload.reasoningEffort)}`);
   if (payload.durationMs) details.push(formatDuration(payload.durationMs));
   if (payload.fallbackUsed) details.push("已自动复核");
   return `${label} · ${details.join(" · ")}`;

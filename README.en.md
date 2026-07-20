@@ -90,15 +90,15 @@ Default routing (does not inherit a global ultra-high reasoning setting):
 | --- | --- | --- |
 | Client questions | `gpt-5.6-terra` | low |
 | Fast strategy draft | `gpt-5.6-terra` | medium |
-| Deep strategy review | `gpt-5.6` | high |
+| Deep strategy review | `gpt-5.6-sol` | high |
 | Data / creative diagnosis | `gpt-5.6-terra` | medium |
-| Execution plan | `gpt-5.6` | high |
+| Execution plan | `gpt-5.6-sol` | high |
 | Experiment ledger | `gpt-5.6-terra` | medium |
 
-Failed structure validation on Terra triggers one `gpt-5.6 + medium` retry. The UI shows model, effort, timing, cancel, and sticky errors.
+Failed structure validation on Terra triggers one `gpt-5.6-sol + medium` retry. The UI distinguishes GPT-5.6 Terra / Sol, effort, timing, cancel, and sticky errors.
 
 ```bash
-OPENADOPS_TERRA_MODEL=gpt-5.6-terra OPENADOPS_DEEP_MODEL=gpt-5.6 npm start
+OPENADOPS_TERRA_MODEL=gpt-5.6-terra OPENADOPS_DEEP_MODEL=gpt-5.6-sol npm start
 ```
 
 Legacy overrides: `OPENADOPS_MODEL`, `OPENADOPS_REASONING_EFFORT`, `OPENADOPS_TIMEOUT_MS` (apply to all tasks — use carefully).

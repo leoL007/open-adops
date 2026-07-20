@@ -94,17 +94,17 @@ npm run check
 | --- | --- | --- |
 | 生成客户追问 | `gpt-5.6-terra` | 低 |
 | 快速生成策略初稿 | `gpt-5.6-terra` | 中 |
-| 深度复核策略初稿 | `gpt-5.6` | 高 |
+| 深度复核策略初稿 | `gpt-5.6-sol` | 高 |
 | 数据诊断 / 素材判断 | `gpt-5.6-terra` | 中 |
-| 生成投放执行方案 | `gpt-5.6` | 高 |
+| 生成投放执行方案 | `gpt-5.6-sol` | 高 |
 | 生成实验账本 | `gpt-5.6-terra` | 中 |
 
-Terra 输出若未过结构校验，会自动用 `gpt-5.6 + 中` 复核一次。界面会显示模型、推理档、耗时、预计区间，并支持取消；失败原因会常驻提示。
+Terra 输出若未过结构校验，会自动用 `gpt-5.6-sol + 中` 复核一次。界面会区分 GPT-5.6 Terra / Sol、推理档、耗时与预计区间，并支持取消；失败原因会常驻提示。
 
 仅覆盖 OpenAdOps 路由、不改 Codex 全局配置：
 
 ```bash
-OPENADOPS_TERRA_MODEL=gpt-5.6-terra OPENADOPS_DEEP_MODEL=gpt-5.6 npm start
+OPENADOPS_TERRA_MODEL=gpt-5.6-terra OPENADOPS_DEEP_MODEL=gpt-5.6-sol npm start
 ```
 
 兼容旧变量：`OPENADOPS_MODEL`、`OPENADOPS_REASONING_EFFORT`、`OPENADOPS_TIMEOUT_MS`（设置后可能覆盖全部任务，请谨慎）。
@@ -153,7 +153,7 @@ OPENADOPS_TERRA_MODEL=gpt-5.6-terra OPENADOPS_DEEP_MODEL=gpt-5.6 npm start
 npm run check
 ```
 
-当前 **42** 项自动化测试覆盖：需求接收、投放执行方案、实验账本、工作区备份、金融合规阻塞、小预算收敛、样本计算、转化事件身份、媒体别名合并、缺失数据保护、CSV 解析与 AF/媒体安装映射、日期范围、媒体 CPI 与 AF-CPI、聚合与 Schema 校验。测试**不会**调用真实模型。
+当前 **48** 项自动化测试覆盖：需求接收、投放执行方案、实验账本、工作区备份、模型标识、金融合规阻塞、小预算收敛、样本计算、转化事件身份、媒体别名合并、缺失数据保护、CSV 解析与 AF/媒体安装映射、日期范围、媒体 CPI 与 AF-CPI、聚合与 Schema 校验。测试**不会**调用真实模型。
 
 ## 当前范围
 
