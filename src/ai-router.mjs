@@ -41,6 +41,16 @@ const DEFAULT_ROUTES = {
     expectedSeconds: [60, 180],
     structureFallback: true
   },
+  optimizeAnalysis: {
+    key: "optimizeAnalysis",
+    label: "投放优化诊断",
+    modelTier: "deep",
+    model: "gpt-5.6-sol",
+    effort: "high",
+    timeoutMs: 300000,
+    expectedSeconds: [120, 300],
+    structureFallback: false
+  },
   launchPack: {
     key: "launchPack",
     label: "生成投放执行方案",

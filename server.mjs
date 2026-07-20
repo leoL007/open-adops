@@ -417,7 +417,7 @@ async function runRoutedCodex({ routeKey, prompt, schemaPath, validate, jobName,
 
 function runCodexAnalysis(payload) {
   return runRoutedCodex({
-    routeKey: "analysis",
+    routeKey: payload.stage === "optimize" ? "optimizeAnalysis" : "analysis",
     prompt: buildAnalysisPrompt(payload),
     schemaPath: SCHEMA_PATH,
     validate: validateAnalysis,

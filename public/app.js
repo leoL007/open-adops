@@ -61,6 +61,7 @@ let aiRoutes = {
   intakeStrategy: { label: "快速生成策略初稿", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
   intakeDeep: { label: "深度复核策略初稿", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   analysis: { label: "投放数据诊断", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
+  optimizeAnalysis: { label: "投放优化诊断", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   launchPack: { label: "生成投放执行方案", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   experiments: { label: "生成实验账本", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] }
 };
@@ -517,7 +518,8 @@ function emptyState(title, description, targetRoute, buttonLabel) {
 }
 
 function analysisToolbar(stage) {
-  const mode = state.aiMode === "codex" ? routeDetail("analysis") : "本地演示 · 不耗额度";
+  const routeKey = stage === "optimize" ? "optimizeAnalysis" : "analysis";
+  const mode = state.aiMode === "codex" ? routeDetail(routeKey) : "本地演示 · 不耗额度";
   return `<div class="analysis-toolbar">
     <div><strong>结构化判断</strong><span>${escapeHtml(mode)}</span></div>
     <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : state.aiMode === "codex" ? "生成分析" : "运行演示分析"}</button>
@@ -1448,7 +1450,7 @@ async function runAnalysis(stage) {
   const project = activeProject();
   const projectId = project.id;
   aiBusy = true;
-  if (state.aiMode === "codex") beginAiJob("analysis");
+  if (state.aiMode === "codex") beginAiJob(stage === "optimize" ? "optimizeAnalysis" : "analysis");
   render();
   try {
     let payload;

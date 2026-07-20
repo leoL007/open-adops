@@ -24,6 +24,13 @@ test("AI router uses Terra for lightweight work and Sol for deep work", () => {
     },
     { model: "gpt-5.6-sol", effort: "high" }
   );
+  assert.deepEqual(
+    {
+      model: resolveAiRoute("optimizeAnalysis", {}).model,
+      effort: resolveAiRoute("optimizeAnalysis", {}).effort
+    },
+    { model: "gpt-5.6-sol", effort: "high" }
+  );
 });
 
 test("Terra routes expose a Sol medium structure fallback", () => {
@@ -31,6 +38,7 @@ test("Terra routes expose a Sol medium structure fallback", () => {
   assert.equal(route.fallback.model, "gpt-5.6-sol");
   assert.equal(route.fallback.effort, "medium");
   assert.equal(resolveAiRoute("intakeDeep", {}).fallback, null);
+  assert.equal(resolveAiRoute("optimizeAnalysis", {}).fallback, null);
 });
 
 test("local environment overrides do not require changing global Codex config", () => {
@@ -45,4 +53,5 @@ test("local environment overrides do not require changing global Codex config", 
   assert.equal(route.timeoutMs, 210000);
   assert.equal(route.fallback.model, "deep-test");
   assert.equal(publicAiRoutes({}).experiments.model, "gpt-5.6-terra");
+  assert.equal(publicAiRoutes({}).optimizeAnalysis.model, "gpt-5.6-sol");
 });
