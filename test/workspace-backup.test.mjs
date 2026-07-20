@@ -50,9 +50,44 @@ test("mergeProjects reassigns conflicting ids", () => {
   assert.ok(projects.some((item) => item.name === "现有" && item.id === "a"));
 });
 
+test("mergeProjects reassigns duplicate ids within one import", () => {
+  const incoming = [{ id: "same", name: "A" }, { id: "same", name: "B" }];
+  let n = 0;
+  const { imported } = mergeProjects([], incoming, {
+    makeId: () => `new-${++n}`,
+    reassignOnConflict: true
+  });
+  assert.deepEqual(imported.map((item) => item.id), ["same", "new-1"]);
+});
+
 test("parseBackupJson rejects unknown payloads", () => {
   assert.throws(() => parseBackupJson("{}"), /无法识别/);
   assert.throws(() => parseBackupJson("not-json"), /合法 JSON/);
+});
+
+test("parseBackupJson rejects unsupported schema versions", () => {
+  const payload = {
+    format: BACKUP_FORMAT_WORKSPACE,
+    schemaVersion: 999,
+    state: { projects: [{ id: "p1", name: "Demo" }] }
+  };
+  assert.throws(() => parseBackupJson(JSON.stringify(payload)), /不支持的备份版本/);
+});
+
+test("parseBackupJson rejects malformed projects and duplicate ids", () => {
+  const malformed = {
+    format: BACKUP_FORMAT_WORKSPACE,
+    schemaVersion: 1,
+    state: { projects: ["garbage"] }
+  };
+  assert.throws(() => parseBackupJson(JSON.stringify(malformed)), /项目结构无效/);
+
+  const duplicate = {
+    format: BACKUP_FORMAT_WORKSPACE,
+    schemaVersion: 1,
+    state: { projects: [{ id: "dup", name: "A" }, { id: "dup", name: "B" }] }
+  };
+  assert.throws(() => parseBackupJson(JSON.stringify(duplicate)), /重复项目 ID/);
 });
 
 test("backupFileName sanitizes project names", () => {

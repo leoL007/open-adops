@@ -6,6 +6,27 @@ function isObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function supportedSchemaVersion(payload) {
+  const schemaVersion = Number(payload.schemaVersion);
+  if (!Number.isInteger(schemaVersion) || schemaVersion !== BACKUP_SCHEMA_VERSION) {
+    throw new Error(`不支持的备份版本：${payload.schemaVersion ?? "缺失"}`);
+  }
+  return schemaVersion;
+}
+
+function validatedProjects(projects, emptyMessage) {
+  if (!Array.isArray(projects) || projects.length === 0) throw new Error(emptyMessage);
+  const ids = new Set();
+  for (const [index, project] of projects.entries()) {
+    if (!isObject(project) || typeof project.id !== "string" || !project.id.trim()) {
+      throw new Error(`备份中的第 ${index + 1} 个项目结构无效`);
+    }
+    if (ids.has(project.id)) throw new Error(`备份中存在重复项目 ID：${project.id}`);
+    ids.add(project.id);
+  }
+  return projects;
+}
+
 function sanitizeFilePart(value) {
   return String(value || "openadops")
     .trim()
@@ -55,13 +76,11 @@ export function parseBackupJson(text) {
   if (!isObject(payload)) throw new Error("备份文件结构无效");
 
   if (payload.format === BACKUP_FORMAT_WORKSPACE) {
-    const projects = payload.state?.projects;
-    if (!Array.isArray(projects) || projects.length === 0) {
-      throw new Error("工作区备份中没有项目");
-    }
+    const schemaVersion = supportedSchemaVersion(payload);
+    const projects = validatedProjects(payload.state?.projects, "工作区备份中没有项目");
     return {
       kind: "workspace",
-      schemaVersion: Number(payload.schemaVersion) || 1,
+      schemaVersion,
       appVersion: String(payload.appVersion || ""),
       exportedAt: String(payload.exportedAt || ""),
       projects,
@@ -71,29 +90,29 @@ export function parseBackupJson(text) {
   }
 
   if (payload.format === BACKUP_FORMAT_PROJECT) {
-    if (!isObject(payload.project) || !payload.project.id) {
-      throw new Error("项目备份中没有有效项目");
-    }
+    const schemaVersion = supportedSchemaVersion(payload);
+    const [project] = validatedProjects([payload.project], "项目备份中没有有效项目");
     return {
       kind: "project",
-      schemaVersion: Number(payload.schemaVersion) || 1,
+      schemaVersion,
       appVersion: String(payload.appVersion || ""),
       exportedAt: String(payload.exportedAt || ""),
-      projects: [payload.project],
-      activeProjectId: payload.project.id,
+      projects: [project],
+      activeProjectId: project.id,
       aiMode: "mock"
     };
   }
 
   // Tolerate raw state dumps saved manually.
   if (Array.isArray(payload.projects) && payload.projects.length) {
+    const projects = validatedProjects(payload.projects, "工作区备份中没有项目");
     return {
       kind: "workspace",
       schemaVersion: 1,
       appVersion: "",
       exportedAt: "",
-      projects: payload.projects,
-      activeProjectId: payload.activeProjectId || payload.projects[0]?.id || "",
+      projects,
+      activeProjectId: payload.activeProjectId || projects[0].id,
       aiMode: payload.aiMode === "codex" ? "codex" : "mock"
     };
   }
