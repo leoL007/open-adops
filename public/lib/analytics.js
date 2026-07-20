@@ -199,18 +199,117 @@ function aggregate(rows) {
   };
 }
 
+export function normalizeDate(value) {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
+  if (match) return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+  const candidate = raw.split(/[T\s]/, 1)[0];
+  return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : "";
+}
+
 function periodForRows(rows) {
-  const dates = [...new Set(rows.map((row) => {
-    const raw = String(row.date || "").trim();
-    const match = raw.match(/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
-    if (match) return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
-    return raw.split(/[T\s]/, 1)[0];
-  }).filter(Boolean))].sort();
+  const dates = [...new Set(rows.map((row) => normalizeDate(row.date)).filter(Boolean))].sort();
   return {
     startDate: dates[0] || "",
     endDate: dates.at(-1) || "",
     activeDays: dates.length,
     dates
+  };
+}
+
+export function filterRowsByDate(rows, startDate, endDate) {
+  const start = normalizeDate(startDate);
+  const end = normalizeDate(endDate);
+  if (!start || !end || start > end) return [];
+  return (Array.isArray(rows) ? rows : []).filter((row) => {
+    const date = normalizeDate(row.date);
+    return date && date >= start && date <= end;
+  });
+}
+
+export function defaultComparisonRanges(rows) {
+  const dates = periodForRows(Array.isArray(rows) ? rows : []).dates;
+  const windowSize = Math.floor(dates.length / 2);
+  if (windowSize < 1) return null;
+  const currentDates = dates.slice(-windowSize);
+  const previousDates = dates.slice(-(windowSize * 2), -windowSize);
+  return {
+    previousStart: previousDates[0],
+    previousEnd: previousDates.at(-1),
+    currentStart: currentDates[0],
+    currentEnd: currentDates.at(-1)
+  };
+}
+
+const COMPARISON_METRICS = {
+  spend: { fields: ["spend"], preference: "neutral" },
+  installs: { fields: ["installs"], preference: "neutral" },
+  af_installs: { fields: ["af_installs"], preference: "neutral" },
+  cpi: { fields: ["spend", "installs"], preference: "lower" },
+  afCpi: { fields: ["spend", "af_installs"], preference: "lower" },
+  conversions: { fields: ["conversions"], preference: "neutral" },
+  cpa: { fields: ["spend", "conversions"], preference: "lower" },
+  roas: { fields: ["spend", "revenue"], preference: "higher" }
+};
+
+function metricChange(current, previous, preference) {
+  const delta = current - previous;
+  const relativeChange = previous === 0 ? null : delta / Math.abs(previous);
+  const trend = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
+  let assessment = "neutral";
+  if (trend !== "flat" && preference !== "neutral") {
+    assessment = (preference === "higher" && trend === "up") || (preference === "lower" && trend === "down")
+      ? "positive"
+      : "negative";
+  }
+  return { current, previous, delta, relativeChange, trend, assessment };
+}
+
+function normalizedRangeValue(value) {
+  const normalized = normalizeDate(value);
+  if (!normalized) throw new Error("对比区间日期无效");
+  return normalized;
+}
+
+export function calculatePeriodComparison(rows, ranges, { availableFields = [] } = {}) {
+  if (!Array.isArray(rows) || !rows.length) throw new Error("没有可对比的数据行");
+  const normalizedRanges = {
+    previousStart: normalizedRangeValue(ranges?.previousStart),
+    previousEnd: normalizedRangeValue(ranges?.previousEnd),
+    currentStart: normalizedRangeValue(ranges?.currentStart),
+    currentEnd: normalizedRangeValue(ranges?.currentEnd)
+  };
+  if (normalizedRanges.previousStart > normalizedRanges.previousEnd || normalizedRanges.currentStart > normalizedRanges.currentEnd) {
+    throw new Error("对比区间开始日期不能晚于结束日期");
+  }
+  if (normalizedRanges.previousEnd >= normalizedRanges.currentStart) {
+    throw new Error("对比期必须早于本期，且两个区间不能重叠");
+  }
+
+  const previousRows = filterRowsByDate(rows, normalizedRanges.previousStart, normalizedRanges.previousEnd);
+  const currentRows = filterRowsByDate(rows, normalizedRanges.currentStart, normalizedRanges.currentEnd);
+  const fields = new Set(availableFields);
+  const previousSummary = aggregate(previousRows);
+  const currentSummary = aggregate(currentRows);
+  const availableMetrics = Object.entries(COMPARISON_METRICS)
+    .filter(([, definition]) => definition.fields.every((field) => fields.has(field)))
+    .map(([metric]) => metric);
+  const available = previousRows.length > 0 && currentRows.length > 0;
+  const changes = available
+    ? Object.fromEntries(availableMetrics.map((metric) => [
+        metric,
+        metricChange(currentSummary[metric], previousSummary[metric], COMPARISON_METRICS[metric].preference)
+      ]))
+    : {};
+
+  return {
+    available,
+    reason: available ? "" : "所选区间至少有一段没有数据",
+    ranges: normalizedRanges,
+    availableMetrics,
+    previous: { rowCount: previousRows.length, summary: previousSummary, period: periodForRows(previousRows) },
+    current: { rowCount: currentRows.length, summary: currentSummary, period: periodForRows(currentRows) },
+    changes
   };
 }
 

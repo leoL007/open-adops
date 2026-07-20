@@ -1,6 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { calculateMetrics, detectMapping, mapRows, parseCsv } from "../public/lib/analytics.js";
+import {
+  calculateMetrics,
+  calculatePeriodComparison,
+  defaultComparisonRanges,
+  detectMapping,
+  filterRowsByDate,
+  mapRows,
+  normalizeDate,
+  parseCsv
+} from "../public/lib/analytics.js";
 
 test("parseCsv supports quoted commas and BOM", () => {
   const parsed = parseCsv('\uFEFFPlatform,Campaign,Spend,AF Installs\nMeta Ads,"US, Broad",120.5,40\n');
@@ -76,4 +85,69 @@ test("calculateMetrics preserves one declared conversion event per aggregate", (
   const metrics = calculateMetrics(mapRows(parsed.rows, detectMapping(parsed.headers)));
   assert.equal(metrics.summary.conversionEvent, "Registration");
   assert.equal(metrics.byPlatform[0].conversionEvent, "Registration");
+});
+
+test("date helpers normalize dates and build equal active-day windows", () => {
+  assert.equal(normalizeDate("2026/07/02 08:00:00"), "2026-07-02");
+  assert.equal(normalizeDate("not-a-date"), "");
+  const rows = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05"]
+    .map((date) => ({ date }));
+  assert.deepEqual(defaultComparisonRanges(rows), {
+    previousStart: "2026-07-02",
+    previousEnd: "2026-07-03",
+    currentStart: "2026-07-04",
+    currentEnd: "2026-07-05"
+  });
+  assert.equal(filterRowsByDate(rows, "2026-07-03", "2026-07-04").length, 2);
+});
+
+test("period comparison keeps exact metric identities and calculates deterministic changes", () => {
+  const parsed = parseCsv("Date,Spend,Media Installs,AF Installs,Conversions,Revenue\n2026-07-01,100,50,40,10,120\n2026-07-02,120,60,48,12,144\n2026-07-03,150,60,50,15,210\n2026-07-04,180,72,60,18,270\n");
+  const mapping = detectMapping(parsed.headers);
+  const rows = mapRows(parsed.rows, mapping);
+  const comparison = calculatePeriodComparison(rows, defaultComparisonRanges(rows), {
+    availableFields: Object.keys(mapping).filter((field) => mapping[field])
+  });
+  assert.equal(comparison.available, true);
+  assert.equal(comparison.previous.summary.installs, 110);
+  assert.equal(comparison.previous.summary.af_installs, 88);
+  assert.equal(comparison.current.summary.installs, 132);
+  assert.equal(comparison.current.summary.af_installs, 110);
+  assert.equal(comparison.changes.cpi.assessment, "negative");
+  assert.equal(comparison.changes.afCpi.assessment, "negative");
+  assert.equal(comparison.changes.roas.assessment, "positive");
+  assert.equal(comparison.changes.spend.assessment, "neutral");
+});
+
+test("period comparison omits metrics whose source columns were not mapped", () => {
+  const rows = [
+    { date: "2026-07-01", spend: 100, af_installs: 20, installs: 0, revenue: 0 },
+    { date: "2026-07-02", spend: 120, af_installs: 30, installs: 0, revenue: 0 }
+  ];
+  const comparison = calculatePeriodComparison(rows, defaultComparisonRanges(rows), {
+    availableFields: ["date", "spend", "af_installs"]
+  });
+  assert.ok(comparison.availableMetrics.includes("af_installs"));
+  assert.ok(comparison.availableMetrics.includes("afCpi"));
+  assert.ok(!comparison.availableMetrics.includes("installs"));
+  assert.ok(!comparison.availableMetrics.includes("cpi"));
+  assert.ok(!comparison.availableMetrics.includes("roas"));
+});
+
+test("period comparison rejects overlapping windows without blocking empty-window summaries", () => {
+  const rows = [{ date: "2026-07-01", spend: 100 }, { date: "2026-07-02", spend: 120 }];
+  assert.throws(() => calculatePeriodComparison(rows, {
+    previousStart: "2026-07-01",
+    previousEnd: "2026-07-02",
+    currentStart: "2026-07-02",
+    currentEnd: "2026-07-03"
+  }, { availableFields: ["date", "spend"] }), /不能重叠/);
+  const empty = calculatePeriodComparison(rows, {
+    previousStart: "2026-06-01",
+    previousEnd: "2026-06-02",
+    currentStart: "2026-07-01",
+    currentEnd: "2026-07-02"
+  }, { availableFields: ["date", "spend"] });
+  assert.equal(empty.available, false);
+  assert.match(empty.reason, /没有数据/);
 });

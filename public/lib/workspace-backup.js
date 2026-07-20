@@ -48,6 +48,7 @@ export function buildWorkspaceBackup(state, { appVersion = "", exportedAt = new 
     state: {
       activeProjectId: state.activeProjectId || state.projects[0]?.id || "",
       aiMode: state.aiMode === "codex" ? "codex" : "mock",
+      mappingProfiles: Array.isArray(state.mappingProfiles) ? state.mappingProfiles : [],
       projects: state.projects
     }
   };
@@ -85,7 +86,8 @@ export function parseBackupJson(text) {
       exportedAt: String(payload.exportedAt || ""),
       projects,
       activeProjectId: payload.state?.activeProjectId || projects[0]?.id || "",
-      aiMode: payload.state?.aiMode === "codex" ? "codex" : "mock"
+      aiMode: payload.state?.aiMode === "codex" ? "codex" : "mock",
+      mappingProfiles: Array.isArray(payload.state?.mappingProfiles) ? payload.state.mappingProfiles : []
     };
   }
 
@@ -99,7 +101,8 @@ export function parseBackupJson(text) {
       exportedAt: String(payload.exportedAt || ""),
       projects: [project],
       activeProjectId: project.id,
-      aiMode: "mock"
+      aiMode: "mock",
+      mappingProfiles: []
     };
   }
 
@@ -113,7 +116,8 @@ export function parseBackupJson(text) {
       exportedAt: "",
       projects,
       activeProjectId: payload.activeProjectId || projects[0].id,
-      aiMode: payload.aiMode === "codex" ? "codex" : "mock"
+      aiMode: payload.aiMode === "codex" ? "codex" : "mock",
+      mappingProfiles: Array.isArray(payload.mappingProfiles) ? payload.mappingProfiles : []
     };
   }
 

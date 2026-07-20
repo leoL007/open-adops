@@ -1,4 +1,13 @@
-import { FIELD_LABELS, calculateMetrics, detectMapping, formatMetric, mapRows, parseCsv } from "./lib/analytics.js";
+import {
+  FIELD_LABELS,
+  calculateMetrics,
+  calculatePeriodComparison,
+  defaultComparisonRanges,
+  detectMapping,
+  formatMetric,
+  mapRows,
+  parseCsv
+} from "./lib/analytics.js";
 import {
   enrichExperimentPlan,
   experimentConclusionComplete,
@@ -22,6 +31,15 @@ import {
   tasksFromCreativeTests
 } from "./lib/creative-production.js";
 import { modelFullName, modelRouteDetail, modelVariantName } from "./lib/model-labels.js";
+import {
+  applyMappingProfile,
+  mappingProfileCompatibility,
+  mergeMappingProfiles,
+  normalizeMappingProfiles,
+  removeMappingProfile,
+  suggestMappingProfile,
+  upsertMappingProfile
+} from "./lib/mapping-profiles.js";
 import {
   PERFORMANCE_TARGET_METRICS,
   PERFORMANCE_TARGET_STATUSES,
@@ -102,6 +120,21 @@ function demoMetrics() {
   const parsed = parseCsv(DEMO_CSV);
   const mapping = detectMapping(parsed.headers);
   return calculateMetrics(mapRows(parsed.rows, mapping));
+}
+
+function demoAvailableFields() {
+  const parsed = parseCsv(DEMO_CSV);
+  const mapping = detectMapping(parsed.headers);
+  return Object.keys(mapping).filter((field) => mapping[field]);
+}
+
+function demoComparison() {
+  const parsed = parseCsv(DEMO_CSV);
+  const mapping = detectMapping(parsed.headers);
+  const rows = mapRows(parsed.rows, mapping);
+  return calculatePeriodComparison(rows, defaultComparisonRanges(rows), {
+    availableFields: Object.keys(mapping).filter((field) => mapping[field])
+  });
 }
 
 function createIntake(overrides = {}) {
@@ -190,6 +223,8 @@ function createDemoProject() {
       fileName: "openadops-demo.csv",
       importedAt: new Date().toISOString(),
       metrics: demoMetrics(),
+      comparison: demoComparison(),
+      availableFields: demoAvailableFields(),
       isDemo: true
     },
     intake: createIntake({
@@ -225,7 +260,7 @@ function createDemoProject() {
 
 function initialState() {
   const demo = createDemoProject();
-  return { activeProjectId: demo.id, aiMode: "mock", projects: [demo] };
+  return { activeProjectId: demo.id, aiMode: "mock", mappingProfiles: [], projects: [demo] };
 }
 
 function loadState() {
@@ -236,6 +271,7 @@ function loadState() {
         const normalized = {
           ...stored,
           aiMode: stored.aiMode || "mock",
+          mappingProfiles: normalizeMappingProfiles(stored.mappingProfiles),
           projects: stored.projects.map((project) => {
             const normalizedProject = {
               ...project,
@@ -505,15 +541,36 @@ function pageHeader(eyebrow, title, description, actions = "") {
   </header>`;
 }
 
+function dataHasField(project, field) {
+  const available = project.data?.availableFields;
+  if (Array.isArray(available)) return available.includes(field);
+  const summary = project.data?.metrics?.summary || {};
+  const legacyEvidence = {
+    spend: summary.spend,
+    impressions: summary.impressions,
+    clicks: summary.clicks,
+    installs: summary.installs,
+    af_installs: summary.af_installs,
+    conversions: summary.conversions,
+    revenue: summary.revenue,
+    d1_retained: summary.d1_retained
+  };
+  return Number(legacyEvidence[field]) > 0;
+}
+
+function availableMetric(project, field, value, type = "number") {
+  return dataHasField(project, field) ? formatMetric(value, type, project.currency || "USD") : "—";
+}
+
 function metricCards(project) {
   const summary = project.data?.metrics?.summary || {};
   const currency = project.currency || "USD";
   // Keep four primary operator metrics on the overview; detail lives in tables below.
   const cards = [
     ["花费", formatMetric(summary.spend, "currency", currency), project.data ? `${project.data.metrics.rowCount} 行数据` : "待导入 CSV"],
-    ["AF 安装", formatMetric(summary.af_installs || summary.installs), summary.af_installs ? "AppsFlyer 归因" : "媒体安装回退"],
-    ["AF-CPI", formatMetric(summary.afCpi, "currency", currency), targetHint(project, "af_cpi")],
-    ["ROAS", formatMetric(summary.roas, "ratio"), targetHint(project, "roas")]
+    ["AF 安装", availableMetric(project, "af_installs", summary.af_installs), dataHasField(project, "af_installs") ? "AppsFlyer 归因" : "未导入 AF 安装"],
+    ["AF-CPI", dataHasField(project, "af_installs") ? formatMetric(summary.afCpi, "currency", currency) : "—", targetHint(project, "af_cpi")],
+    ["ROAS", dataHasField(project, "revenue") ? formatMetric(summary.roas, "ratio") : "—", targetHint(project, "roas")]
   ];
   return `<div class="metric-grid">${cards
     .map(([label, value, hint]) => `<div class="metric-card"><span>${label}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(hint)}</small></div>`)
@@ -523,17 +580,19 @@ function metricCards(project) {
 function platformTable(project) {
   const rows = project.data?.metrics?.byPlatform || [];
   if (!rows.length) return emptyState("还没有媒体数据", "前往投放优化页导入 CSV，工作台会自动生成媒体与国家表现。", "optimize", "导入数据");
+  const hasMediaInstalls = dataHasField(project, "installs");
+  const hasAfInstalls = dataHasField(project, "af_installs");
+  const hasCtr = dataHasField(project, "clicks") && dataHasField(project, "impressions");
+  const hasRevenue = dataHasField(project, "revenue");
   return `<div class="table-wrap"><table>
-    <thead><tr><th>媒体</th><th>Spend</th><th>AF Installs</th><th>CTR</th><th>CVR</th><th>AF-CPI</th><th>D1 Ret.</th><th>ROAS</th></tr></thead>
+    <thead><tr><th>媒体</th><th>花费</th>${hasMediaInstalls ? "<th>媒体安装</th><th>媒体 CPI</th>" : ""}${hasAfInstalls ? "<th>AF 安装</th><th>AF-CPI</th>" : ""}${hasCtr ? "<th>CTR</th>" : ""}${hasRevenue ? "<th>ROAS</th>" : ""}</tr></thead>
     <tbody>${rows.map((item) => `<tr>
       <td><strong>${escapeHtml(item.name)}</strong></td>
       <td>${formatMetric(item.spend, "currency", project.currency)}</td>
-      <td>${formatMetric(item.af_installs || item.installs)}</td>
-      <td>${formatMetric(item.ctr, "percent")}</td>
-      <td>${formatMetric(item.cvr, "percent")}</td>
-      <td>${formatMetric(item.afCpi, "currency", project.currency)}</td>
-      <td>${formatMetric(item.d1Retention, "percent")}</td>
-      <td>${formatMetric(item.roas, "ratio")}</td>
+      ${hasMediaInstalls ? `<td>${formatMetric(item.installs)}</td><td>${formatMetric(item.cpi, "currency", project.currency)}</td>` : ""}
+      ${hasAfInstalls ? `<td>${formatMetric(item.af_installs)}</td><td>${formatMetric(item.afCpi, "currency", project.currency)}</td>` : ""}
+      ${hasCtr ? `<td>${formatMetric(item.ctr, "percent")}</td>` : ""}
+      ${hasRevenue ? `<td>${formatMetric(item.roas, "ratio")}</td>` : ""}
     </tr>`).join("")}</tbody>
   </table></div>`;
 }
@@ -545,7 +604,7 @@ function spendBars(project, group = "byCountry") {
   return `<div class="bar-list">${rows.slice(0, 6).map((row) => `<div class="bar-row">
     <strong>${escapeHtml(row.name)}</strong>
     <div class="bar-track"><div class="bar-fill" style="width:${Math.max(3, (row.spend / max) * 100).toFixed(1)}%"></div></div>
-    <div class="bar-value">${formatMetric(row.afCpi, "currency", project.currency)}</div>
+    <div class="bar-value">${dataHasField(project, "af_installs") ? formatMetric(row.afCpi, "currency", project.currency) : dataHasField(project, "installs") ? formatMetric(row.cpi, "currency", project.currency) : "—"}</div>
   </div>`).join("")}</div>`;
 }
 
@@ -743,7 +802,7 @@ function renderOverview(project) {
       </aside>
     </div>
     <section class="card mb-16"><div class="card-header"><div><h2>媒体表现矩阵</h2><p>媒体口径与 AF 口径并列，避免只看平台安装</p></div><span class="card-label">MEDIA × ATTRIBUTION</span></div>${platformTable(project)}</section>
-    <section class="card"><div class="card-header"><div><h2>国家效率</h2><p>横条为花费占比，右侧显示 AF-CPI</p></div></div>${spendBars(project)}</section>`;
+    <section class="card"><div class="card-header"><div><h2>国家效率</h2><p>横条为花费占比，右侧优先显示 AF-CPI；缺失时显示媒体 CPI</p></div></div>${spendBars(project)}</section>`;
 }
 
 function performanceTargetEditor(project) {
@@ -1155,10 +1214,76 @@ function renderExperiments(project) {
     ${renderExperimentPlanResult(project)}`;
 }
 
+function comparisonRangePanel() {
+  if (!importSession?.mapping?.date) {
+    return `<div class="comparison-range-panel unavailable"><strong>周期对比</strong><span>映射“日期”字段后，可比较两个独立区间。</span></div>`;
+  }
+  const ranges = importSession.comparisonRanges;
+  if (!ranges) {
+    return `<div class="comparison-range-panel unavailable"><strong>周期对比</strong><span>至少需要 2 个有效日期；当前数据仍可计算汇总指标。</span></div>`;
+  }
+  const controls = [
+    ["previousStart", "对比期开始"],
+    ["previousEnd", "对比期结束"],
+    ["currentStart", "本期开始"],
+    ["currentEnd", "本期结束"]
+  ];
+  return `<div class="comparison-range-panel"><div class="comparison-range-header"><div><strong>周期对比</strong><span>默认取最近两段等量有效日期，可手动调整；区间不得重叠。</span></div><button class="button button-ghost button-small" data-reset-comparison-ranges>恢复默认</button></div><div class="comparison-range-grid">${controls.map(([field, label]) => `<label><span>${label}</span><input type="date" data-comparison-range="${field}" value="${attr(ranges[field])}" /></label>`).join("")}</div></div>`;
+}
+
 function mappingPanel() {
   if (!importSession) return "";
+  const profiles = normalizeMappingProfiles(state.mappingProfiles);
+  const selected = profiles.find((profile) => profile.id === importSession.profileId);
+  const compatibility = selected ? mappingProfileCompatibility(selected, importSession.parsed.headers) : null;
+  const profileOptions = profiles.map((profile) => {
+    const match = mappingProfileCompatibility(profile, importSession.parsed.headers);
+    return `<option value="${attr(profile.id)}" ${profile.id === selected?.id ? "selected" : ""}>${escapeHtml(profile.name)} · 匹配 ${match.matched}/${match.total}</option>`;
+  }).join("");
   return `<div class="mt-16"><div class="card-header"><div><h3>字段映射 · ${escapeHtml(importSession.name)}</h3><p>已识别 ${importSession.parsed.rows.length} 行；请确认关键字段后计算</p></div><button class="button button-primary button-small" data-apply-import>计算并写入项目</button></div>
-    <div class="mapping-grid">${Object.entries(FIELD_LABELS).map(([field, label]) => `<div class="mapping-item"><label>${escapeHtml(label)}</label><select class="mapping-select" data-map-field="${field}"><option value="">不映射</option>${importSession.parsed.headers.map((header) => `<option value="${attr(header)}" ${importSession.mapping[field] === header ? "selected" : ""}>${escapeHtml(header)}</option>`).join("")}</select></div>`).join("")}</div></div>`;
+    <div class="mapping-profile-bar"><div><label for="mappingProfileSelect">映射模板</label><select id="mappingProfileSelect" class="mapping-select" data-mapping-profile><option value="">不使用模板</option>${profileOptions}</select>${compatibility ? `<small>当前文件匹配 ${compatibility.matched}/${compatibility.total} 个已映射字段</small>` : `<small>保存后可复用于相同媒体或 AppsFlyer 报表</small>`}</div><div class="inline-actions"><button class="button button-ghost button-small" data-apply-mapping-profile ${selected ? "" : "disabled"}>应用模板</button><button class="button button-secondary button-small" data-save-mapping-profile>保存当前映射</button><button class="button button-ghost button-small" data-delete-mapping-profile ${selected ? "" : "disabled"}>删除</button></div></div>
+    <div class="mapping-grid">${Object.entries(FIELD_LABELS).map(([field, label]) => `<div class="mapping-item"><label>${escapeHtml(label)}</label><select class="mapping-select" data-map-field="${field}"><option value="">不映射</option>${importSession.parsed.headers.map((header) => `<option value="${attr(header)}" ${importSession.mapping[field] === header ? "selected" : ""}>${escapeHtml(header)}</option>`).join("")}</select></div>`).join("")}</div>${comparisonRangePanel()}</div>`;
+}
+
+const COMPARISON_METRIC_UI = {
+  spend: { label: "花费", type: "currency" },
+  installs: { label: "媒体安装", type: "number" },
+  af_installs: { label: "AF 安装", type: "number" },
+  cpi: { label: "媒体 CPI", type: "currency" },
+  afCpi: { label: "AF-CPI", type: "currency" },
+  conversions: { label: "目标转化", type: "number" },
+  cpa: { label: "CPA", type: "currency" },
+  roas: { label: "ROAS", type: "ratio" }
+};
+
+function comparisonValue(value, type, currency) {
+  return formatMetric(value, type, currency);
+}
+
+function comparisonChange(change) {
+  if (!change) return `<span class="comparison-change neutral">—</span>`;
+  if (change.trend === "flat") return `<span class="comparison-change neutral">持平</span>`;
+  const prefix = change.relativeChange !== null && change.relativeChange > 0 ? "+" : "";
+  const label = change.relativeChange === null
+    ? "基期为 0"
+    : `${prefix}${formatMetric(change.relativeChange, "percent")}`;
+  return `<span class="comparison-change ${attr(change.assessment)}">${escapeHtml(label)}</span>`;
+}
+
+function periodComparison(project) {
+  const comparison = project.data?.comparison;
+  if (!comparison) return "";
+  const rangeLabel = (range, period) => `${range} · ${period.activeDays} 个有效日期`;
+  const previousLabel = `${comparison.ranges.previousStart}–${comparison.ranges.previousEnd}`;
+  const currentLabel = `${comparison.ranges.currentStart}–${comparison.ranges.currentEnd}`;
+  if (!comparison.available) {
+    return `<section class="card mb-16"><div class="card-header"><div><h2>周期对比</h2><p>${escapeHtml(comparison.reason || "当前区间无法比较")}</p></div></div></section>`;
+  }
+  const metrics = (comparison.availableMetrics || []).filter((metric) => COMPARISON_METRIC_UI[metric]);
+  return `<section class="card comparison-card mb-16"><div class="card-header"><div><h2>周期对比</h2><p>代码按相同指标口径计算相对变化；花费与量级只显示变化，不判定好坏。</p></div><span class="card-label">${escapeHtml(currentLabel)}</span></div><div class="comparison-periods"><span>对比期 · ${escapeHtml(rangeLabel(previousLabel, comparison.previous.period))}</span><span>本期 · ${escapeHtml(rangeLabel(currentLabel, comparison.current.period))}</span></div><div class="table-wrap"><table><thead><tr><th>指标</th><th>对比期</th><th>本期</th><th>相对变化</th></tr></thead><tbody>${metrics.map((metric) => {
+    const definition = COMPARISON_METRIC_UI[metric];
+    return `<tr><td><strong>${escapeHtml(definition.label)}</strong></td><td>${comparisonValue(comparison.previous.summary[metric], definition.type, project.currency)}</td><td>${comparisonValue(comparison.current.summary[metric], definition.type, project.currency)}</td><td>${comparisonChange(comparison.changes[metric])}</td></tr>`;
+  }).join("")}</tbody></table></div></section>`;
 }
 
 function renderOptimize(project) {
@@ -1169,7 +1294,8 @@ function renderOptimize(project) {
       ${mappingPanel()}
     </section>
     ${metricCards(project)}
-    <div class="grid grid-2 mb-16"><section class="card"><div class="card-header"><div><h2>媒体对比</h2></div></div>${platformTable(project)}</section><section class="card"><div class="card-header"><div><h2>国家效率</h2><p>右侧为 AF-CPI</p></div></div>${spendBars(project)}</section></div>
+    ${periodComparison(project)}
+    <div class="grid grid-2 mb-16"><section class="card"><div class="card-header"><div><h2>媒体对比</h2></div></div>${platformTable(project)}</section><section class="card"><div class="card-header"><div><h2>国家效率</h2><p>横条为花费，右侧优先显示 AF-CPI；缺失时显示媒体 CPI</p></div></div>${spendBars(project)}</section></div>
     <section class="card">${analysisToolbar("optimize")}${aiResult(project, "optimize")}</section>`;
 }
 
@@ -1480,7 +1606,27 @@ function attachPageListeners() {
   document.querySelectorAll("[data-restore-experiment-version]").forEach((button) => button.addEventListener("click", () => restoreExperimentVersion(button.dataset.restoreExperimentVersion)));
   document.querySelector("[data-export-experiments]")?.addEventListener("click", exportExperimentMarkdown);
   document.querySelector("[data-export-experiment-html]")?.addEventListener("click", exportExperimentHtml);
-  document.querySelectorAll("[data-map-field]").forEach((select) => select.addEventListener("change", () => { importSession.mapping[select.dataset.mapField] = select.value; }));
+  document.querySelectorAll("[data-map-field]").forEach((select) => select.addEventListener("change", () => {
+    importSession.mapping[select.dataset.mapField] = select.value;
+    if (select.dataset.mapField === "date") {
+      resetImportComparisonRanges();
+      render();
+    }
+  }));
+  document.querySelector("[data-mapping-profile]")?.addEventListener("change", (event) => {
+    importSession.profileId = event.target.value;
+    render();
+  });
+  document.querySelector("[data-apply-mapping-profile]")?.addEventListener("click", applySelectedMappingProfile);
+  document.querySelector("[data-save-mapping-profile]")?.addEventListener("click", saveCurrentMappingProfile);
+  document.querySelector("[data-delete-mapping-profile]")?.addEventListener("click", deleteSelectedMappingProfile);
+  document.querySelectorAll("[data-comparison-range]").forEach((input) => input.addEventListener("change", () => {
+    if (importSession?.comparisonRanges) importSession.comparisonRanges[input.dataset.comparisonRange] = input.value;
+  }));
+  document.querySelector("[data-reset-comparison-ranges]")?.addEventListener("click", () => {
+    resetImportComparisonRanges();
+    render();
+  });
   document.querySelector("[data-apply-import]")?.addEventListener("click", applyImport);
   document.querySelector("[data-load-demo]")?.addEventListener("click", () => prepareImport("openadops-demo.csv", DEMO_CSV, true));
   document.querySelector("#csvInput")?.addEventListener("change", handleFileInput);
@@ -1505,12 +1651,81 @@ async function handleFileInput(event) {
 function prepareImport(name, text, isDemo) {
   try {
     const parsed = parseCsv(text);
-    importSession = { name, parsed, mapping: detectMapping(parsed.headers), isDemo };
+    const suggested = suggestMappingProfile(state.mappingProfiles, parsed.headers);
+    const applied = suggested ? applyMappingProfile(suggested, parsed.headers) : null;
+    const autoApplied = applied?.compatibility.total > 0 && applied.compatibility.ratio === 1;
+    const mapping = autoApplied ? applied.mapping : detectMapping(parsed.headers);
+    importSession = {
+      name,
+      parsed,
+      mapping,
+      profileId: suggested?.id || "",
+      comparisonRanges: mapping.date ? defaultComparisonRanges(mapRows(parsed.rows, mapping)) : null,
+      isDemo
+    };
     render();
-    showToast(`已读取 ${parsed.rows.length} 行，请确认字段映射`);
+    showToast(autoApplied
+      ? `已读取 ${parsed.rows.length} 行，并套用映射模板「${suggested.name}」`
+      : `已读取 ${parsed.rows.length} 行，请确认字段映射`);
   } catch (error) {
     showToast(`CSV 读取失败：${error.message}`, "error");
   }
+}
+
+function resetImportComparisonRanges() {
+  if (!importSession?.mapping?.date) {
+    if (importSession) importSession.comparisonRanges = null;
+    return;
+  }
+  importSession.comparisonRanges = defaultComparisonRanges(
+    mapRows(importSession.parsed.rows, importSession.mapping)
+  );
+}
+
+function applySelectedMappingProfile() {
+  if (!importSession?.profileId) return;
+  const profile = normalizeMappingProfiles(state.mappingProfiles).find((item) => item.id === importSession.profileId);
+  if (!profile) {
+    showToast("映射模板不存在", "error");
+    return;
+  }
+  const { mapping, compatibility } = applyMappingProfile(profile, importSession.parsed.headers);
+  importSession.mapping = mapping;
+  resetImportComparisonRanges();
+  render();
+  showToast(`已应用「${profile.name}」，匹配 ${compatibility.matched}/${compatibility.total} 个字段`);
+}
+
+function saveCurrentMappingProfile() {
+  if (!importSession) return;
+  const selected = normalizeMappingProfiles(state.mappingProfiles).find((item) => item.id === importSession.profileId);
+  const fallbackName = selected?.name || importSession.name.replace(/\.csv$/i, "").slice(0, 40) || "报表映射";
+  const name = window.prompt("映射模板名称", fallbackName)?.trim();
+  if (!name) return;
+  try {
+    const result = upsertMappingProfile(state.mappingProfiles, {
+      id: selected?.id,
+      name,
+      mapping: importSession.mapping,
+      headers: importSession.parsed.headers
+    }, { makeId });
+    if (!commitState({ ...state, mappingProfiles: result.profiles })) return;
+    importSession.profileId = result.profile.id;
+    render();
+    showToast(`已保存映射模板「${result.profile.name}」`);
+  } catch (error) {
+    showToast(`保存失败：${error.message}`, "error");
+  }
+}
+
+function deleteSelectedMappingProfile() {
+  if (!importSession?.profileId) return;
+  const profile = normalizeMappingProfiles(state.mappingProfiles).find((item) => item.id === importSession.profileId);
+  if (!profile || !window.confirm(`删除映射模板「${profile.name}」？`)) return;
+  if (!commitState({ ...state, mappingProfiles: removeMappingProfile(state.mappingProfiles, profile.id) })) return;
+  importSession.profileId = "";
+  render();
+  showToast(`已删除映射模板「${profile.name}」`);
 }
 
 function applyImport() {
@@ -1521,12 +1736,19 @@ function applyImport() {
     return;
   }
   try {
-    const metrics = calculateMetrics(mapRows(importSession.parsed.rows, mapping));
+    const mappedRows = mapRows(importSession.parsed.rows, mapping);
+    const metrics = calculateMetrics(mappedRows);
+    const availableFields = Object.keys(mapping).filter((field) => mapping[field]);
+    const comparison = mapping.date && importSession.comparisonRanges
+      ? calculatePeriodComparison(mappedRows, importSession.comparisonRanges, { availableFields })
+      : null;
     const saved = updateProject((project) => {
       project.data = {
         fileName: importSession.name,
         importedAt: new Date().toISOString(),
         metrics,
+        comparison,
+        availableFields,
         isDemo: importSession.isDemo
       };
       if (!importSession.isDemo) project.isDemo = false;
@@ -1550,6 +1772,7 @@ function metricsForAi(project) {
     byPlatform: metrics.byPlatform.slice(0, 10),
     byCountry: metrics.byCountry.slice(0, 12),
     byCampaign: metrics.byCampaign.slice(0, 12),
+    comparison: project.data.comparison || null,
     sourceFile: project.data.fileName,
     importedAt: project.data.importedAt,
     dataNotice: project.data.isDemo ? "演示数据" : "用户导入聚合数据"
@@ -2229,6 +2452,7 @@ async function importWorkspaceBackupFile(file) {
     const text = await file.text();
     const parsed = parseBackupJson(text);
     const incoming = parsed.projects.map(normalizeImportedProject);
+    const incomingMappingProfiles = normalizeMappingProfiles(parsed.mappingProfiles);
     if (!incoming.length) {
       showToast("备份里没有可导入的项目", "error");
       return;
@@ -2256,6 +2480,7 @@ async function importWorkspaceBackupFile(file) {
       nextState = {
         activeProjectId: incoming.find((item) => item.id === parsed.activeProjectId)?.id || incoming[0].id,
         aiMode: isStaticDemo ? "mock" : parsed.aiMode || state.aiMode,
+        mappingProfiles: incomingMappingProfiles,
         projects: incoming
       };
     } else {
@@ -2264,9 +2489,11 @@ async function importWorkspaceBackupFile(file) {
         showToast("没有新项目被导入", "error");
         return;
       }
+      const mergedProfiles = mergeMappingProfiles(state.mappingProfiles, incomingMappingProfiles, { makeId });
       nextState = {
         ...state,
         projects,
+        mappingProfiles: mergedProfiles.profiles,
         activeProjectId: imported[0].id
       };
     }
@@ -2429,11 +2656,11 @@ function reportDocument(project) {
   const summary = project.data?.metrics?.summary || {};
   const metricRows = [
     ["Spend", formatMetric(summary.spend, "currency", project.currency)],
-    ["AF Installs", formatMetric(summary.af_installs || summary.installs)],
-    ["AF-CPI", formatMetric(summary.afCpi, "currency", project.currency)],
+    ["AF Installs", availableMetric(project, "af_installs", summary.af_installs)],
+    ["AF-CPI", dataHasField(project, "af_installs") ? formatMetric(summary.afCpi, "currency", project.currency) : "—"],
     ["CTR", formatMetric(summary.ctr, "percent")],
     ["D1 Retention", formatMetric(summary.d1Retention, "percent")],
-    ["ROAS", formatMetric(summary.roas, "ratio")]
+    ["ROAS", dataHasField(project, "revenue") ? formatMetric(summary.roas, "ratio") : "—"]
   ];
   const experimentRows = (project.experiments?.plan?.result?.experiments || []).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(experimentStatusText(item.status))}</td><td>${escapeHtml(feasibilityText(item.feasibility.status))}</td><td>${escapeHtml(experimentOutcomeText(item.result.outcome))}</td><td>${escapeHtml(item.result.learning || item.result.next_action || "等待结果")}</td></tr>`).join("");
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escapeHtml(project.name)}投放报告</title><style>

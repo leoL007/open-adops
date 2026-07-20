@@ -1720,6 +1720,138 @@ tbody tr:hover td {
   margin-top: 15px;
 }
 
+.mapping-profile-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--canvas);
+}
+
+.mapping-profile-bar > div:first-child {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 360px);
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.mapping-profile-bar label {
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.mapping-profile-bar small {
+  grid-column: 2;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.comparison-range-panel {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+}
+
+.comparison-range-panel.unavailable {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.comparison-range-panel.unavailable strong {
+  color: var(--ink);
+}
+
+.comparison-range-header,
+.comparison-periods {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.comparison-range-header strong,
+.comparison-range-header span {
+  display: block;
+}
+
+.comparison-range-header span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.comparison-range-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.comparison-range-grid label span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--ink-soft);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.comparison-range-grid input {
+  width: 100%;
+  height: 36px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.comparison-periods {
+  justify-content: flex-start;
+  margin-bottom: 12px;
+}
+
+.comparison-periods span {
+  padding: 6px 9px;
+  border-radius: 7px;
+  background: var(--canvas);
+  color: var(--ink-soft);
+  font-size: 10px;
+}
+
+.comparison-change {
+  display: inline-flex;
+  min-width: 66px;
+  justify-content: center;
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 750;
+}
+
+.comparison-change.positive {
+  color: var(--success);
+  background: var(--success-soft);
+}
+
+.comparison-change.negative {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.comparison-change.neutral {
+  color: var(--ink-soft);
+  background: var(--canvas);
+}
+
 .mapping-item {
   padding: 11px;
   border: 1px solid var(--line);
@@ -3512,6 +3644,22 @@ tbody tr:hover td {
 
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mapping-profile-bar,
+  .comparison-range-header,
+  .comparison-periods {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .mapping-profile-bar > div:first-child,
+  .comparison-range-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mapping-profile-bar small {
+    grid-column: 1;
   }
 
   .intake-counts {

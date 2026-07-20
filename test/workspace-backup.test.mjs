@@ -14,6 +14,7 @@ test("workspace backup round-trips through JSON", () => {
   const state = {
     activeProjectId: "p1",
     aiMode: "mock",
+    mappingProfiles: [{ id: "m1", name: "AF 标准", mapping: { spend: "Cost" } }],
     projects: [{ id: "p1", name: "Demo", industry: "工具" }]
   };
   const backup = buildWorkspaceBackup(state, { appVersion: "0.4.3", exportedAt: "2026-07-17T00:00:00.000Z" });
@@ -23,6 +24,7 @@ test("workspace backup round-trips through JSON", () => {
   assert.equal(parsed.kind, "workspace");
   assert.equal(parsed.projects[0].name, "Demo");
   assert.equal(parsed.activeProjectId, "p1");
+  assert.equal(parsed.mappingProfiles[0].name, "AF 标准");
 });
 
 test("project backup round-trips through JSON", () => {
@@ -33,6 +35,7 @@ test("project backup round-trips through JSON", () => {
   assert.equal(parsed.kind, "project");
   assert.equal(parsed.projects.length, 1);
   assert.equal(parsed.projects[0].id, "p2");
+  assert.deepEqual(parsed.mappingProfiles, []);
 });
 
 test("mergeProjects reassigns conflicting ids", () => {
