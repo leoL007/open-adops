@@ -69,10 +69,17 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 
 - [ ] XLSX import.
 - [x] Project JSON export/import and backup. *(shipped in v0.4.3)*
-- [ ] Saved mapping profiles for common platform exports.
-- [ ] Date-range comparison and change annotations.
+- [x] Saved mapping profiles for common platform exports.
+- [x] Date-range comparison and change annotations.
 - [ ] English UI and runtime locale switch.
 - [ ] Provider adapter contract for additional coding-agent runtimes.
+
+### v0.5.0 — Reusable data intake
+
+- [x] Save mapping profiles at workspace level and carry them in full-workspace backups.
+- [x] Apply only source columns present in the current file; preserve media and AppsFlyer metric identities.
+- [x] Compare two non-overlapping periods with deterministic relative-change calculations.
+- [x] Keep raw CSV rows transient and persist only aggregate evidence.
 
 ## v0.6 — Evidence and collaboration
 
