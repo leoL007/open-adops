@@ -11,6 +11,7 @@ import { applyExperimentMetricContext, enrichExperimentPlan } from "./public/lib
 import { buildMockExperimentPlan } from "./public/lib/mock-experiment-plan.js";
 import { buildMockIntake } from "./public/lib/mock-intake.js";
 import { buildMockLaunchPack } from "./public/lib/mock-launch-pack.js";
+import { performanceTargetsForAi } from "./public/lib/project-targets.js";
 import { publicAiRoutes, resolveAiRoute } from "./src/ai-router.mjs";
 import { validateAnalysis } from "./src/analysis-validator.mjs";
 import { validateExperimentPlan } from "./src/experiment-validator.mjs";
@@ -81,9 +82,7 @@ function buildAnalysisPrompt({ project, metrics, stage }) {
       budget: project?.budget,
       currency: project?.currency,
       goal: project?.goal,
-      targetCpi: project?.targetCpi,
-      targetCpa: project?.targetCpa,
-      targetRoas: project?.targetRoas,
+      performanceTargets: performanceTargetsForAi(project),
       attribution: project?.attribution,
       sellingPoints: project?.sellingPoints,
       notes: project?.notes,
@@ -99,7 +98,7 @@ function buildAnalysisPrompt({ project, metrics, stage }) {
 
 判断规则：
 1. 明确区分证据、诊断、动作。
-2. 优先处理高花费、高于目标成本、归因差异和留存质量问题。
+2. 优先处理高花费、高于已确认目标成本、归因差异和留存质量问题。performanceTargets.status=missing 或指标仅观察时，不得编造阈值或写成超目标。
 3. 素材测试必须遵守单变量原则，并按媒体给出平台原生 Hook。
 4. 所有动作必须给出负责人、时点和成功指标。
 5. 最终只输出符合给定 JSON Schema 的 JSON 对象，不要 Markdown。
@@ -123,9 +122,7 @@ function buildIntakePrompt({ project, intake, intent }) {
       budget: project?.budget,
       currency: project?.currency,
       goal: project?.goal,
-      targetCpi: project?.targetCpi,
-      targetCpa: project?.targetCpa,
-      targetRoas: project?.targetRoas,
+      performanceTargets: performanceTargetsForAi(project),
       attribution: project?.attribution,
       sellingPoints: project?.sellingPoints,
       strategy: project?.strategy
@@ -148,7 +145,7 @@ function buildIntakePrompt({ project, intake, intent }) {
 2. status=confirmed 只用于客户原文或优化师项目设置明确给出的信息；status=inferred 用于合理推断；status=missing 时 value 必须为空字符串。每个 clarification_question 的 field_key 必须指向它要补充的 Brief 字段。
 3. source 必须准确标记 offer、client_strategy、operator_notes、ai_inference 或 unknown。
 4. 客户策略为 mandatory 时视为执行约束；为 reference 时只能作为建议，必要时可以提出不同判断。
-5. 不得编造预算、KPI、日期、归因窗口、竞品数据或合规结论。缺少预算时给小预算验证 / 标准测试 / 放量三个场景，不生成虚假金额。
+5. 不得编造预算、KPI、日期、归因窗口、竞品数据或合规结论。performanceTargets.status=missing 时 KPI 字段必须保持 missing；仅观察指标可以写入口径，但不得补阈值。缺少预算时给小预算验证 / 标准测试 / 放量三个场景，不生成虚假金额。
 6. 策略需兼容金融、游戏、工具等行业，并按 Google Ads、Meta Ads、TikTok Ads 的真实角色给出分工；预算不足时优先 1–2 个媒体。
 7. 金融或受监管业务必须把牌照、国家政策、免责声明和平台限制列为上线前置条件。
 8. questions 意图时把最影响决策的问题排在前面，但仍需输出完整策略初稿；strategy 意图时允许在明确标注 working_assumptions 后先生成草案。
@@ -169,9 +166,7 @@ function buildLaunchPackPrompt({ project, intake }) {
       budget: project?.budget,
       currency: project?.currency,
       goal: project?.goal,
-      targetCpi: project?.targetCpi,
-      targetCpa: project?.targetCpa,
-      targetRoas: project?.targetRoas,
+      performanceTargets: performanceTargetsForAi(project),
       attribution: project?.attribution,
       stage: project?.stage,
       sellingPoints: project?.sellingPoints,
@@ -197,7 +192,7 @@ function buildLaunchPackPrompt({ project, intake }) {
 2. 没有预算时，media_plan 的 allocation_percent 和 budget_amount 必须全部为 null；不得编造金额或比例。
 3. 有预算时，allocation_percent 合计必须为 100，budget_amount 与总预算一致；预算不足时优先 1–2 个媒体，不平均分散学习量。
 4. Campaign 必须包含可直接搭建的命名、目标、优化事件、市场、出价、预算说明、Ad Group / Ad Set 逻辑和受众说明。
-5. 不假设尚未发生的表现数据。Smart Bidding、tCPA、Cost Cap 等建议必须写明事件量或学习期前置条件。
+5. 不假设尚未发生的表现数据。performanceTargets.status=missing 时必须按学习期处理；仅观察指标不得补目标值。Smart Bidding、tCPA、Cost Cap 等建议必须写明事件量或学习期前置条件。
 6. 素材 Brief 必须包含假设、角度、Hook、格式、变体数量、单一测试变量、成功指标、生产说明和合规说明。
 7. measurement 必须区分媒体实时反馈、MMP / 分析归因和业务后台最终口径；不得把多平台归因结果直接相加。
 8. launch_checklist 的每项必须有状态、负责人和证据。status=blocker 时必须同步出现在 readiness.blockers；存在 blocker 时 readiness.status 不得为 ready。
@@ -220,9 +215,7 @@ function buildExperimentPrompt({ project, launchPack, metrics }) {
       budget: project?.budget,
       currency: project?.currency,
       goal: project?.goal,
-      targetCpi: project?.targetCpi,
-      targetCpa: project?.targetCpa,
-      targetRoas: project?.targetRoas,
+      performanceTargets: performanceTargetsForAi(project),
       attribution: project?.attribution,
       stage: project?.stage,
       strategy: project?.strategy,
@@ -239,7 +232,7 @@ function buildExperimentPrompt({ project, launchPack, metrics }) {
 输出规则：
 1. 严格输出给定 JSON Schema，不输出 Markdown；生成 1–4 个高价值实验。
 2. 每个实验只能改变一个主要变量，并且 primary_metric 只能是一个指标；来源中的 CPI + 事件率、CPA + 转化率等组合必须拆成一个主要指标和 guardrail_metrics。
-3. hypothesis 必须写清 change、metric、direction 和 because；CPI、CPA、CPC、CPM 等成本指标的方向必须是 decrease；没有证据时 expected_lift_percent 必须为 null。
+3. hypothesis 必须写清 change、metric、direction 和 because；CPI、CPA、CPC、CPM 等成本指标的方向必须是 decrease；没有证据时 expected_lift_percent 必须为 null。仅观察指标和缺失 KPI 不得被转换成目标阈值。
 4. baseline_rate_percent 和 daily_eligible_units 只能来自同一媒体、同一主指标的输入 metrics；summary.cvr 特指安装转化率，不得用于注册、购买或其他深层事件。通用 conversions 没有事件名称，不能证明它对应注册或购买；没有明确事件身份、匹配的 byPlatform 数据或分母时必须为 null。
 5. mde_percent 是本次实验希望能够检测到的最小相对变化，可作为 10–30% 的计划阈值，但不是表现承诺。
 6. Google App 素材优先使用 App asset experiment；Meta 使用 Ads Manager A/B test；TikTok 使用 Split Testing。不要把手工复制广告组描述成随机实验。

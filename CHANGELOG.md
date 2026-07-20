@@ -2,6 +2,20 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.4.5] - 2026-07-20
+
+### Added
+
+- Project inputs can add or remove Media CPI, AF-CPI, CPA, and ROAS independently, with one explicit primary metric.
+- Each metric can be marked as observation-only, a test threshold, or a formal target; CPA keeps its conversion event and ROAS keeps its measurement window.
+- Optional baseline review conditions let learning-phase projects define when to revisit targets without inventing a KPI.
+
+### Changed
+
+- Empty or zero legacy KPI fields migrate to an explicit missing-target state instead of being interpreted as real targets.
+- Mock and Codex inputs now keep Media CPI, AF-CPI, CPA, and ROAS identities separate and expose missing thresholds explicitly.
+- First-week execution rules use a CPA multiple only when an actual CPA threshold exists; otherwise they stay in learning mode.
+
 ## [0.4.4] - 2026-07-20
 
 ### Changed

@@ -32,3 +32,30 @@ test("Launch Pack validator rejects inconsistent blocker summary", () => {
   assert.equal(validation.valid, false);
   assert.match(validation.errors.join(" "), /blocker/);
 });
+
+test("Launch Pack does not invent a CPA kill rule when no threshold is configured", () => {
+  const result = buildMockLaunchPack({
+    name: "Learning App",
+    platforms: ["Google Ads"],
+    markets: "US",
+    budget: 3000,
+    currency: "USD",
+    goal: "Purchase",
+    performanceTargets: []
+  });
+  assert.match(result.first_7_days[2].decision_rule, /没有已确认阈值/);
+  assert.doesNotMatch(result.first_7_days[2].decision_rule, /CPA 3 倍|目标 CPA/);
+});
+
+test("Launch Pack applies a CPA multiple rule only to an explicit threshold", () => {
+  const result = buildMockLaunchPack({
+    name: "CPA App",
+    platforms: ["Google Ads"],
+    markets: "US",
+    budget: 3000,
+    currency: "USD",
+    goal: "Purchase",
+    performanceTargets: [{ id: "t1", metric: "cpa", status: "test", value: 12, event: "Purchase", primary: true }]
+  });
+  assert.match(result.first_7_days[2].decision_rule, /CPA 阈值 USD 12 的 3 倍/);
+});

@@ -1,3 +1,5 @@
+import { normalizePerformanceTargets } from "./project-targets.js";
+
 function text(value) {
   return String(value || "").trim();
 }
@@ -140,6 +142,9 @@ export function buildMockLaunchPack(project = {}, intakeResult = null) {
   const currency = text(project.currency || "USD");
   const market = marketCode(project.markets);
   const goal = text(project.goal || "Install");
+  const performanceTargets = normalizePerformanceTargets(project);
+  const configuredCpa = performanceTargets.find((target) => target.metric === "cpa" && target.status !== "observe" && target.value !== null);
+  const hasConfiguredThreshold = performanceTargets.some((target) => target.status !== "observe" && target.value !== null);
   const mediaPlan = platforms.map((platform) => {
     const config = platformConfig(platform, project);
     const percent = allocation[platform];
@@ -229,7 +234,15 @@ export function buildMockLaunchPack(project = {}, intakeResult = null) {
     first_7_days: [
       { period: "Day 0", actions: ["冻结 Campaign、素材、事件、预算和命名版本", "完成真实设备测试转化并保存截图或日志", "确认审核、上线和值班负责人"], decision_rule: "任何 blocker 未关闭，不进入正式花费。" },
       { period: "Day 1–3", actions: ["检查审核、消耗、学习状态、事件回传和市场异常", "对比媒体安装与 MMP 安装差异", "记录问题但不同时修改预算、出价和素材"], decision_rule: "追踪异常、错误市场或审核问题立即止损；正常学习期不因短期波动频繁改动。" },
-      { period: "Day 4–7", actions: ["按媒体、市场、Campaign 和素材角度复盘成本与质量", "形成保留、调整、暂停和补素材清单", "记录下一轮单变量测试假设"], decision_rule: "只有达到预先写明的数据门槛后才做效率结论；无转化且花费超过目标 CPA 3 倍时暂停并排查。" }
+      {
+        period: "Day 4–7",
+        actions: ["按媒体、市场、Campaign 和素材角度复盘成本与质量", "形成保留、调整、暂停和补素材清单", "记录下一轮单变量测试假设"],
+        decision_rule: configuredCpa
+          ? `只有达到预先写明的数据门槛后才做效率结论；${configuredCpa.event || "目标事件"}无转化且花费超过 CPA 阈值 ${currency} ${configuredCpa.value} 的 3 倍时暂停并排查。`
+          : hasConfiguredThreshold
+            ? "只有达到预先写明的数据门槛后才做效率结论；当前未设置 CPA 阈值，不使用 CPA 倍数规则做暂停依据。"
+            : "当前没有已确认阈值，首周先积累基线；不把 0 或未确认 KPI 用作暂停依据。"
+      }
     ],
     open_questions: questions.slice(0, 10),
     risks: [

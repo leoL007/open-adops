@@ -11,6 +11,12 @@ import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
 import { buildMockLaunchPack } from "./lib/mock-launch-pack.js";
 import { modelFullName, modelRouteDetail, modelVariantName } from "./lib/model-labels.js";
 import {
+  PERFORMANCE_TARGET_METRICS,
+  PERFORMANCE_TARGET_STATUSES,
+  normalizePerformanceTargets,
+  targetHint
+} from "./lib/project-targets.js";
+import {
   backupFileName,
   buildProjectBackup,
   buildWorkspaceBackup,
@@ -123,9 +129,10 @@ function createDemoProject() {
     budget: 50000,
     currency: "USD",
     goal: "Install",
-    targetCpi: 2.2,
-    targetCpa: 15,
-    targetRoas: 1,
+    performanceTargets: [
+      { id: "demo-af-cpi", metric: "af_cpi", status: "test", value: 2.2, event: "", window: "", primary: true }
+    ],
+    targetReview: "运行满 7 天或积累足够 AF 安装后复盘阈值",
     attribution: "AppsFlyer",
     stage: "测试期",
     sellingPoints: "3 秒完成图片清理；操作简单；输出质量稳定；适合高频日常编辑场景。",
@@ -156,7 +163,7 @@ function createDemoProject() {
     intake: createIntake({
       rawOffer: "产品：Nova Utility 图片处理 App。市场 JP、US、GB；目标 Install；计划投放 Google Ads、Meta Ads、TikTok Ads。客户希望先快速测试，但预算与正式上线时间暂未确认。归因使用 AppsFlyer。",
       clientStrategy: "先以 Google 建立稳定安装基线；Meta 和 TikTok 用短视频素材探索增量。该策略仅供代理商参考，可根据预算和素材情况调整。",
-      operatorNotes: "目标 CPI 2.2 USD。客户当前每周可提供 3 条录屏素材，需要确认 D1/D7 留存目标和各市场优先级。",
+      operatorNotes: "AF-CPI 测试阈值 2.2 USD。客户当前每周可提供 3 条录屏素材，需要确认 D1/D7 留存目标和各市场优先级。",
       strategyAuthority: "reference"
     }),
     ai: {}
@@ -198,6 +205,8 @@ function loadState() {
           aiMode: stored.aiMode || "mock",
           projects: stored.projects.map((project) => ({
             ...project,
+            performanceTargets: normalizePerformanceTargets(project),
+            targetReview: String(project.targetReview || ""),
             intake: createIntake(project.intake || {}),
             launch: createLaunch(project.launch || {}),
             experiments: createExperiments(project.experiments || {})
@@ -466,8 +475,8 @@ function metricCards(project) {
   const cards = [
     ["花费", formatMetric(summary.spend, "currency", currency), project.data ? `${project.data.metrics.rowCount} 行数据` : "待导入 CSV"],
     ["AF 安装", formatMetric(summary.af_installs || summary.installs), summary.af_installs ? "AppsFlyer 归因" : "媒体安装回退"],
-    ["AF-CPI", formatMetric(summary.afCpi, "currency", currency), `目标 ${formatMetric(project.targetCpi, "currency", currency)}`],
-    ["ROAS", formatMetric(summary.roas, "ratio"), `目标 ${Number(project.targetRoas || 0).toFixed(2)}x`]
+    ["AF-CPI", formatMetric(summary.afCpi, "currency", currency), targetHint(project, "af_cpi")],
+    ["ROAS", formatMetric(summary.roas, "ratio"), targetHint(project, "roas")]
   ];
   return `<div class="metric-grid">${cards
     .map(([label, value, hint]) => `<div class="metric-card"><span>${label}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(hint)}</small></div>`)
@@ -705,6 +714,54 @@ function renderOverview(project) {
     </div>`;
 }
 
+function performanceTargetEditor(project) {
+  const targets = normalizePerformanceTargets(project);
+  const usedMetrics = new Set(targets.map((item) => item.metric));
+  const rows = targets.map((target) => {
+    const metricOptions = PERFORMANCE_TARGET_METRICS.map((metric) => `<option value="${attr(metric.value)}" ${target.metric === metric.value ? "selected" : ""} ${usedMetrics.has(metric.value) && target.metric !== metric.value ? "disabled" : ""}>${escapeHtml(metric.label)}</option>`).join("");
+    const statusOptions = PERFORMANCE_TARGET_STATUSES.map((status) => `<option value="${attr(status.value)}" ${target.status === status.value ? "selected" : ""}>${escapeHtml(status.label)}</option>`).join("");
+    const threshold = target.status === "observe"
+      ? `<div class="target-readonly"><span>阈值</span><strong>暂不填写</strong></div>`
+      : `<label class="target-control"><span>目标值</span><input type="number" min="0.01" step="0.01" data-target-id="${attr(target.id)}" data-target-field="value" value="${attr(target.value ?? "")}" placeholder="必须大于 0" /></label>`;
+    const context = target.metric === "cpa"
+      ? `<label class="target-control"><span>转化事件</span><input data-target-id="${attr(target.id)}" data-target-field="event" value="${attr(target.event)}" placeholder="如 Purchase" /></label>`
+      : target.metric === "roas"
+        ? `<label class="target-control"><span>回收周期</span><select data-target-id="${attr(target.id)}" data-target-field="window"><option value="">待确认</option>${["D0", "D1", "D7", "D30"].map((window) => `<option value="${window}" ${target.window === window ? "selected" : ""}>${window}</option>`).join("")}</select></label>`
+        : `<div class="target-readonly"><span>口径</span><strong>${escapeHtml(project.currency || "USD")}</strong></div>`;
+    return `<article class="performance-target-row">
+      <label class="target-control"><span>衡量指标</span><select data-target-id="${attr(target.id)}" data-target-field="metric">${metricOptions}</select></label>
+      <label class="target-control"><span>目标状态</span><select data-target-id="${attr(target.id)}" data-target-field="status">${statusOptions}</select></label>
+      ${threshold}
+      ${context}
+      <div class="target-row-actions">
+        <label><input type="radio" name="primary-performance-target" data-target-primary="${attr(target.id)}" ${target.primary ? "checked" : ""} />主要指标</label>
+        <button type="button" class="button button-ghost button-small" data-remove-performance-target="${attr(target.id)}">删除</button>
+      </div>
+    </article>`;
+  }).join("");
+
+  return `<section class="performance-target-editor field-wide">
+    <div class="performance-target-header">
+      <div><strong>衡量与目标</strong><span>可以只观察指标，不必在学习期提前填写 KPI</span></div>
+      <button type="button" class="button button-secondary button-small" data-add-performance-target ${targets.length >= PERFORMANCE_TARGET_METRICS.length ? "disabled" : ""}>＋ 添加衡量指标</button>
+    </div>
+    ${rows ? `<div class="performance-target-list">${rows}</div>` : `<div class="performance-target-empty"><strong>暂未设置目标</strong><span>当前按学习期处理；先跑量建立基线，不会把 0 当作 KPI。</span></div>`}
+    <label class="field target-review"><span>基线复盘条件（可选）</span><input data-project-field="targetReview" value="${attr(project.targetReview || "")}" placeholder="例如：运行 7 天或累计 50 次转化后复盘" /></label>
+  </section>`;
+}
+
+function nextPerformanceTargetMetric(project, targets) {
+  const used = new Set(targets.map((item) => item.metric));
+  const preferred = project.goal === "ROAS"
+    ? "roas"
+    : ["Registration", "Purchase"].includes(project.goal)
+      ? "cpa"
+      : ["AppsFlyer", "Adjust"].includes(project.attribution)
+        ? "af_cpi"
+        : "media_cpi";
+  return [preferred, ...PERFORMANCE_TARGET_METRICS.map((item) => item.value)].find((metric) => !used.has(metric)) || "";
+}
+
 function renderStrategy(project) {
   return `${pageHeader("阶段 01 · 投放策略", "投放策略", "建立可复用的业务输入、媒体分工、预算逻辑和测试假设。")}
     <div class="grid grid-2 mb-16">
@@ -715,10 +772,8 @@ function renderStrategy(project) {
           <label class="field"><span>项目阶段</span><select data-project-field="stage">${["准备期", "测试期", "放量期", "稳定期"].map((value) => `<option ${project.stage === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
           <label class="field"><span>主要目标</span><select data-project-field="goal">${[["Install", "安装"], ["Registration", "注册"], ["Purchase", "付费"], ["ROAS", "ROAS"]].map(([value, label]) => `<option value="${value}" ${project.goal === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
           <label class="field"><span>归因来源</span><select data-project-field="attribution">${["AppsFlyer", "Adjust", "媒体后台", "GA4"].map((value) => `<option ${project.attribution === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
-          <label class="field"><span>目标 CPI</span><input type="number" step="0.01" data-project-field="targetCpi" value="${attr(project.targetCpi)}" /></label>
-          <label class="field"><span>目标 CPA</span><input type="number" step="0.01" data-project-field="targetCpa" value="${attr(project.targetCpa)}" /></label>
-          <label class="field"><span>目标 ROAS</span><input type="number" step="0.01" data-project-field="targetRoas" value="${attr(project.targetRoas)}" /></label>
           <label class="field"><span>月预算</span><input type="number" step="1" data-project-field="budget" value="${attr(project.budget)}" /></label>
+          ${performanceTargetEditor(project)}
           <label class="field field-wide"><span>产品卖点</span><textarea data-project-field="sellingPoints">${escapeHtml(project.sellingPoints)}</textarea></label>
           <label class="field field-wide"><span>补充说明</span><textarea data-project-field="notes">${escapeHtml(project.notes)}</textarea></label>
         </div>
@@ -1146,6 +1201,68 @@ function attachPageListeners() {
       const value = input.type === "number" ? Number(input.value) : input.value;
       const saved = updateProject((project) => setNested(project, input.dataset.projectField, value));
       if (saved) showToast("项目已保存");
+    });
+  });
+  document.querySelector("[data-add-performance-target]")?.addEventListener("click", () => {
+    const current = normalizePerformanceTargets(activeProject(), { makeId });
+    const metric = nextPerformanceTargetMetric(activeProject(), current);
+    if (!metric) {
+      showToast("可添加的衡量指标已全部使用", "error");
+      return;
+    }
+    const saved = updateProject((project) => {
+      const targets = normalizePerformanceTargets(project, { makeId });
+      targets.push({
+        id: makeId(),
+        metric,
+        status: "observe",
+        value: null,
+        event: "",
+        window: "",
+        primary: targets.length === 0
+      });
+      project.performanceTargets = normalizePerformanceTargets({ ...project, performanceTargets: targets }, { makeId });
+    });
+    render();
+    if (saved) showToast("已添加衡量指标，默认仅观察");
+  });
+  document.querySelectorAll("[data-target-field]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const saved = updateProject((project) => {
+        const targets = normalizePerformanceTargets(project, { makeId });
+        const target = targets.find((item) => item.id === input.dataset.targetId);
+        if (!target) return;
+        const field = input.dataset.targetField;
+        target[field] = field === "value" ? (input.value === "" ? null : Number(input.value)) : input.value;
+        if (field === "status" && input.value === "observe") target.value = null;
+        if (field === "metric" && input.value !== "cpa") target.event = "";
+        if (field === "metric" && input.value !== "roas") target.window = "";
+        project.performanceTargets = normalizePerformanceTargets({ ...project, performanceTargets: targets }, { makeId });
+      });
+      render();
+      if (saved) showToast("衡量指标已更新");
+    });
+  });
+  document.querySelectorAll("[data-target-primary]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const saved = updateProject((project) => {
+        const targets = normalizePerformanceTargets(project, { makeId });
+        targets.forEach((target) => { target.primary = target.id === input.dataset.targetPrimary; });
+        project.performanceTargets = targets;
+      });
+      render();
+      if (saved) showToast("主要指标已更新");
+    });
+  });
+  document.querySelectorAll("[data-remove-performance-target]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const saved = updateProject((project) => {
+        const targets = normalizePerformanceTargets(project, { makeId }).filter((target) => target.id !== button.dataset.removePerformanceTarget);
+        if (targets.length && !targets.some((target) => target.primary)) targets[0].primary = true;
+        project.performanceTargets = targets;
+      });
+      render();
+      if (saved) showToast("衡量指标已删除");
     });
   });
   document.querySelectorAll("[data-budget-platform]").forEach((input) => {
@@ -1905,6 +2022,8 @@ function normalizeImportedProject(project) {
       : { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: {} },
     creativePlan: Array.isArray(project.creativePlan) ? project.creativePlan : [],
     ai: isRecord(project.ai) ? project.ai : {},
+    performanceTargets: normalizePerformanceTargets(project, { makeId }),
+    targetReview: String(project.targetReview || ""),
     createdAt: project.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -2244,9 +2363,8 @@ projectForm.addEventListener("submit", (event) => {
     budget: Number(formData.get("budget") || 0),
     currency: String(formData.get("currency") || "USD"),
     goal: String(formData.get("goal") || "Install"),
-    targetCpi: 0,
-    targetCpa: 0,
-    targetRoas: 0,
+    performanceTargets: [],
+    targetReview: "",
     attribution: "AppsFlyer",
     stage: "准备期",
     sellingPoints: "",

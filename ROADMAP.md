@@ -45,6 +45,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Retry schema-invalid Terra output once with GPT-5.6 Sol medium.
 - [x] Keep errors visible and store runtime metadata with generated artifacts.
 
+### v0.4.5 — Optional performance targets
+
+- [x] Add or remove Media CPI, AF-CPI, CPA, and ROAS per project.
+- [x] Separate observation-only metrics, test thresholds, and formal targets.
+- [x] Keep zero and missing thresholds out of AI stop-loss and scaling rules.
+- [x] Preserve CPA event identity, ROAS window, and legacy-project migration.
+
 ## v0.5 — Workflow portability
 
 - [ ] XLSX import.

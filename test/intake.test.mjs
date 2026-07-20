@@ -35,3 +35,16 @@ test("intake validator rejects duplicate or incomplete brief keys", () => {
   assert.equal(validation.valid, false);
   assert.match(validation.errors.join(" "), /重复|缺少/);
 });
+
+test("an observation metric is confirmed without inventing a KPI threshold", () => {
+  const result = buildMockIntake({
+    name: "Learning App",
+    platforms: ["Google Ads"],
+    goal: "Install",
+    performanceTargets: [{ id: "t1", metric: "af_cpi", status: "observe", value: 0, primary: true }]
+  }, { rawOffer: "先使用自动出价跑一段时间，建立安装成本基线。" });
+  const kpi = result.brief_fields.find((field) => field.key === "kpi");
+  assert.equal(kpi.status, "confirmed");
+  assert.equal(kpi.value, "AF-CPI 仅观察，暂无阈值");
+  assert.doesNotMatch(kpi.value, /\b0\b/);
+});

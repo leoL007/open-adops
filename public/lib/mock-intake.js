@@ -1,3 +1,5 @@
+import { primaryTargetText } from "./project-targets.js";
+
 export const INTAKE_BRIEF_FIELDS = [
   ["product", "产品 / 需求"],
   ["industry", "行业"],
@@ -119,13 +121,7 @@ export function buildMockIntake(project = {}, intake = {}, intent = "strategy") 
   const complianceSource = sourceFor(intake, [/合规|资质|牌照|限制|compliance|license|disclaimer/i]);
 
   const projectBudget = Number(project.budget) > 0 ? `${project.currency || "USD"} ${Number(project.budget).toLocaleString("en-US")} / 月` : "";
-  const projectKpi = Number(project.targetCpi) > 0
-    ? `目标 CPI ≤ ${project.currency || "USD"} ${project.targetCpi}`
-    : Number(project.targetCpa) > 0
-      ? `目标 CPA ≤ ${project.currency || "USD"} ${project.targetCpa}`
-      : Number(project.targetRoas) > 0
-        ? `目标 ROAS ≥ ${project.targetRoas}x`
-        : "";
+  const projectKpi = primaryTargetText(project);
   const audience = text(project.strategy?.audience);
   const constraintText = [intake.strategyAuthority === "mandatory" ? "客户已有策略视为必须执行" : "客户已有策略仅供参考", intake.operatorNotes].filter(Boolean).join("；");
 
