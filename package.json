@@ -1,6 +1,6 @@
 {
   "name": "open-adops",
-  "version": "0.5.5",
+  "version": "0.5.6",
   "private": true,
   "type": "module",
   "description": "Local-first AI workspace for paid-media strategy, optimization, and reporting.",

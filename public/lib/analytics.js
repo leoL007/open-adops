@@ -202,9 +202,14 @@ function aggregate(rows) {
 export function normalizeDate(value) {
   const raw = String(value || "").trim();
   const match = raw.match(/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
-  if (match) return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
-  const candidate = raw.split(/[T\s]/, 1)[0];
-  return /^\d{4}-\d{2}-\d{2}$/.test(candidate) ? candidate : "";
+  if (!match) return "";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1000 || month < 1 || month > 12 || day < 1) return "";
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  if (day > daysInMonth) return "";
+  return `${match[1]}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function periodForRows(rows) {
@@ -225,6 +230,16 @@ export function filterRowsByDate(rows, startDate, endDate) {
     const date = normalizeDate(row.date);
     return date && date >= start && date <= end;
   });
+}
+
+export function calculateDateQuality(rows) {
+  const values = Array.isArray(rows) ? rows : [];
+  const validRows = values.filter((row) => Boolean(normalizeDate(row.date))).length;
+  return {
+    totalRows: values.length,
+    validRows,
+    invalidRows: values.length - validRows
+  };
 }
 
 export function defaultComparisonRanges(rows) {

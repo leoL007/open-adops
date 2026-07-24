@@ -1,5 +1,6 @@
 import {
   FIELD_LABELS,
+  calculateDateQuality,
   calculateMetrics,
   calculatePeriodComparison,
   defaultComparisonRanges,
@@ -1849,6 +1850,7 @@ function applyImport() {
   try {
     const mappedRows = mapRows(importSession.parsed.rows, mapping);
     const metrics = calculateMetrics(mappedRows);
+    const dateQuality = mapping.date ? calculateDateQuality(mappedRows) : null;
     const availableFields = Object.keys(mapping).filter((field) => mapping[field]);
     const comparison = mapping.date && importSession.comparisonRanges
       ? calculatePeriodComparison(mappedRows, importSession.comparisonRanges, { availableFields })
@@ -1858,6 +1860,7 @@ function applyImport() {
         fileName: importSession.name,
         importedAt: new Date().toISOString(),
         metrics,
+        dateQuality,
         comparison,
         availableFields,
         isDemo: importSession.isDemo
@@ -1867,7 +1870,12 @@ function applyImport() {
     if (!saved) return;
     importSession = null;
     render();
-    showToast("数据已计算并写入项目");
+    showToast(
+      dateQuality?.invalidRows
+        ? `数据已写入；${dateQuality.invalidRows} 行日期无效，仍计入总计但未计入日期区间与对比。`
+        : "数据已计算并写入项目",
+      dateQuality?.invalidRows ? "error" : "success"
+    );
   } catch (error) {
     showToast(`计算失败：${error.message}`, "error");
   }
@@ -1884,6 +1892,7 @@ function metricsForAi(project) {
     byCountry: metrics.byCountry.slice(0, 12),
     byCampaign: metrics.byCampaign.slice(0, 12),
     comparison: project.data.comparison || null,
+    dateQuality: project.data.dateQuality || null,
     sourceFile: project.data.fileName,
     importedAt: project.data.importedAt,
     dataNotice: project.data.isDemo ? "演示数据" : "用户导入聚合数据"

@@ -109,6 +109,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Return a client error for invalid request targets.
 - [x] Cover request parsing with deterministic and live-process regression checks.
 
+### v0.5.6 — Calendar-valid reporting periods
+
+- [x] Reject impossible calendar dates while preserving valid leap days.
+- [x] Exclude invalid dates from ranges, comparisons, and experiment traffic periods.
+- [x] Keep affected rows in aggregate totals with an explicit import warning.
+- [x] Persist only aggregate date-quality counts, never raw CSV rows.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  calculateDateQuality,
   calculateMetrics,
   calculatePeriodComparison,
   defaultComparisonRanges,
@@ -89,8 +90,12 @@ test("calculateMetrics preserves one declared conversion event per aggregate", (
 
 test("date helpers normalize dates and build equal active-day windows", () => {
   assert.equal(normalizeDate("2026/07/02 08:00:00"), "2026-07-02");
+  assert.equal(normalizeDate("2024-02-29"), "2024-02-29");
+  assert.equal(normalizeDate("2026-02-29"), "");
+  assert.equal(normalizeDate("2026-02-30"), "");
+  assert.equal(normalizeDate("2026-13-01"), "");
   assert.equal(normalizeDate("not-a-date"), "");
-  const rows = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05"]
+  const rows = ["2026-07-01", "2026-07-02", "2026-02-30", "2026-07-03", "2026-07-04", "2026-07-05"]
     .map((date) => ({ date }));
   assert.deepEqual(defaultComparisonRanges(rows), {
     previousStart: "2026-07-02",
@@ -99,6 +104,19 @@ test("date helpers normalize dates and build equal active-day windows", () => {
     currentEnd: "2026-07-05"
   });
   assert.equal(filterRowsByDate(rows, "2026-07-03", "2026-07-04").length, 2);
+  assert.equal(filterRowsByDate(rows, "2026-02-01", "2026-03-01").length, 0);
+});
+
+test("date quality exposes invalid rows without changing aggregate evidence", () => {
+  assert.deepEqual(calculateDateQuality([
+    { date: "2026-07-01" },
+    { date: "2026-02-30" },
+    { date: "" }
+  ]), {
+    totalRows: 3,
+    validRows: 1,
+    invalidRows: 2
+  });
 });
 
 test("period comparison keeps exact metric identities and calculates deterministic changes", () => {
