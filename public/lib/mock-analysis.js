@@ -1,3 +1,5 @@
+import { normalizePerformanceTargets } from "./project-targets.js";
+
 function currency(value, code = "USD") {
   if (!Number.isFinite(value)) return "—";
   return new Intl.NumberFormat("zh-CN", { style: "currency", currency: code, maximumFractionDigits: 2 }).format(value);
@@ -17,6 +19,11 @@ export function buildMockAnalysis(project = {}, metrics = {}) {
   const strongestCountry = [...countries].filter((item) => item.af_installs > 0).sort((a, b) => a.afCpi - b.afCpi)[0];
   const platformText = project.platforms?.join("、") || "Google Ads、Meta Ads、TikTok Ads";
   const currencyCode = project.currency || "USD";
+  const afCpiTarget = normalizePerformanceTargets(project)
+    .find((target) => target.metric === "af_cpi" && target.status !== "observe" && Number.isFinite(target.value));
+  const afCpiAction = afCpiTarget
+    ? `按国家与 Campaign 下钻；AF-CPI 高于已配置${afCpiTarget.status === "formal" ? "正式目标" : "测试阈值"} ${currencyCode} ${afCpiTarget.value} 的 1.3 倍且证据充分时，暂停并复核该单元。`
+    : "按国家与 Campaign 下钻并记录学习期基线；当前未设置 AF-CPI 阈值，不使用目标倍数直接暂停。";
 
   return {
     executive_summary: `【演示】${project.name || "当前项目"}已覆盖 ${platformText}。当前样例数据花费 ${currency(summary.spend, currencyCode)}，AF-CPI ${currency(summary.afCpi, currencyCode)}，D1 留存 ${percent(summary.d1Retention)}。建议先处理高成本单元，再以单变量素材测试验证增长假设。`,
@@ -27,7 +34,7 @@ export function buildMockAnalysis(project = {}, metrics = {}) {
           ? `${weakestPlatform.name} 花费 ${currency(weakestPlatform.spend, currencyCode)}，AF-CPI ${currency(weakestPlatform.afCpi, currencyCode)}。`
           : "当前未形成可比较的媒体拆分数据。",
         diagnosis: weakestPlatform ? "该媒体的转化成本高于其他已导入媒体，可能来自素材匹配、国家结构或学习期预算分散。" : "缺少媒体、国家与 AF 安装的完整字段，暂不能定位成本来源。",
-        action: weakestPlatform ? "按国家与 Campaign 下钻，暂停高于目标 1.3 倍且已获得足够点击的单元；保留预算用于新素材验证。" : "补齐媒体、国家、花费、点击与 AF 安装字段后再运行正式分析。",
+        action: weakestPlatform ? afCpiAction : "补齐媒体、国家、花费、点击与 AF 安装字段后再运行正式分析。",
         priority: "high",
         confidence: weakestPlatform ? "medium" : "low",
         validation: "观察后续 3 天 AF-CPI、安装量与 D1 留存是否同时改善。"

@@ -130,6 +130,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Mark period changes unavailable when either side lacks a valid denominator.
 - [x] Prevent mock analysis from treating missing efficiency as cost evidence.
 
+### v0.5.9 — Target-aware mock decisions
+
+- [x] Use target-multiple pause rules only for configured AF-CPI thresholds.
+- [x] Keep observation-only and missing targets out of automated pause language.
+- [x] Preserve the configured currency, value, and target role in demo actions.
+- [x] Test both missing-target and configured-target behavior.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.
