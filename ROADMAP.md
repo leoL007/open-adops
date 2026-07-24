@@ -144,6 +144,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Count blank numeric cells separately and warn when they are treated as zero.
 - [x] Persist and send only aggregate quality counts, never raw cell contents.
 
+### v0.5.11 — Traceable data quality
+
+- [x] Keep numeric and date-quality warnings visible after the import toast closes.
+- [x] Include the current quality status in workspace and standalone reports.
+- [x] Snapshot aggregate quality counts with each optimization diagnosis.
+- [x] Sanitize history snapshots to fixed aggregate fields without raw cells.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.

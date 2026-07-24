@@ -12,6 +12,28 @@ function validStatus(value) {
   return OPTIMIZATION_RUN_STATUSES.includes(value) ? value : "pending";
 }
 
+function count(value) {
+  return Math.max(0, Math.trunc(Number(value) || 0));
+}
+
+function dateQuality(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    totalRows: count(value.totalRows),
+    validRows: count(value.validRows),
+    invalidRows: count(value.invalidRows)
+  };
+}
+
+function numericQuality(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    checkedFields: count(value.checkedFields),
+    invalidCells: count(value.invalidCells),
+    blankCells: count(value.blankCells)
+  };
+}
+
 function dataContext(data = {}) {
   const metrics = data.metrics || {};
   return {
@@ -20,6 +42,8 @@ function dataContext(data = {}) {
     period: clone(metrics.period || null),
     comparisonRanges: clone(data.comparison?.ranges || null),
     availableFields: Array.isArray(data.availableFields) ? [...data.availableFields] : [],
+    dateQuality: dateQuality(data.dateQuality),
+    numericQuality: numericQuality(data.numericQuality),
     summary: clone(metrics.summary || {})
   };
 }
@@ -72,7 +96,9 @@ export function normalizeOptimizationHistory(history) {
           summary: run.dataContext?.summary
         },
         comparison: { ranges: run.dataContext?.comparisonRanges },
-        availableFields: run.dataContext?.availableFields
+        availableFields: run.dataContext?.availableFields,
+        dateQuality: run.dataContext?.dateQuality,
+        numericQuality: run.dataContext?.numericQuality
       }),
       result: clone(run.result)
     }];

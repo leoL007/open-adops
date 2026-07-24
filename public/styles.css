@@ -1520,6 +1520,24 @@ select {
   line-height: 1.7;
 }
 
+.data-quality-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 11px 14px;
+  border: 1px solid #f0d39f;
+  border-radius: 10px;
+  background: var(--warning-soft);
+  color: #7a4a08;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.data-quality-notice strong {
+  flex: 0 0 auto;
+}
+
 .finding-card {
   padding: 16px;
   border: 1px solid var(--line);

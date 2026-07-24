@@ -35,6 +35,8 @@ const data = {
       currentEnd: "2026-07-19"
     }
   },
+  dateQuality: { totalRows: 7, validRows: 6, invalidRows: 1, rawDates: ["must-not-be-stored"] },
+  numericQuality: { checkedFields: 5, invalidCells: 0, blankCells: 2, rawCells: ["must-not-be-stored"] },
   rawRows: [{ customer: "must-not-be-stored" }]
 };
 
@@ -43,6 +45,10 @@ test("buildOptimizationRun stores only an aggregate data snapshot", () => {
   assert.equal(run.id, "run-1");
   assert.equal(run.dataContext.summary.af_installs, 480);
   assert.equal(run.dataContext.summary.installs, 540);
+  assert.deepEqual(run.dataContext.dateQuality, { totalRows: 7, validRows: 6, invalidRows: 1 });
+  assert.deepEqual(run.dataContext.numericQuality, { checkedFields: 5, invalidCells: 0, blankCells: 2 });
+  assert.equal(run.dataContext.dateQuality.rawDates, undefined);
+  assert.equal(run.dataContext.numericQuality.rawCells, undefined);
   assert.equal(run.dataContext.rawRows, undefined);
   assert.equal(run.status, "pending");
 });
@@ -77,4 +83,5 @@ test("normalizeOptimizationHistory drops malformed and duplicate entries", () =>
   const normalized = normalizeOptimizationHistory([run, { ...run }, { id: "broken" }, null]);
   assert.equal(normalized.length, 1);
   assert.equal(normalized[0].id, "run-1");
+  assert.deepEqual(normalized[0].dataContext.numericQuality, { checkedFields: 5, invalidCells: 0, blankCells: 2 });
 });
