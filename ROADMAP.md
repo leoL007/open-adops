@@ -151,6 +151,14 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Snapshot aggregate quality counts with each optimization diagnosis.
 - [x] Sanitize history snapshots to fixed aggregate fields without raw cells.
 
+### v0.5.12 — Import integrity hardening
+
+- [x] Reject row-width mismatches and malformed numeric or date values before aggregation.
+- [x] Preserve AF and media install identities even when a mapped AF total is zero.
+- [x] Validate generated artifacts before importing workspace backups.
+- [x] Distinguish checked, unchecked, and unmapped quality states.
+- [x] Keep generated platform budget shares deterministic and equal to 100%.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.
