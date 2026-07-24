@@ -14,6 +14,7 @@ import {
   experimentPlanSummary,
   experimentSizingInputError
 } from "./lib/experiments.js";
+import { isCancelledRequest, requestJson } from "./lib/api-client.js";
 import { buildMockAnalysis } from "./lib/mock-analysis.js";
 import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
@@ -460,9 +461,8 @@ function renderAiJobPanel() {
 async function syncActiveAiJob() {
   if (!currentAiJob || isStaticDemo) return;
   try {
-    const response = await fetch("./api/health", { cache: "no-store" });
-    const payload = await response.json();
-    if (response.ok && payload.activeJob && currentAiJob) {
+    const payload = await requestJson("./api/health", { cache: "no-store" });
+    if (payload.activeJob && currentAiJob) {
       currentAiJob.live = payload.activeJob;
       renderAiJobPanel();
     }
@@ -504,9 +504,8 @@ function clearPersistentError() {
 async function loadAiRuntime() {
   if (isStaticDemo) return;
   try {
-    const response = await fetch("./api/health", { cache: "no-store" });
-    const payload = await response.json();
-    if (response.ok && payload.routes) {
+    const payload = await requestJson("./api/health", { cache: "no-store" });
+    if (payload.routes) {
       const merged = { ...aiRoutes, ...payload.routes };
       for (const [key, route] of Object.entries(merged)) {
         if (route && typeof route === "object") {
@@ -525,14 +524,24 @@ async function cancelAiJob() {
   currentAiJob.cancelling = true;
   renderAiJobPanel();
   try {
-    const response = await fetch("./api/cancel", { method: "POST" });
-    const payload = await response.json();
-    if (!response.ok || !payload.ok) throw new Error(payload.error || "取消失败");
+    await requestJson("./api/cancel", { method: "POST" });
+    showToast("已发送取消请求");
   } catch (error) {
     currentAiJob.cancelling = false;
     renderAiJobPanel();
     showPersistentError(`无法取消：${error.message}`);
   }
+}
+
+function handleAiFailure(error) {
+  if (isCancelledRequest(error)) {
+    clearPersistentError();
+    showToast("已取消生成，本次没有写入结果。");
+    return;
+  }
+  const message = error?.message || String(error || "未知错误");
+  showToast(`没有写入结果：${message}`, "error");
+  showPersistentError(message);
 }
 
 function updateProjectById(projectId, mutator) {
@@ -1916,13 +1925,11 @@ async function runAnalysis(stage) {
         result: buildMockAnalysis(project, metricsForAi(project))
       };
     } else {
-      const response = await fetch("./api/analyze", {
+      payload = await requestJson("./api/analyze", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ mode: state.aiMode, stage, project, metrics: metricsForAi(project) })
       });
-      payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "分析失败");
     }
     const saved = updateProjectById(projectId, (target) => {
       if (!target.ai) target.ai = {};
@@ -1958,8 +1965,7 @@ async function runAnalysis(stage) {
     if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
     showToast(completionMessage(payload.source === "codex" ? "分析完成" : "演示结果已生成", payload));
   } catch (error) {
-    showToast(`没有写入结果：${error.message}`, "error");
-    showPersistentError(error.message);
+    handleAiFailure(error);
   } finally {
     finishAiJob();
     aiBusy = false;
@@ -2004,13 +2010,11 @@ async function runIntake(action) {
         result: buildMockIntake(project, intake, intent)
       };
     } else {
-      const response = await fetch("./api/intake", {
+      payload = await requestJson("./api/intake", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ mode: state.aiMode, intent, profile, project, intake })
       });
-      payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "需求整理失败");
     }
     const saved = updateProjectById(projectId, (target) => {
       if (!target.intake) target.intake = createIntake();
@@ -2026,8 +2030,7 @@ async function runIntake(action) {
     const label = intent === "questions" ? "客户追问清单已生成" : action === "deep" ? "策略初稿深度复核完成" : "策略初稿已生成";
     showToast(completionMessage(label, payload));
   } catch (error) {
-    showToast(`没有写入结果：${error.message}`, "error");
-    showPersistentError(error.message);
+    handleAiFailure(error);
   } finally {
     finishAiJob();
     aiBusy = false;
@@ -2070,13 +2073,11 @@ async function runLaunchPack() {
         result: buildMockLaunchPack(project, project.intake?.analysis?.result || null)
       };
     } else {
-      const response = await fetch("./api/launch-pack", {
+      payload = await requestJson("./api/launch-pack", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ mode: state.aiMode, project, intake: project.intake || createIntake() })
       });
-      payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "投放执行方案生成失败");
     }
     const saved = updateProjectById(projectId, (target) => {
       if (!target.launch) target.launch = createLaunch();
@@ -2101,8 +2102,7 @@ async function runLaunchPack() {
     if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
     showToast(completionMessage("投放执行方案已生成", payload));
   } catch (error) {
-    showToast(`没有写入结果：${error.message}`, "error");
-    showPersistentError(error.message);
+    handleAiFailure(error);
   } finally {
     finishAiJob();
     aiBusy = false;
@@ -2132,13 +2132,11 @@ async function runExperimentPlan() {
         result: buildMockExperimentPlan(project, launchPack)
       };
     } else {
-      const response = await fetch("./api/experiments", {
+      payload = await requestJson("./api/experiments", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ mode: state.aiMode, project, launchPack, metrics: metricsForAi(project) })
       });
-      payload = await response.json();
-      if (!response.ok || !payload.ok) throw new Error(payload.error || "实验账本生成失败");
     }
     const saved = updateProjectById(projectId, (target) => {
       if (!target.experiments) target.experiments = createExperiments();
@@ -2151,8 +2149,7 @@ async function runExperimentPlan() {
     if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
     showToast(completionMessage("实验账本已生成", payload));
   } catch (error) {
-    showToast(`没有写入结果：${error.message}`, "error");
-    showPersistentError(error.message);
+    handleAiFailure(error);
   } finally {
     finishAiJob();
     aiBusy = false;
