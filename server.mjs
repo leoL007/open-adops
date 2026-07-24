@@ -18,6 +18,7 @@ import { formatCodexProcessFailure } from "./src/codex-process-error.mjs";
 import { validateExperimentPlan } from "./src/experiment-validator.mjs";
 import { validateIntake } from "./src/intake-validator.mjs";
 import { validateLaunchPack } from "./src/launch-pack-validator.mjs";
+import { resolveStaticFile, shouldSendStaticBody } from "./src/static-request.mjs";
 
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(APP_ROOT, "public");
@@ -622,22 +623,21 @@ async function handleExperimentPlan(request, response) {
   }
 }
 
-async function serveStatic(pathname, response) {
-  const requested = pathname === "/" ? "/index.html" : decodeURIComponent(pathname);
-  const filePath = path.resolve(PUBLIC_ROOT, `.${requested}`);
-  if (!filePath.startsWith(`${PUBLIC_ROOT}${path.sep}`)) {
-    sendJson(response, 403, { ok: false, error: "禁止访问" });
+async function serveStatic(pathname, response, method = "GET") {
+  const resolved = resolveStaticFile(pathname, PUBLIC_ROOT);
+  if (!resolved.ok) {
+    sendJson(response, resolved.status, { ok: false, error: resolved.error });
     return;
   }
   try {
-    const content = await readFile(filePath);
-    const extension = path.extname(filePath);
+    const content = await readFile(resolved.filePath);
+    const extension = path.extname(resolved.filePath);
     const isMutableAsset = [".html", ".css", ".js", ".json", ".csv"].includes(extension);
     response.writeHead(200, {
       "content-type": MIME_TYPES[extension] || "application/octet-stream",
       "cache-control": isMutableAsset ? "no-store" : "public, max-age=300"
     });
-    response.end(content);
+    response.end(shouldSendStaticBody(method) ? content : undefined);
   } catch (error) {
     if (error.code === "ENOENT") {
       sendJson(response, 404, { ok: false, error: "页面不存在" });
@@ -689,7 +689,7 @@ const server = http.createServer(async (request, response) => {
     return;
   }
   if (request.method === "GET" || request.method === "HEAD") {
-    await serveStatic(url.pathname, response);
+    await serveStatic(url.pathname, response, request.method);
     return;
   }
   sendJson(response, 405, { ok: false, error: "不支持的请求方法" });
