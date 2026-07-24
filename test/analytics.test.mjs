@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   calculateDateQuality,
   calculateMetrics,
+  calculateNumericQuality,
   calculatePeriodComparison,
   defaultComparisonRanges,
   detectMapping,
@@ -77,6 +78,27 @@ test("zero denominators stay unavailable instead of becoming fake zero efficienc
   assert.equal(metrics.summary.roas, 0);
   assert.equal(formatMetric(null, "currency"), "—");
   assert.equal(formatMetric(0, "currency", "USD"), "US$0.00");
+});
+
+test("numeric quality rejects non-empty invalid values without exposing raw cells", () => {
+  const parsed = parseCsv("Spend,AF Installs,Revenue\nN/A,10,\n100,--,(25.5)\n200,20,(-30)\n");
+  const mapping = detectMapping(parsed.headers);
+  const quality = calculateNumericQuality(parsed.rows, mapping);
+  assert.deepEqual(quality, {
+    totalRows: 3,
+    checkedFields: 3,
+    invalidCells: 2,
+    blankCells: 1,
+    fields: [
+      { field: "spend", invalidCells: 1, blankCells: 0 },
+      { field: "af_installs", invalidCells: 1, blankCells: 0 },
+      { field: "revenue", invalidCells: 0, blankCells: 1 }
+    ]
+  });
+  assert.doesNotMatch(JSON.stringify(quality), /N\/A|--|25\.5/);
+  const mapped = mapRows(parsed.rows, mapping);
+  assert.equal(mapped[1].revenue, -25.5);
+  assert.equal(mapped[2].revenue, -30);
 });
 
 test("calculateMetrics records active dates for experiment sizing", () => {

@@ -137,6 +137,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Preserve the configured currency, value, and target role in demo actions.
 - [x] Test both missing-target and configured-target behavior.
 
+### v0.5.10 — Numeric data quality gate
+
+- [x] Validate every mapped numeric cell before calculating metrics.
+- [x] Block non-empty invalid values instead of silently converting them to zero.
+- [x] Count blank numeric cells separately and warn when they are treated as zero.
+- [x] Persist and send only aggregate quality counts, never raw cell contents.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.

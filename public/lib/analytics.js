@@ -155,32 +155,68 @@ export function detectMapping(headers) {
   return mapping;
 }
 
-function numberValue(value) {
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
-  const normalized = String(value ?? "")
-    .trim()
+const NUMERIC_FIELDS = new Set([
+  "spend",
+  "impressions",
+  "clicks",
+  "installs",
+  "af_installs",
+  "conversions",
+  "revenue",
+  "d1_retained"
+]);
+
+function parseNumericCell(value) {
+  if (typeof value === "number") {
+    return Number.isFinite(value)
+      ? { value, valid: true, blank: false }
+      : { value: 0, valid: false, blank: false };
+  }
+  const raw = String(value ?? "").trim();
+  if (!raw) return { value: 0, valid: true, blank: true };
+  const accountingNegative = /^\(([^()]*)\)$/.exec(raw);
+  const normalized = String(accountingNegative?.[1] ?? raw)
     .replace(/[￥$€£¥,\s]/g, "")
     .replace(/%$/, "");
   const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
+  return Number.isFinite(parsed)
+    ? { value: accountingNegative ? -Math.abs(parsed) : parsed, valid: true, blank: false }
+    : { value: 0, valid: false, blank: false };
+}
+
+function numberValue(value) {
+  return parseNumericCell(value).value;
+}
+
+export function calculateNumericQuality(rows, mapping) {
+  const values = Array.isArray(rows) ? rows : [];
+  const fields = [...NUMERIC_FIELDS]
+    .filter((field) => mapping?.[field])
+    .map((field) => {
+      let invalidCells = 0;
+      let blankCells = 0;
+      for (const row of values) {
+        const parsed = parseNumericCell(row?.[mapping[field]]);
+        if (!parsed.valid) invalidCells += 1;
+        if (parsed.blank) blankCells += 1;
+      }
+      return { field, invalidCells, blankCells };
+    });
+  return {
+    totalRows: values.length,
+    checkedFields: fields.length,
+    invalidCells: fields.reduce((sum, field) => sum + field.invalidCells, 0),
+    blankCells: fields.reduce((sum, field) => sum + field.blankCells, 0),
+    fields
+  };
 }
 
 export function mapRows(rows, mapping) {
-  const numericFields = new Set([
-    "spend",
-    "impressions",
-    "clicks",
-    "installs",
-    "af_installs",
-    "conversions",
-    "revenue",
-    "d1_retained"
-  ]);
   return rows.map((row) => {
     const output = {};
     for (const field of Object.keys(FIELD_LABELS)) {
       const source = mapping[field];
-      output[field] = numericFields.has(field) ? numberValue(row[source]) : String(row[source] ?? "").trim();
+      output[field] = NUMERIC_FIELDS.has(field) ? numberValue(row[source]) : String(row[source] ?? "").trim();
     }
     return output;
   });

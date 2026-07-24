@@ -2,6 +2,7 @@ import {
   FIELD_LABELS,
   calculateDateQuality,
   calculateMetrics,
+  calculateNumericQuality,
   calculatePeriodComparison,
   defaultComparisonRanges,
   detectMapping,
@@ -1849,6 +1850,15 @@ function applyImport() {
     return;
   }
   try {
+    const numericQuality = calculateNumericQuality(importSession.parsed.rows, mapping);
+    if (numericQuality.invalidCells > 0) {
+      const details = numericQuality.fields
+        .filter((field) => field.invalidCells > 0)
+        .map((field) => `${FIELD_LABELS[field.field] || field.field} ${field.invalidCells} 个`)
+        .join("、");
+      showToast(`数值字段含无法解析的内容：${details}。请清理数据或取消对应字段映射。`, "error");
+      return;
+    }
     const mappedRows = mapRows(importSession.parsed.rows, mapping);
     const metrics = calculateMetrics(mappedRows);
     const dateQuality = mapping.date ? calculateDateQuality(mappedRows) : null;
@@ -1862,6 +1872,11 @@ function applyImport() {
         importedAt: new Date().toISOString(),
         metrics,
         dateQuality,
+        numericQuality: {
+          checkedFields: numericQuality.checkedFields,
+          invalidCells: numericQuality.invalidCells,
+          blankCells: numericQuality.blankCells
+        },
         comparison,
         availableFields,
         isDemo: importSession.isDemo
@@ -1871,12 +1886,14 @@ function applyImport() {
     if (!saved) return;
     importSession = null;
     render();
-    showToast(
-      dateQuality?.invalidRows
-        ? `数据已写入；${dateQuality.invalidRows} 行日期无效，仍计入总计但未计入日期区间与对比。`
-        : "数据已计算并写入项目",
-      dateQuality?.invalidRows ? "error" : "success"
-    );
+    const warnings = [];
+    if (numericQuality.blankCells > 0) {
+      warnings.push(`${numericQuality.blankCells} 个数值单元格为空并按 0 计入`);
+    }
+    if (dateQuality?.invalidRows) {
+      warnings.push(`${dateQuality.invalidRows} 行日期无效，仍计入总计但未计入日期区间与对比`);
+    }
+    showToast(warnings.length ? `数据已写入；${warnings.join("；")}。` : "数据已计算并写入项目", warnings.length ? "error" : "success");
   } catch (error) {
     showToast(`计算失败：${error.message}`, "error");
   }
@@ -1894,6 +1911,7 @@ function metricsForAi(project) {
     byCampaign: metrics.byCampaign.slice(0, 12),
     comparison: project.data.comparison || null,
     dateQuality: project.data.dateQuality || null,
+    numericQuality: project.data.numericQuality || null,
     sourceFile: project.data.fileName,
     importedAt: project.data.importedAt,
     dataNotice: project.data.isDemo ? "演示数据" : "用户导入聚合数据"
