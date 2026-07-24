@@ -88,6 +88,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Record operator review state and a manual conclusion with an explicit save action.
 - [x] Feed the latest decision records into the management report and standalone HTML export.
 
+### v0.5.3 — Local runtime resilience
+
+- [x] Preserve readable projects when workspace migration cannot write back to browser storage.
+- [x] Normalize offline, invalid-response, busy-task, and cancellation states across AI requests.
+- [x] Reject malformed static paths and return HEAD responses without a body.
+- [x] Cover the new failure boundaries with deterministic tests that do not call a live model.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.
