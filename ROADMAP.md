@@ -116,6 +116,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Keep affected rows in aggregate totals with an explicit import warning.
 - [x] Persist only aggregate date-quality counts, never raw CSV rows.
 
+### v0.5.7 — CSV structure integrity
+
+- [x] Reject duplicate normalized headers before row objects are built.
+- [x] Reject unterminated quoted fields before they can swallow following rows.
+- [x] Surface a specific import error instead of producing partial metrics.
+- [x] Cover both corruption cases with deterministic regression tests.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.

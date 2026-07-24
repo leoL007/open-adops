@@ -18,6 +18,17 @@ test("parseCsv supports quoted commas and BOM", () => {
   assert.equal(parsed.rows[0].Campaign, "US, Broad");
 });
 
+test("parseCsv rejects structures that would silently overwrite or swallow data", () => {
+  assert.throws(
+    () => parseCsv("Spend,spend,AF Installs\n10,999,5\n"),
+    /表头重复/
+  );
+  assert.throws(
+    () => parseCsv('Spend,Campaign,AF Installs\n10,"Broken\n20,Good,4\n'),
+    /未闭合的引号/
+  );
+});
+
 test("detectMapping recognizes common media and AppsFlyer fields", () => {
   const mapping = detectMapping(["Media", "Country", "Amount Spent", "Clicks", "Media Installs", "AF Installs", "Event Name"]);
   assert.equal(mapping.platform, "Media");

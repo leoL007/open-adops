@@ -72,6 +72,8 @@ export function parseCsv(text) {
     }
   }
 
+  if (quoted) throw new Error("CSV 存在未闭合的引号");
+
   if (field.length || row.length) {
     row.push(field.trim());
     if (row.some((cell) => cell !== "")) matrix.push(row);
@@ -79,6 +81,20 @@ export function parseCsv(text) {
 
   if (matrix.length < 2) throw new Error("CSV 至少需要表头和一行数据");
   const headers = matrix[0].map((header, index) => header || `column_${index + 1}`);
+  const seenHeaders = new Map();
+  const duplicateHeaders = new Set();
+  for (const header of headers) {
+    const identity = normalizeHeader(header);
+    if (seenHeaders.has(identity)) {
+      duplicateHeaders.add(seenHeaders.get(identity));
+      duplicateHeaders.add(header);
+    } else {
+      seenHeaders.set(identity, header);
+    }
+  }
+  if (duplicateHeaders.size) {
+    throw new Error(`CSV 表头重复：${[...duplicateHeaders].join(" / ")}`);
+  }
   const rows = matrix.slice(1).map((values) =>
     Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]))
   );
