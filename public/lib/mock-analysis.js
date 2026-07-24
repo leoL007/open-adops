@@ -1,16 +1,19 @@
 function currency(value, code = "USD") {
-  return new Intl.NumberFormat("zh-CN", { style: "currency", currency: code, maximumFractionDigits: 2 }).format(Number(value) || 0);
+  if (!Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat("zh-CN", { style: "currency", currency: code, maximumFractionDigits: 2 }).format(value);
 }
 
 function percent(value) {
-  return `${((Number(value) || 0) * 100).toFixed(2)}%`;
+  return Number.isFinite(value) ? `${(value * 100).toFixed(2)}%` : "—";
 }
 
 export function buildMockAnalysis(project = {}, metrics = {}) {
   const summary = metrics.summary || {};
   const platforms = metrics.byPlatform || [];
   const countries = metrics.byCountry || [];
-  const weakestPlatform = [...platforms].filter((item) => item.spend > 0).sort((a, b) => b.afCpi - a.afCpi)[0];
+  const weakestPlatform = [...platforms]
+    .filter((item) => item.spend > 0 && Number.isFinite(item.afCpi))
+    .sort((a, b) => b.afCpi - a.afCpi)[0];
   const strongestCountry = [...countries].filter((item) => item.af_installs > 0).sort((a, b) => a.afCpi - b.afCpi)[0];
   const platformText = project.platforms?.join("、") || "Google Ads、Meta Ads、TikTok Ads";
   const currencyCode = project.currency || "USD";

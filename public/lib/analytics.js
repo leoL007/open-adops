@@ -187,7 +187,7 @@ export function mapRows(rows, mapping) {
 }
 
 function safeDivide(numerator, denominator) {
-  return denominator > 0 ? numerator / denominator : 0;
+  return denominator > 0 ? numerator / denominator : null;
 }
 
 function aggregate(rows) {
@@ -284,6 +284,16 @@ const COMPARISON_METRICS = {
 };
 
 function metricChange(current, previous, preference) {
+  if (!Number.isFinite(current) || !Number.isFinite(previous)) {
+    return {
+      current,
+      previous,
+      delta: null,
+      relativeChange: null,
+      trend: "unavailable",
+      assessment: "neutral"
+    };
+  }
   const delta = current - previous;
   const relativeChange = previous === 0 ? null : delta / Math.abs(previous);
   const trend = delta > 0 ? "up" : delta < 0 ? "down" : "flat";
@@ -369,7 +379,8 @@ export function calculateMetrics(rows) {
 }
 
 export function formatMetric(value, type = "number", currency = "USD") {
-  const number = Number(value) || 0;
+  if (value === null || value === undefined || value === "" || !Number.isFinite(Number(value))) return "—";
+  const number = Number(value);
   if (type === "percent") return `${(number * 100).toFixed(2)}%`;
   if (type === "ratio") return `${number.toFixed(2)}x`;
   if (type === "currency") {

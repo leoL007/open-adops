@@ -15,6 +15,20 @@ test("deterministic mock output passes the same structural validation", () => {
   assert.deepEqual(validateAnalysis(result), { valid: true, errors: [] });
 });
 
+test("mock analysis does not present unavailable efficiency as zero", () => {
+  const result = buildMockAnalysis(
+    { name: "Learning", platforms: ["Meta Ads"], currency: "USD" },
+    {
+      summary: { spend: 100, af_installs: 0, afCpi: null, d1Retention: null },
+      byPlatform: [{ name: "Meta Ads", spend: 100, af_installs: 0, afCpi: null }],
+      byCountry: []
+    }
+  );
+  assert.match(result.executive_summary, /AF-CPI —/);
+  assert.match(result.findings[0].title, /数据量不足/);
+  assert.doesNotMatch(result.findings[0].evidence, /AF-CPI.*0/);
+});
+
 test("validator rejects incomplete or unsupported priority values", () => {
   const invalid = {
     executive_summary: "summary",

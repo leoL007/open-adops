@@ -7,6 +7,7 @@ import {
   defaultComparisonRanges,
   detectMapping,
   filterRowsByDate,
+  formatMetric,
   mapRows,
   normalizeDate,
   parseCsv
@@ -65,6 +66,17 @@ test("calculateMetrics keeps media CPI and AF-CPI separate", () => {
   assert.equal(metrics.summary.roas, 330 / 300);
   assert.equal(metrics.period.activeDays, 0);
   assert.equal(metrics.byPlatform.length, 2);
+});
+
+test("zero denominators stay unavailable instead of becoming fake zero efficiency", () => {
+  const parsed = parseCsv("Platform,Spend,Impressions,Clicks,Media Installs,AF Installs,Conversions,Revenue\nMeta Ads,100,0,0,0,0,0,0\n");
+  const metrics = calculateMetrics(mapRows(parsed.rows, detectMapping(parsed.headers)));
+  for (const metric of ["ctr", "cvr", "cpi", "afCpi", "cpa", "d1Retention"]) {
+    assert.equal(metrics.summary[metric], null, `${metric} should be unavailable`);
+  }
+  assert.equal(metrics.summary.roas, 0);
+  assert.equal(formatMetric(null, "currency"), "—");
+  assert.equal(formatMetric(0, "currency", "USD"), "US$0.00");
 });
 
 test("calculateMetrics records active dates for experiment sizing", () => {
@@ -179,4 +191,16 @@ test("period comparison rejects overlapping windows without blocking empty-windo
   }, { availableFields: ["date", "spend"] });
   assert.equal(empty.available, false);
   assert.match(empty.reason, /没有数据/);
+});
+
+test("period comparison marks zero-denominator efficiency as unavailable", () => {
+  const rows = [
+    { date: "2026-07-01", spend: 100, af_installs: 0 },
+    { date: "2026-07-02", spend: 120, af_installs: 20 }
+  ];
+  const comparison = calculatePeriodComparison(rows, defaultComparisonRanges(rows), {
+    availableFields: ["date", "spend", "af_installs"]
+  });
+  assert.equal(comparison.changes.afCpi.trend, "unavailable");
+  assert.equal(comparison.changes.afCpi.relativeChange, null);
 });

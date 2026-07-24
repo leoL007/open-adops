@@ -1304,6 +1304,7 @@ function comparisonValue(value, type, currency) {
 
 function comparisonChange(change) {
   if (!change) return `<span class="comparison-change neutral">—</span>`;
+  if (change.trend === "unavailable") return `<span class="comparison-change neutral">不可计算</span>`;
   if (change.trend === "flat") return `<span class="comparison-change neutral">持平</span>`;
   const prefix = change.relativeChange !== null && change.relativeChange > 0 ? "+" : "";
   const label = change.relativeChange === null

@@ -9,7 +9,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.5.7-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Release](https://img.shields.io/badge/Release-v0.5.8-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
 [简体中文](./README.md) · [English](./README.en.md) · [Product](./PRODUCT.md) · [Roadmap](./ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
 
@@ -17,7 +17,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 
 ![OpenAdOps overview](./assets/openadops-overview.jpg)
 
-## Current release (v0.5.7)
+## Current release (v0.5.8)
 
 - **End-to-end loop**: intake → strategy draft → plan → **creative production** → **execution plan** → **experiment ledger** → optimize → report
 - **Chinese-first UI** in the product (English docs keep clear English names)  
@@ -37,6 +37,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 - **Resilient local routing**: malformed Host or request targets no longer take down the workspace service
 - **Auditable date periods**: impossible calendar dates stay out of ranges and comparisons while affected rows remain explicit in aggregate totals
 - **Corrupt CSV rejection**: duplicate headers and unterminated quoted fields fail at import instead of producing partial metrics
+- **Zero is not fake efficiency**: CPI, CPA, and rate metrics with zero denominators stay unavailable while real zero outcomes remain zero
 
 ## Why OpenAdOps
 
@@ -174,7 +175,7 @@ Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
 npm run check
 ```
 
-**103** automated tests cover intake, creative-production migration and export, execution plans, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV structure integrity, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
+**106** automated tests cover intake, creative-production migration and export, execution plans, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV structure integrity, undefined metrics, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
 
 ## Current scope
 

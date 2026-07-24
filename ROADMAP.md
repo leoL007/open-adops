@@ -123,6 +123,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Surface a specific import error instead of producing partial metrics.
 - [x] Cover both corruption cases with deterministic regression tests.
 
+### v0.5.8 — Undefined metric integrity
+
+- [x] Represent zero-denominator efficiency metrics as unavailable instead of zero.
+- [x] Keep real zero counts and zero revenue outcomes distinct from undefined ratios.
+- [x] Mark period changes unavailable when either side lacks a valid denominator.
+- [x] Prevent mock analysis from treating missing efficiency as cost evidence.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.
