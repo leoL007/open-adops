@@ -14,7 +14,7 @@ import {
   experimentPlanSummary,
   experimentSizingInputError
 } from "./lib/experiments.js";
-import { isCancelledRequest, requestJson } from "./lib/api-client.js";
+import { isCancelledRequest, requestJson, runtimeVersionWarning } from "./lib/api-client.js";
 import { buildMockAnalysis } from "./lib/mock-analysis.js";
 import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
@@ -505,6 +505,8 @@ async function loadAiRuntime() {
   if (isStaticDemo) return;
   try {
     const payload = await requestJson("./api/health", { cache: "no-store" });
+    const versionWarning = runtimeVersionWarning(APP_VERSION, payload.version);
+    if (versionWarning) showPersistentError(versionWarning);
     if (payload.routes) {
       const merged = { ...aiRoutes, ...payload.routes };
       for (const [key, route] of Object.entries(merged)) {

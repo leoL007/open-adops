@@ -71,3 +71,18 @@ export async function requestJson(url, options = {}, { fetchImpl = globalThis.fe
 export function isCancelledRequest(error) {
   return error?.code === "CANCELLED" || error?.status === 499;
 }
+
+function normalizedVersion(value) {
+  return String(value || "").trim().replace(/^v/i, "");
+}
+
+export function runtimeVersionWarning(appVersion, serverVersion) {
+  const page = normalizedVersion(appVersion);
+  const runtime = normalizedVersion(serverVersion);
+
+  if (!runtime) {
+    return "本机服务未返回版本信息，可能仍是旧进程。请停止旧进程后重新运行 npm start。";
+  }
+  if (!page || page === runtime) return "";
+  return `页面版本 v${page} 与本机服务 v${runtime} 不一致。请停止旧进程后重新运行 npm start。`;
+}

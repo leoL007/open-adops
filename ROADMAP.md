@@ -95,6 +95,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Reject malformed static paths and return HEAD responses without a body.
 - [x] Cover the new failure boundaries with deterministic tests that do not call a live model.
 
+### v0.5.4 — Runtime version guard
+
+- [x] Return the running Bridge version from the local health endpoint.
+- [x] Warn when a refreshed page is still connected to an older local process.
+- [x] Replace raw port-conflict stacks with a concise restart instruction.
+- [x] Cover startup and version-compatibility decisions with deterministic tests.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.

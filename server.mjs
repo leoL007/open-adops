@@ -12,12 +12,14 @@ import { buildMockExperimentPlan } from "./public/lib/mock-experiment-plan.js";
 import { buildMockIntake } from "./public/lib/mock-intake.js";
 import { buildMockLaunchPack } from "./public/lib/mock-launch-pack.js";
 import { performanceTargetsForAi } from "./public/lib/project-targets.js";
+import { APP_VERSION } from "./public/version.js";
 import { publicAiRoutes, resolveAiRoute } from "./src/ai-router.mjs";
 import { validateAnalysis } from "./src/analysis-validator.mjs";
 import { formatCodexProcessFailure } from "./src/codex-process-error.mjs";
 import { validateExperimentPlan } from "./src/experiment-validator.mjs";
 import { validateIntake } from "./src/intake-validator.mjs";
 import { validateLaunchPack } from "./src/launch-pack-validator.mjs";
+import { formatServerStartupError } from "./src/server-startup-error.mjs";
 import { resolveStaticFile, shouldSendStaticBody } from "./src/static-request.mjs";
 
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
@@ -653,6 +655,7 @@ const server = http.createServer(async (request, response) => {
     sendJson(response, 200, {
       ok: true,
       app: "OpenAdOps",
+      version: APP_VERSION,
       routing: "task-aware",
       routes: publicAiRoutes(),
       aiBusy: Boolean(activeAiJob),
@@ -695,8 +698,13 @@ const server = http.createServer(async (request, response) => {
   sendJson(response, 405, { ok: false, error: "不支持的请求方法" });
 });
 
+server.on("error", (error) => {
+  console.error(formatServerStartupError(error, { port: PORT }));
+  process.exitCode = 1;
+});
+
 server.listen(PORT, "127.0.0.1", () => {
-  console.log(`OpenAdOps: http://127.0.0.1:${PORT}`);
+  console.log(`OpenAdOps v${APP_VERSION}: http://127.0.0.1:${PORT}`);
   console.log("AI routing: GPT-5.6 Terra low/medium for routine work · GPT-5.6 Sol high for deep review and 投放执行方案");
 });
 

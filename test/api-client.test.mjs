@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import {
   OpenAdOpsApiError,
   isCancelledRequest,
-  requestJson
+  requestJson,
+  runtimeVersionWarning
 } from "../public/lib/api-client.js";
 
 function response(status, body) {
@@ -86,4 +87,13 @@ test("network failures point to the local start command", async () => {
       return true;
     }
   );
+});
+
+test("matching page and runtime versions do not warn", () => {
+  assert.equal(runtimeVersionWarning("0.5.4", "v0.5.4"), "");
+});
+
+test("stale or unidentified runtimes receive a restart warning", () => {
+  assert.match(runtimeVersionWarning("0.5.4", "0.5.3"), /版本 v0\.5\.4.*v0\.5\.3 不一致/);
+  assert.match(runtimeVersionWarning("0.5.4", ""), /未返回版本信息/);
 });
