@@ -29,6 +29,14 @@ test("parseCsv rejects structures that would silently overwrite or swallow data"
     () => parseCsv('Spend,Campaign,AF Installs\n10,"Broken\n20,Good,4\n'),
     /未闭合的引号/
   );
+  assert.throws(
+    () => parseCsv("Spend,AF Installs\n100,10,999\n"),
+    /第 2 行列数.*应为 2 列，实际 3 列/
+  );
+  assert.throws(
+    () => parseCsv("Spend,AF Installs\n100\n"),
+    /第 2 行列数.*应为 2 列，实际 1 列/
+  );
 });
 
 test("detectMapping recognizes common media and AppsFlyer fields", () => {
@@ -101,6 +109,28 @@ test("numeric quality rejects non-empty invalid values without exposing raw cell
   assert.equal(mapped[2].revenue, -30);
 });
 
+test("numeric quality accepts standard formatting but rejects embedded separators and currency", () => {
+  const parsed = parseCsv('Spend,AF Installs,Revenue\n"$1,234.50",10,25%\n"1,2",20,100\n1$2,30,100\n"1 2",40,100\n');
+  const mapping = detectMapping(parsed.headers);
+  const quality = calculateNumericQuality(parsed.rows, mapping);
+  assert.equal(quality.invalidCells, 3);
+  assert.equal(quality.fields.find((item) => item.field === "spend").invalidCells, 3);
+  const mapped = mapRows(parsed.rows, mapping);
+  assert.equal(mapped[0].spend, 1234.5);
+  assert.equal(mapped[0].revenue, 25);
+});
+
+test("AF attribution metrics do not borrow media installs when AF is mapped but zero", () => {
+  const parsed = parseCsv("Platform,Spend,Clicks,Media Installs,AF Installs,D1 Retained\nMeta Ads,100,100,10,0,5\n");
+  const mapping = detectMapping(parsed.headers);
+  const availableFields = Object.keys(mapping).filter((field) => mapping[field]);
+  const metrics = calculateMetrics(mapRows(parsed.rows, mapping), { availableFields });
+  assert.equal(metrics.summary.installs, 10);
+  assert.equal(metrics.summary.af_installs, 0);
+  assert.equal(metrics.summary.cvr, 0);
+  assert.equal(metrics.summary.d1Retention, null);
+});
+
 test("calculateMetrics records active dates for experiment sizing", () => {
   const parsed = parseCsv("Date,Platform,Spend,Clicks,AF Installs\n2026-07-01,Meta Ads,100,500,80\n2026-07-02,Meta Ads,120,600,90\n2026-07-02,Google Ads,90,400,70\n");
   const metrics = calculateMetrics(mapRows(parsed.rows, detectMapping(parsed.headers)));
@@ -135,10 +165,13 @@ test("calculateMetrics preserves one declared conversion event per aggregate", (
 
 test("date helpers normalize dates and build equal active-day windows", () => {
   assert.equal(normalizeDate("2026/07/02 08:00:00"), "2026-07-02");
+  assert.equal(normalizeDate("2026年7月2日"), "2026-07-02");
   assert.equal(normalizeDate("2024-02-29"), "2024-02-29");
   assert.equal(normalizeDate("2026-02-29"), "");
   assert.equal(normalizeDate("2026-02-30"), "");
   assert.equal(normalizeDate("2026-13-01"), "");
+  assert.equal(normalizeDate("2026-07-01junk"), "");
+  assert.equal(normalizeDate("2026-07-01123"), "");
   assert.equal(normalizeDate("not-a-date"), "");
   const rows = ["2026-07-01", "2026-07-02", "2026-02-30", "2026-07-03", "2026-07-04", "2026-07-05"]
     .map((date) => ({ date }));

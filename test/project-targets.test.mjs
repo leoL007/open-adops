@@ -1,11 +1,23 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  equalBudgetShares,
   normalizePerformanceTargets,
   performanceTargetsForAi,
   primaryTargetText,
   targetHint
 } from "../public/lib/project-targets.js";
+
+test("equalBudgetShares always totals 100 without duplicate platforms", () => {
+  assert.deepEqual(equalBudgetShares(["Google Ads", "Meta Ads", "TikTok Ads"]), {
+    "Google Ads": 34,
+    "Meta Ads": 33,
+    "TikTok Ads": 33
+  });
+  assert.equal(Object.values(equalBudgetShares(["Google Ads", "Meta Ads"])).reduce((sum, value) => sum + value, 0), 100);
+  assert.deepEqual(equalBudgetShares(["Google Ads", "Google Ads"]), { "Google Ads": 100 });
+  assert.deepEqual(equalBudgetShares([]), {});
+});
 
 test("zero legacy KPI fields migrate to an explicit missing target state", () => {
   const project = { currency: "USD", targetCpi: 0, targetCpa: 0, targetRoas: 0 };

@@ -93,6 +93,19 @@ test("parseBackupJson rejects malformed projects and duplicate ids", () => {
   assert.throws(() => parseBackupJson(JSON.stringify(duplicate)), /重复项目 ID/);
 });
 
+test("parseBackupJson rejects malformed generated artifacts before they reach page rendering", () => {
+  const malformed = {
+    format: BACKUP_FORMAT_PROJECT,
+    schemaVersion: 1,
+    project: {
+      id: "broken",
+      name: "Broken",
+      ai: { optimize: { result: {} } }
+    }
+  };
+  assert.throws(() => parseBackupJson(JSON.stringify(malformed)), /AI 分析结果结构无效/);
+});
+
 test("backupFileName sanitizes project names", () => {
   assert.match(backupFileName({ kind: "project", projectName: "A/B:测试", exportedAt: "2026-07-17" }), /A-B-测试-openadops-project-2026-07-17\.json/);
   assert.equal(backupFileName({ kind: "workspace", exportedAt: "2026-07-17T12:00:00Z" }), "openadops-workspace-2026-07-17.json");

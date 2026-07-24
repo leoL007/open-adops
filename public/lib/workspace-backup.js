@@ -14,6 +14,39 @@ function supportedSchemaVersion(payload) {
   return schemaVersion;
 }
 
+function validRecordResult(record, requiredArrays = [], requiredObjects = []) {
+  if (record === null || record === undefined) return true;
+  if (!isObject(record) || !isObject(record.result)) return false;
+  return requiredArrays.every((key) => Array.isArray(record.result[key]))
+    && requiredObjects.every((key) => isObject(record.result[key]));
+}
+
+function validateGeneratedArtifacts(project, projectNumber) {
+  if (project.ai !== undefined) {
+    if (!isObject(project.ai)) {
+      throw new Error(`备份中的第 ${projectNumber} 个项目 AI 记录结构无效`);
+    }
+    for (const record of Object.values(project.ai)) {
+      if (!validRecordResult(record, ["findings", "creative_tests", "next_actions"])) {
+        throw new Error(`备份中的第 ${projectNumber} 个项目 AI 分析结果结构无效`);
+      }
+    }
+  }
+  if (!validRecordResult(project.intake?.analysis, ["brief_fields", "clarification_questions"], ["strategy_draft"])) {
+    throw new Error(`备份中的第 ${projectNumber} 个项目策略初稿结构无效`);
+  }
+  if (!validRecordResult(
+    project.launch?.pack,
+    ["media_plan", "campaigns", "creative_briefs", "launch_checklist", "first_7_days"],
+    ["readiness"]
+  )) {
+    throw new Error(`备份中的第 ${projectNumber} 个项目投放执行方案结构无效`);
+  }
+  if (!validRecordResult(project.experiments?.plan, ["experiments", "learning_agenda"])) {
+    throw new Error(`备份中的第 ${projectNumber} 个项目实验账本结构无效`);
+  }
+}
+
 function validatedProjects(projects, emptyMessage) {
   if (!Array.isArray(projects) || projects.length === 0) throw new Error(emptyMessage);
   const ids = new Set();
@@ -21,6 +54,7 @@ function validatedProjects(projects, emptyMessage) {
     if (!isObject(project) || typeof project.id !== "string" || !project.id.trim()) {
       throw new Error(`备份中的第 ${index + 1} 个项目结构无效`);
     }
+    validateGeneratedArtifacts(project, index + 1);
     if (ids.has(project.id)) throw new Error(`备份中存在重复项目 ID：${project.id}`);
     ids.add(project.id);
   }

@@ -15,6 +15,20 @@ const METRIC_BY_VALUE = new Map(PERFORMANCE_TARGET_METRICS.map((item) => [item.v
 const STATUS_BY_VALUE = new Map(PERFORMANCE_TARGET_STATUSES.map((item) => [item.value, item]));
 const ROAS_WINDOWS = new Set(["D0", "D1", "D7", "D30"]);
 
+export function equalBudgetShares(platforms) {
+  const uniquePlatforms = [...new Set(
+    (Array.isArray(platforms) ? platforms : [])
+      .map((platform) => String(platform || "").trim())
+      .filter(Boolean)
+  )];
+  if (!uniquePlatforms.length) return {};
+  const baseShare = Math.floor(100 / uniquePlatforms.length);
+  const remainder = 100 - baseShare * uniquePlatforms.length;
+  return Object.fromEntries(
+    uniquePlatforms.map((platform, index) => [platform, baseShare + (index < remainder ? 1 : 0)])
+  );
+}
+
 function positiveNumber(value) {
   if (value === "" || value === null || value === undefined) return null;
   const number = Number(value);

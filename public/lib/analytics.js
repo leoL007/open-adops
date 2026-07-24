@@ -95,9 +95,14 @@ export function parseCsv(text) {
   if (duplicateHeaders.size) {
     throw new Error(`CSV 表头重复：${[...duplicateHeaders].join(" / ")}`);
   }
-  const rows = matrix.slice(1).map((values) =>
-    Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ""]))
-  );
+  const rows = matrix.slice(1).map((values, index) => {
+    if (values.length !== headers.length) {
+      throw new Error(
+        `CSV 第 ${index + 2} 行列数与表头不一致：应为 ${headers.length} 列，实际 ${values.length} 列`
+      );
+    }
+    return Object.fromEntries(headers.map((header, columnIndex) => [header, values[columnIndex]]));
+  });
   return { headers, rows };
 }
 
@@ -175,13 +180,25 @@ function parseNumericCell(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return { value: 0, valid: true, blank: true };
   const accountingNegative = /^\(([^()]*)\)$/.exec(raw);
-  const normalized = String(accountingNegative?.[1] ?? raw)
-    .replace(/[￥$€£¥,\s]/g, "")
-    .replace(/%$/, "");
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed)
-    ? { value: accountingNegative ? -Math.abs(parsed) : parsed, valid: true, blank: false }
-    : { value: 0, valid: false, blank: false };
+  let normalized = String(accountingNegative?.[1] ?? raw).trim();
+  if (normalized.endsWith("%")) normalized = normalized.slice(0, -1).trim();
+  const numberPattern = "(?:\\d{1,3}(?:,\\d{3})+(?:\\.\\d+)?|\\d+(?:\\.\\d+)?|\\.\\d+)";
+  const signBeforeCurrency = normalized.match(
+    new RegExp(`^([+-]?)\\s*[￥$€£¥]?\\s*(${numberPattern})$`)
+  );
+  const currencyBeforeSign = normalized.match(
+    new RegExp(`^[￥$€£¥]\\s*([+-]?)\\s*(${numberPattern})$`)
+  );
+  const match = signBeforeCurrency || currencyBeforeSign;
+  if (!match) return { value: 0, valid: false, blank: false };
+  const parsed = Number(match[2].replaceAll(",", ""));
+  if (!Number.isFinite(parsed)) return { value: 0, valid: false, blank: false };
+  const signed = match[1] === "-" ? -parsed : parsed;
+  return {
+    value: accountingNegative ? -Math.abs(signed) : signed,
+    valid: true,
+    blank: false
+  };
 }
 
 function numberValue(value) {
@@ -226,7 +243,17 @@ function safeDivide(numerator, denominator) {
   return denominator > 0 ? numerator / denominator : null;
 }
 
-function aggregate(rows) {
+function attributionInstallsFor(raw, availableFields) {
+  if (Array.isArray(availableFields) && availableFields.length) {
+    const fields = new Set(availableFields);
+    if (fields.has("af_installs")) return raw.af_installs;
+    if (fields.has("installs")) return raw.installs;
+    return 0;
+  }
+  return raw.af_installs || raw.installs;
+}
+
+function aggregate(rows, { availableFields = [] } = {}) {
   const raw = rows.reduce(
     (accumulator, row) => {
       for (const key of ["spend", "impressions", "clicks", "installs", "af_installs", "conversions", "revenue", "d1_retained"]) {
@@ -236,7 +263,7 @@ function aggregate(rows) {
     },
     { spend: 0, impressions: 0, clicks: 0, installs: 0, af_installs: 0, conversions: 0, revenue: 0, d1_retained: 0 }
   );
-  const attributionInstalls = raw.af_installs || raw.installs;
+  const attributionInstalls = attributionInstallsFor(raw, availableFields);
   const conversionEvents = [...new Set(rows.map((row) => String(row.conversion_event || "").trim()).filter(Boolean))];
   return {
     ...raw,
@@ -253,7 +280,13 @@ function aggregate(rows) {
 
 export function normalizeDate(value) {
   const raw = String(value || "").trim();
-  const match = raw.match(/^(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})/);
+  const standard = raw.match(
+    /^(\d{4})([-/.])(\d{1,2})\2(\d{1,2})(?:[T\s]\d{1,2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/
+  );
+  const chinese = raw.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日?$/);
+  const match = standard
+    ? [standard[0], standard[1], standard[3], standard[4]]
+    : chinese;
   if (!match) return "";
   const year = Number(match[1]);
   const month = Number(match[2]);
@@ -366,8 +399,8 @@ export function calculatePeriodComparison(rows, ranges, { availableFields = [] }
   const previousRows = filterRowsByDate(rows, normalizedRanges.previousStart, normalizedRanges.previousEnd);
   const currentRows = filterRowsByDate(rows, normalizedRanges.currentStart, normalizedRanges.currentEnd);
   const fields = new Set(availableFields);
-  const previousSummary = aggregate(previousRows);
-  const currentSummary = aggregate(currentRows);
+  const previousSummary = aggregate(previousRows, { availableFields });
+  const currentSummary = aggregate(currentRows, { availableFields });
   const availableMetrics = Object.entries(COMPARISON_METRICS)
     .filter(([, definition]) => definition.fields.every((field) => fields.has(field)))
     .map(([metric]) => metric);
@@ -390,7 +423,7 @@ export function calculatePeriodComparison(rows, ranges, { availableFields = [] }
   };
 }
 
-function groupBy(rows, field) {
+function groupBy(rows, field, options) {
   const groups = new Map();
   for (const row of rows) {
     const key = row[field] || "未标记";
@@ -398,19 +431,20 @@ function groupBy(rows, field) {
     groups.get(key).push(row);
   }
   return [...groups.entries()]
-    .map(([name, groupRows]) => ({ name, ...aggregate(groupRows), period: periodForRows(groupRows) }))
+    .map(([name, groupRows]) => ({ name, ...aggregate(groupRows, options), period: periodForRows(groupRows) }))
     .sort((left, right) => right.spend - left.spend);
 }
 
-export function calculateMetrics(rows) {
+export function calculateMetrics(rows, { availableFields = [] } = {}) {
   if (!Array.isArray(rows) || rows.length === 0) throw new Error("没有可计算的数据行");
+  const options = { availableFields };
   return {
     rowCount: rows.length,
-    summary: aggregate(rows),
+    summary: aggregate(rows, options),
     period: periodForRows(rows),
-    byPlatform: groupBy(rows, "platform"),
-    byCountry: groupBy(rows, "country"),
-    byCampaign: groupBy(rows, "campaign")
+    byPlatform: groupBy(rows, "platform", options),
+    byCountry: groupBy(rows, "country", options),
+    byCampaign: groupBy(rows, "campaign", options)
   };
 }
 

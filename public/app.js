@@ -53,9 +53,15 @@ import {
 import {
   PERFORMANCE_TARGET_METRICS,
   PERFORMANCE_TARGET_STATUSES,
+  equalBudgetShares,
   normalizePerformanceTargets,
   targetHint
 } from "./lib/project-targets.js";
+import {
+  dataQualityIssues,
+  dataQualityNeedsAttention,
+  dataQualityText
+} from "./lib/data-quality.js";
 import {
   backupFileName,
   buildProjectBackup,
@@ -130,7 +136,8 @@ function makeId() {
 function demoMetrics() {
   const parsed = parseCsv(DEMO_CSV);
   const mapping = detectMapping(parsed.headers);
-  return calculateMetrics(mapRows(parsed.rows, mapping));
+  const availableFields = Object.keys(mapping).filter((field) => mapping[field]);
+  return calculateMetrics(mapRows(parsed.rows, mapping), { availableFields });
 }
 
 function demoAvailableFields() {
@@ -146,6 +153,23 @@ function demoComparison() {
   return calculatePeriodComparison(rows, defaultComparisonRanges(rows), {
     availableFields: Object.keys(mapping).filter((field) => mapping[field])
   });
+}
+
+function demoDateQuality() {
+  const parsed = parseCsv(DEMO_CSV);
+  const mapping = detectMapping(parsed.headers);
+  return calculateDateQuality(mapRows(parsed.rows, mapping));
+}
+
+function demoNumericQuality() {
+  const parsed = parseCsv(DEMO_CSV);
+  const mapping = detectMapping(parsed.headers);
+  const quality = calculateNumericQuality(parsed.rows, mapping);
+  return {
+    checkedFields: quality.checkedFields,
+    invalidCells: quality.invalidCells,
+    blankCells: quality.blankCells
+  };
 }
 
 function createIntake(overrides = {}) {
@@ -244,6 +268,8 @@ function createDemoProject() {
       metrics: demoMetrics(),
       comparison: demoComparison(),
       availableFields: demoAvailableFields(),
+      dateQuality: demoDateQuality(),
+      numericQuality: demoNumericQuality(),
       isDemo: true
     },
     intake: createIntake({
@@ -605,30 +631,9 @@ function availableMetric(project, field, value, type = "number") {
   return dataHasField(project, field) ? formatMetric(value, type, project.currency || "USD") : "—";
 }
 
-function dataQualityIssues(data) {
-  if (!data) return [];
-  const issues = [];
-  const invalidCells = Number(data.numericQuality?.invalidCells || 0);
-  const blankCells = Number(data.numericQuality?.blankCells || 0);
-  const invalidDates = Number(data.dateQuality?.invalidRows || 0);
-  if (invalidCells > 0) issues.push(`${invalidCells} 个异常数值，需重新导入`);
-  if (blankCells > 0) issues.push(`${blankCells} 个空白数值按 0 计入`);
-  if (invalidDates > 0) issues.push(`${invalidDates} 行日期无效，未进入周期与对比`);
-  return issues;
-}
-
-function dataQualityText(data) {
-  if (!data) return "未导入";
-  const issues = dataQualityIssues(data);
-  if (issues.length) return issues.join("；");
-  if (!data.numericQuality && !data.dateQuality) return "未记录（重新导入后生成）";
-  return "未发现已记录异常";
-}
-
 function dataQualityNotice(project) {
-  const issues = dataQualityIssues(project.data);
-  if (!issues.length) return "";
-  return `<div class="data-quality-notice"><strong>数据质量提示</strong><span>${escapeHtml(issues.join("；"))}</span></div>`;
+  if (!dataQualityNeedsAttention(project.data)) return "";
+  return `<div class="data-quality-notice"><strong>数据质量提示</strong><span>${escapeHtml(dataQualityText(project.data))}</span></div>`;
 }
 
 function metricCards(project) {
@@ -1887,9 +1892,9 @@ function applyImport() {
       return;
     }
     const mappedRows = mapRows(importSession.parsed.rows, mapping);
-    const metrics = calculateMetrics(mappedRows);
-    const dateQuality = mapping.date ? calculateDateQuality(mappedRows) : null;
     const availableFields = Object.keys(mapping).filter((field) => mapping[field]);
+    const metrics = calculateMetrics(mappedRows, { availableFields });
+    const dateQuality = mapping.date ? calculateDateQuality(mappedRows) : null;
     const comparison = mapping.date && importSession.comparisonRanges
       ? calculatePeriodComparison(mappedRows, importSession.comparisonRanges, { availableFields })
       : null;
@@ -2931,7 +2936,7 @@ projectForm.addEventListener("submit", (event) => {
     notes: "",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    strategy: { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: Object.fromEntries(platforms.map((platform) => [platform, Math.round(100 / platforms.length)])) },
+    strategy: { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: equalBudgetShares(platforms) },
     creativePlan: [],
     creativeProduction: { tasks: [], updatedAt: new Date().toISOString() },
     launch: createLaunch(),
