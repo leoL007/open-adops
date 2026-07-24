@@ -2,6 +2,17 @@
 
 All notable changes to OpenAdOps are documented here.
 
+## [0.5.5] - 2026-07-24
+
+### Fixed
+
+- 本地 HTTP 路由不再使用不可信的 `Host` 请求头构造 URL；畸形 Host 不会导致 OpenAdOps 服务整体退出。
+- 无法解析的请求地址返回 400，正常健康检查和工作台访问继续可用。
+
+### Changed
+
+- 新增请求地址解析的确定性回归测试，并通过真实畸形 Host 请求验证服务存活。
+
 ## [0.5.4] - 2026-07-24
 
 ### Fixed

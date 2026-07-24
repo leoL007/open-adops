@@ -19,6 +19,7 @@ import { formatCodexProcessFailure } from "./src/codex-process-error.mjs";
 import { validateExperimentPlan } from "./src/experiment-validator.mjs";
 import { validateIntake } from "./src/intake-validator.mjs";
 import { validateLaunchPack } from "./src/launch-pack-validator.mjs";
+import { parseRequestUrl } from "./src/request-url.mjs";
 import { formatServerStartupError } from "./src/server-startup-error.mjs";
 import { resolveStaticFile, shouldSendStaticBody } from "./src/static-request.mjs";
 
@@ -650,7 +651,12 @@ async function serveStatic(pathname, response, method = "GET") {
 }
 
 const server = http.createServer(async (request, response) => {
-  const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
+  const parsedUrl = parseRequestUrl(request.url);
+  if (!parsedUrl.ok) {
+    sendJson(response, parsedUrl.status, { ok: false, error: parsedUrl.error });
+    return;
+  }
+  const { url } = parsedUrl;
   if (request.method === "GET" && url.pathname === "/api/health") {
     sendJson(response, 200, {
       ok: true,

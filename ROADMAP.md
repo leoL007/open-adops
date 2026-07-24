@@ -102,6 +102,13 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Replace raw port-conflict stacks with a concise restart instruction.
 - [x] Cover startup and version-compatibility decisions with deterministic tests.
 
+### v0.5.5 — Request routing resilience
+
+- [x] Parse local request targets without trusting the incoming Host header.
+- [x] Keep the local service alive after a malformed Host request.
+- [x] Return a client error for invalid request targets.
+- [x] Cover request parsing with deterministic and live-process regression checks.
+
 ## v0.6 — Evidence and collaboration
 
 - [ ] Reusable strategy and creative-test templates by industry.
