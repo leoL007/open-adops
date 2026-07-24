@@ -60,6 +60,7 @@ import {
   mergeProjects,
   parseBackupJson
 } from "./lib/workspace-backup.js";
+import { isStorageQuotaError, loadWorkspaceState, workspaceLoadWarning } from "./lib/workspace-state.js";
 import { APP_VERSION } from "./version.js";
 
 const STORAGE_KEY = "openadops:v4";
@@ -279,40 +280,39 @@ function initialState() {
   return { activeProjectId: demo.id, aiMode: "mock", mappingProfiles: [], projects: [demo] };
 }
 
-function loadState() {
-  for (const key of [STORAGE_KEY, ...PREVIOUS_STORAGE_KEYS, LEGACY_STORAGE_KEY]) {
-    try {
-      const stored = JSON.parse(localStorage.getItem(key));
-      if (stored?.projects?.length) {
-        const normalized = {
-          ...stored,
-          aiMode: stored.aiMode || "mock",
-          mappingProfiles: normalizeMappingProfiles(stored.mappingProfiles),
-          projects: stored.projects.map((project) => {
-            const normalizedProject = {
-              ...project,
-              performanceTargets: normalizePerformanceTargets(project),
-              targetReview: String(project.targetReview || ""),
-              intake: createIntake(project.intake || {}),
-              launch: createLaunch(project.launch || {}),
-              experiments: createExperiments(project.experiments || {}),
-              optimizationHistory: projectOptimizationHistory(project)
-            };
-            syncCreativeProduction(normalizedProject);
-            return normalizedProject;
-          })
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-        return normalized;
-      }
-    } catch {
-      // Try the next storage generation.
-    }
-  }
-  return initialState();
+function normalizeStoredState(stored) {
+  const projects = stored.projects.map((project) => {
+    const normalizedProject = {
+      ...project,
+      performanceTargets: normalizePerformanceTargets(project),
+      targetReview: String(project.targetReview || ""),
+      intake: createIntake(project.intake || {}),
+      launch: createLaunch(project.launch || {}),
+      experiments: createExperiments(project.experiments || {}),
+      optimizationHistory: projectOptimizationHistory(project)
+    };
+    syncCreativeProduction(normalizedProject);
+    return normalizedProject;
+  });
+  return {
+    ...stored,
+    activeProjectId: projects.some((project) => project.id === stored.activeProjectId)
+      ? stored.activeProjectId
+      : projects[0].id,
+    aiMode: stored.aiMode || "mock",
+    mappingProfiles: normalizeMappingProfiles(stored.mappingProfiles),
+    projects
+  };
 }
 
-let state = loadState();
+const stateLoadResult = loadWorkspaceState({
+  storage: localStorage,
+  currentKey: STORAGE_KEY,
+  previousKeys: [...PREVIOUS_STORAGE_KEYS, LEGACY_STORAGE_KEY],
+  normalize: normalizeStoredState,
+  createFallback: initialState
+});
+let state = stateLoadResult.state;
 const isStaticDemo = location.hostname.endsWith("github.io") || location.protocol === "file:";
 if (isStaticDemo) {
   state.aiMode = "mock";
@@ -323,9 +323,8 @@ function saveState(nextState = state) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(nextState));
     return true;
   } catch (error) {
-    const quota = error?.name === "QuotaExceededError" || /quota|storage/i.test(String(error?.message || error));
     showToast(
-      quota
+      isStorageQuotaError(error)
         ? "浏览器存储空间不足，本次修改未保存。请导出文档备份或删除旧项目后再试。"
         : `本地保存失败：${error.message || error}`,
       "error"
@@ -2903,6 +2902,8 @@ projectForm.addEventListener("submit", (event) => {
 window.addEventListener("hashchange", render);
 if (!location.hash) location.hash = "overview";
 render();
+const initialStorageWarning = workspaceLoadWarning(stateLoadResult);
+if (initialStorageWarning) showToast(initialStorageWarning, "error");
 loadAiRuntime().then(() => {
   if (!aiBusy) render();
 });
