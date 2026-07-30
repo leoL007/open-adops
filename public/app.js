@@ -24,8 +24,8 @@ import { buildMockLaunchPack } from "./lib/mock-launch-pack.js";
 import {
   CREATIVE_TASK_STATUSES,
   creativeProductionCsv,
+  creativeProductionFeishuMarkdown,
   creativeProductionMarkdown,
-  creativeProductionSummary,
   legacyCreativePlan,
   normalizeCreativeProduction,
   normalizeCreativeTask,
@@ -689,9 +689,9 @@ function emptyState(title, description, targetRoute, buttonLabel) {
 function analysisToolbar(stage) {
   const routeKey = stage === "optimize" ? "optimizeAnalysis" : "analysis";
   const mode = state.aiMode === "codex" ? routeDetail(routeKey) : "本地演示 · 不耗额度";
-  const title = stage === "creative" ? "生成素材任务" : "结构化判断";
-  const action = stage === "creative" ? "生成素材任务" : "生成分析";
-  const mockAction = stage === "creative" ? "生成演示任务" : "运行演示分析";
+  const title = stage === "creative" ? "生成素材方向" : "结构化判断";
+  const action = stage === "creative" ? "生成素材方向" : "生成分析";
+  const mockAction = stage === "creative" ? "生成演示方向" : "运行演示分析";
   return `<div class="analysis-toolbar">
     <div><strong>${title}</strong><span>${escapeHtml(mode)}</span></div>
     <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : state.aiMode === "codex" ? action : mockAction}</button>
@@ -857,7 +857,7 @@ function renderOverview(project) {
         <div class="stage-flow">
           <button type="button" class="stage-step ${hasIntake ? "complete" : ""}" data-step="00" data-go-route="intake"><h3>需求接收</h3><p>资料、追问与策略初稿</p></button>
           <button type="button" class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01" data-go-route="strategy"><h3>投放策略</h3><p>目标、媒体与预算逻辑</p></button>
-          <button type="button" class="stage-step ${hasCreative ? "complete" : ""}" data-step="02" data-go-route="creative"><h3>素材生产</h3><p>任务、交付与状态</p></button>
+          <button type="button" class="stage-step ${hasCreative ? "complete" : ""}" data-step="02" data-go-route="creative"><h3>素材方向</h3><p>角度、Hook 与设计 Brief</p></button>
           <button type="button" class="stage-step ${launchReady ? "complete" : ""}" data-step="03" data-go-route="launch"><h3>执行方案</h3><p>Campaign 与上线检查</p></button>
           <button type="button" class="stage-step ${hasExperiments ? "complete" : ""}" data-step="04" data-go-route="experiments"><h3>实验台</h3><p>样本门槛与学习</p></button>
           <button type="button" class="stage-step ${hasOptimize ? "complete" : ""}" data-step="05" data-go-route="optimize"><h3>投放优化</h3><p>数据诊断与动作</p></button>
@@ -964,41 +964,38 @@ function creativeTaskOptions(values, current) {
 }
 
 function creativeTaskCard(project, task, index) {
-  const sourceLabel = ({ manual: "人工任务", analysis: "AI 素材方向", launch_pack: "执行方案", legacy: "历史计划" })[task.source] || "任务";
-  const statusOptions = CREATIVE_TASK_STATUSES.map((item) => `<option value="${item.value}" ${item.value === task.status ? "selected" : ""}>${item.label}</option>`).join("");
+  const sourceLabel = ({ manual: "手工方向", analysis: "AI 方向", launch_pack: "执行方案", legacy: "历史计划" })[task.source] || "方向";
   const platformOptions = creativeTaskOptions(project.platforms || [], task.platform);
   const deliverableOptions = creativeTaskOptions(["视频", "图片", "广告文案", "商店页资产", "其他"], task.deliverable);
   const taskId = attr(task.id);
   const field = (name) => `data-creative-task-id="${taskId}" data-creative-task-field="${name}"`;
-  return `<article class="creative-production-task">
+  return `<article class="creative-production-task creative-direction-card">
     <div class="creative-task-header">
-      <div><span class="card-label">#${String(index + 1).padStart(2, "0")} · ${escapeHtml(sourceLabel)}</span><h3>${escapeHtml(task.angle || "未命名素材任务")}</h3><p>${escapeHtml(task.platform)} · ${escapeHtml(task.market || "市场待确认")} · ${task.quantity} 个版本</p></div>
-      <div class="creative-task-actions"><select class="creative-status-select" aria-label="任务状态" ${field("status")}>${statusOptions}</select><button type="button" class="button button-danger button-small" data-remove-creative-task="${taskId}">删除</button></div>
+      <div><span class="card-label">#${String(index + 1).padStart(2, "0")} · ${escapeHtml(sourceLabel)}</span><h3>${escapeHtml(task.angle || "未命名素材方向")}</h3><p>${escapeHtml(task.platform)} · ${escapeHtml(task.market || "市场待确认")} · ${task.quantity} 个版本</p></div>
+      <div class="creative-task-actions"><button type="button" class="button button-ghost button-small" data-remove-creative-task="${taskId}">删除</button></div>
     </div>
     <div class="creative-task-section">
-      <span class="creative-task-section-title">交付信息</span>
-      <div class="creative-task-operational-grid">
-        <label class="field"><span>媒体</span><select ${field("platform")}>${platformOptions}</select></label>
-        <label class="field"><span>市场</span><input ${field("market")} value="${attr(task.market)}" placeholder="例如：JP" /></label>
-        <label class="field"><span>语言</span><input ${field("language")} value="${attr(task.language)}" placeholder="例如：日语" /></label>
-        <label class="field"><span>素材类型</span><select ${field("deliverable")}>${deliverableOptions}</select></label>
-        <label class="field"><span>规格</span><input ${field("format")} value="${attr(task.format)}" placeholder="例如：9:16 · 15 秒" /></label>
-        <label class="field"><span>版本数</span><input type="number" min="1" max="100" ${field("quantity")} value="${attr(task.quantity)}" /></label>
-        <label class="field"><span>负责人</span><input ${field("owner")} value="${attr(task.owner)}" placeholder="待分配" /></label>
-        <label class="field"><span>截止日期</span><input type="date" ${field("dueDate")} value="${attr(task.dueDate)}" /></label>
-      </div>
-    </div>
-    <div class="creative-task-section">
-      <span class="creative-task-section-title">测试与制作要求</span>
+      <span class="creative-task-section-title">方向与测试</span>
       <div class="creative-task-brief-grid">
         <label class="field"><span>素材角度</span><input ${field("angle")} value="${attr(task.angle)}" placeholder="本条素材要证明什么" /></label>
         <label class="field"><span>单一变量</span><input ${field("testVariable")} value="${attr(task.testVariable)}" placeholder="本轮只改变一个变量" /></label>
         <label class="field field-wide"><span>Hook</span><textarea ${field("hook")} placeholder="首帧或前 3 秒表达">${escapeHtml(task.hook)}</textarea></label>
         <label class="field field-wide"><span>测试假设</span><textarea ${field("hypothesis")} placeholder="如果改变 X，预计 Y 会出现可判断变化">${escapeHtml(task.hypothesis)}</textarea></label>
         <label class="field"><span>成功指标</span><input ${field("successMetric")} value="${attr(task.successMetric)}" placeholder="观察期，暂无阈值" /></label>
-        <label class="field"><span>素材链接 / 文件名</span><input ${field("assetLink")} value="${attr(task.assetLink)}" placeholder="交付后补充" /></label>
-        <label class="field"><span>制作备注</span><textarea ${field("productionNotes")} placeholder="字幕、安全区、镜头、CTA 等">${escapeHtml(task.productionNotes)}</textarea></label>
-        <label class="field"><span>合规要求</span><textarea ${field("complianceNotes")} placeholder="禁用表达、功能边界、审核要求等">${escapeHtml(task.complianceNotes)}</textarea></label>
+        <label class="field"><span>参考链接 / 文件名</span><input ${field("assetLink")} value="${attr(task.assetLink)}" placeholder="已有物料或竞品参考" /></label>
+      </div>
+    </div>
+    <div class="creative-task-section">
+      <span class="creative-task-section-title">规格（给设计）</span>
+      <div class="creative-task-operational-grid creative-direction-specs">
+        <label class="field"><span>媒体</span><select ${field("platform")}>${platformOptions}</select></label>
+        <label class="field"><span>市场</span><input ${field("market")} value="${attr(task.market)}" placeholder="例如：JP" /></label>
+        <label class="field"><span>语言</span><input ${field("language")} value="${attr(task.language)}" placeholder="例如：日语" /></label>
+        <label class="field"><span>素材类型</span><select ${field("deliverable")}>${deliverableOptions}</select></label>
+        <label class="field"><span>规格</span><input ${field("format")} value="${attr(task.format)}" placeholder="例如：9:16 · 15 秒" /></label>
+        <label class="field"><span>数量</span><input type="number" min="1" max="100" ${field("quantity")} value="${attr(task.quantity)}" /></label>
+        <label class="field field-wide"><span>制作备注</span><textarea ${field("productionNotes")} placeholder="字幕、安全区、镜头、CTA 等">${escapeHtml(task.productionNotes)}</textarea></label>
+        <label class="field field-wide"><span>合规 / 不做</span><textarea ${field("complianceNotes")} placeholder="禁用表达、功能边界、审核要求等">${escapeHtml(task.complianceNotes)}</textarea></label>
       </div>
     </div>
   </article>`;
@@ -1006,16 +1003,22 @@ function creativeTaskCard(project, task, index) {
 
 function renderCreative(project) {
   const tasks = creativeTasks(project);
-  const summary = creativeProductionSummary(tasks);
-  const actions = `<button class="button button-ghost" data-export-creative-markdown>导出文档</button><button class="button button-secondary" data-export-creative-csv>导出 CSV</button><button class="button button-primary" data-add-creative-task>＋ 新建任务</button>`;
-  return `${pageHeader("阶段 02 · 素材生产", "素材生产计划", "", actions)}
-    <div class="metric-grid creative-production-metrics">
-      <article class="metric-card"><span>生产任务</span><strong>${summary.tasks}</strong><small>按媒体与市场拆分</small></article>
-      <article class="metric-card"><span>计划版本</span><strong>${summary.versions}</strong><small>所有任务版本数合计</small></article>
-      <article class="metric-card"><span>待审核</span><strong>${summary.review}</strong><small>${summary.overdue ? `${summary.overdue} 项已逾期` : "当前无逾期任务"}</small></article>
-      <article class="metric-card"><span>已交付 / 上线</span><strong>${summary.completed}</strong><small>生产闭环完成数</small></article>
-    </div>
-    <section class="card mb-16"><div class="card-header"><div><h2>生产任务</h2></div><span class="badge" style="color:var(--accent-deep);background:var(--accent-soft)">${tasks.length} TASKS</span></div>${tasks.length ? `<div class="creative-production-list">${tasks.map((task, index) => creativeTaskCard(project, task, index)).join("")}</div>` : emptyState("还没有生产任务", "新建任务，或运行 AI 生成第一批素材方向。", "", "")}</section>
+  const actions = [
+    `<button class="button button-primary" data-copy-creative-feishu type="button">复制飞书版 Brief</button>`,
+    `<button class="button button-ghost" data-export-creative-markdown type="button">导出文档</button>`,
+    `<button class="button button-ghost" data-export-creative-csv type="button">导出 CSV</button>`,
+    `<button class="button button-secondary" data-add-creative-task type="button">＋ 新建方向</button>`
+  ].join("");
+  return `${pageHeader("阶段 02 · 素材方向", "素材方向", "", actions)}
+    <section class="card mb-16">
+      <div class="card-header">
+        <div><h2>方向列表</h2></div>
+        <span class="badge" style="color:var(--accent-deep);background:var(--accent-soft)">${tasks.length} 个方向</span>
+      </div>
+      ${tasks.length
+        ? `<div class="creative-production-list">${tasks.map((task, index) => creativeTaskCard(project, task, index)).join("")}</div>`
+        : emptyState("还没有素材方向", "点「新建方向」，或下方用 AI 生成。", "", "")}
+    </section>
     <section class="card">${analysisToolbar("creative")}${aiResult(project, "creative")}</section>`;
 }
 
@@ -1618,7 +1621,7 @@ function attachPageListeners() {
         syncCreativeProduction(project, production.tasks);
       });
       render();
-      if (saved) showToast("素材任务已更新");
+      if (saved) showToast("素材方向已更新");
     });
   });
   document.querySelector("[data-add-creative-task]")?.addEventListener("click", () => {
@@ -1641,19 +1644,20 @@ function attachPageListeners() {
       syncCreativeProduction(project, production.tasks);
     });
     render();
-    if (saved) showToast("已新建素材任务");
+    if (saved) showToast("已新建素材方向");
   });
   document.querySelectorAll("[data-remove-creative-task]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!window.confirm("删除这条素材任务？此操作会立即保存。")) return;
+      if (!window.confirm("删除这条素材方向？此操作会立即保存。")) return;
       const saved = updateProject((project) => {
         const production = syncCreativeProduction(project);
         syncCreativeProduction(project, production.tasks.filter((task) => task.id !== button.dataset.removeCreativeTask));
       });
       render();
-      if (saved) showToast("素材任务已删除");
+      if (saved) showToast("素材方向已删除");
     });
   });
+  document.querySelector("[data-copy-creative-feishu]")?.addEventListener("click", copyCreativeFeishuBrief);
   document.querySelector("[data-export-creative-csv]")?.addEventListener("click", exportCreativeProductionCsv);
   document.querySelector("[data-export-creative-markdown]")?.addEventListener("click", exportCreativeProductionMarkdown);
   document.querySelectorAll("[data-launch-status]").forEach((select) => {
@@ -2178,7 +2182,7 @@ async function runExperimentPlan() {
   const projectId = project.id;
   const launchPack = project.launch?.pack?.result || null;
   if (!launchPack && !project.creativePlan?.length) {
-    showToast("请先生成投放执行方案或至少准备一份素材生产任务。", "error");
+    showToast("请先生成投放执行方案或至少准备一份素材方向。", "error");
     return;
   }
   aiBusy = true;
@@ -2535,30 +2539,46 @@ function downloadText(content, fileName, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+async function copyCreativeFeishuBrief() {
+  const project = activeProject();
+  const tasks = creativeTasks(project);
+  if (!tasks.length) {
+    showToast("还没有素材方向可复制", "error");
+    return;
+  }
+  const content = creativeProductionFeishuMarkdown(project, tasks, APP_VERSION);
+  try {
+    await navigator.clipboard.writeText(content);
+    showToast(`已复制 ${tasks.length} 条方向的飞书版 Brief，可粘贴到飞书文档`);
+  } catch {
+    showToast("浏览器不允许复制，请改用「导出文档」。", "error");
+  }
+}
+
 function exportCreativeProductionCsv() {
   const project = activeProject();
   const tasks = creativeTasks(project);
   if (!tasks.length) {
-    showToast("没有可导出的素材任务", "error");
+    showToast("没有可导出的素材方向", "error");
     return;
   }
-  downloadText(creativeProductionCsv(tasks), safeProjectFileName(project, "Creative-Production.csv"), "text/csv;charset=utf-8");
-  showToast(`已导出 ${tasks.length} 条素材任务`);
+  downloadText(creativeProductionCsv(tasks), safeProjectFileName(project, "Creative-Directions.csv"), "text/csv;charset=utf-8");
+  showToast(`已导出 ${tasks.length} 条素材方向`);
 }
 
 function exportCreativeProductionMarkdown() {
   const project = activeProject();
   const tasks = creativeTasks(project);
   if (!tasks.length) {
-    showToast("没有可导出的素材任务", "error");
+    showToast("没有可导出的素材方向", "error");
     return;
   }
   downloadText(
     creativeProductionMarkdown(project, tasks, APP_VERSION),
-    safeProjectFileName(project, "Creative-Production.md"),
+    safeProjectFileName(project, "Creative-Directions.md"),
     "text/markdown;charset=utf-8"
   );
-  showToast(`已导出 ${tasks.length} 条素材任务`);
+  showToast(`已导出 ${tasks.length} 条素材方向`);
 }
 
 function isRecord(value) {

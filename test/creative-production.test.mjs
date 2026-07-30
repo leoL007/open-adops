@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   creativeProductionCsv,
+  creativeProductionFeishuMarkdown,
   creativeProductionMarkdown,
   creativeProductionSummary,
   legacyCreativePlan,
@@ -93,5 +94,12 @@ test("production summary, legacy projection, CSV and Markdown stay deterministic
   assert.equal(legacyCreativePlan(tasks)[0].variable, "首帧");
   assert.match(creativeProductionCsv(tasks), /^\uFEFF媒体,市场/);
   assert.match(creativeProductionCsv(tasks), /Meta Ads,US/);
-  assert.match(creativeProductionMarkdown({ name: "Demo", markets: "US", platforms: ["Meta Ads"] }, tasks, "0.4.7"), /Demo · 素材生产计划/);
+  assert.match(creativeProductionMarkdown({ name: "Demo", markets: "US", platforms: ["Meta Ads"] }, tasks, "0.4.7"), /Demo · 素材方向/);
+  const feishu = creativeProductionFeishuMarkdown({ name: "Demo", markets: "US", platforms: ["Meta Ads"], goal: "拉新" }, tasks, "0.5.12");
+  assert.match(feishu, /Demo 素材方向 Brief/);
+  assert.match(feishu, /本轮测试方向/);
+  assert.match(feishu, /给设计/);
+  assert.match(feishu, /\| 1 \| Meta Ads \| US \| 结果 \|/);
+  assert.doesNotMatch(feishu, /待排期|制作中|已交付|截止日期/);
+  assert.doesNotMatch(feishu, /\| 负责人 \|/);
 });

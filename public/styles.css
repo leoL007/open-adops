@@ -753,7 +753,8 @@ select {
   gap: 14px;
 }
 
-.creative-production-task {
+.creative-production-task,
+.creative-direction-card {
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -811,6 +812,10 @@ select {
 
 .creative-task-operational-grid {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.creative-task-operational-grid.creative-direction-specs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .creative-task-brief-grid {

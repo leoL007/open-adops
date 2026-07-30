@@ -197,9 +197,8 @@ export function creativeProductionCsv(tasks = []) {
 }
 
 export function creativeProductionMarkdown(project = {}, tasks = [], appVersion = "") {
-  const statusLabels = new Map(CREATIVE_TASK_STATUSES.map((item) => [item.value, item.label]));
   const lines = [
-    `# ${text(project.name) || "OpenAdOps"} · 素材生产计划`,
+    `# ${text(project.name) || "OpenAdOps"} · 素材方向`,
     "",
     `- 市场：${text(project.markets) || "待确认"}`,
     `- 媒体：${Array.isArray(project.platforms) ? project.platforms.join(" / ") : "待确认"}`,
@@ -209,21 +208,78 @@ export function creativeProductionMarkdown(project = {}, tasks = [], appVersion 
   tasks.forEach((rawTask, index) => {
     const task = normalizeCreativeTask(rawTask);
     lines.push(
-      `## ${String(index + 1).padStart(2, "0")} · ${task.platform} · ${task.angle || "未命名任务"}`,
+      `## ${String(index + 1).padStart(2, "0")} · ${task.platform} · ${task.angle || "未命名方向"}`,
       "",
       `- 市场 / 语言：${task.market || "待确认"} / ${task.language || "待确认"}`,
-      `- 交付：${task.deliverable} · ${task.format || "规格待确认"} · ${task.quantity} 个版本`,
-      `- 负责人 / 截止：${task.owner} / ${task.dueDate || "待确认"}`,
-      `- 状态：${statusLabels.get(task.status)}`,
+      `- 规格：${task.deliverable} · ${task.format || "规格待确认"} · ${task.quantity} 个版本`,
       `- Hook：${task.hook || "待补充"}`,
       `- 测试假设：${task.hypothesis || "待补充"}`,
       `- 单一变量：${task.testVariable || "待补充"}`,
       `- 成功指标：${task.successMetric || "观察期，暂无阈值"}`,
-      `- 素材链接：${task.assetLink || "待补充"}`,
+      `- 参考链接：${task.assetLink || "待补充"}`,
       `- 制作备注：${task.productionNotes || "无"}`,
-      `- 合规要求：${task.complianceNotes || "无"}`,
+      `- 合规 / 不做：${task.complianceNotes || "无"}`,
       ""
     );
   });
+  return lines.join("\n");
+}
+
+/** Feishu-friendly brief: paste into a cloud doc for designers. */
+export function creativeProductionFeishuMarkdown(project = {}, tasks = [], appVersion = "") {
+  const date = new Date().toISOString().slice(0, 10);
+  const lines = [
+    `# ${text(project.name) || "项目"} 素材方向 Brief · ${date}`,
+    "",
+    "## 背景与目标",
+    "",
+    `- 市场：${text(project.markets) || "待确认"}`,
+    `- 媒体：${Array.isArray(project.platforms) ? project.platforms.join(" / ") : "待确认"}`,
+    `- 核心目标：${text(project.goal) || "待确认"}`,
+    `- 说明：以下方向用于设计制作；排期与负责人在飞书/口头同步即可。`,
+    "",
+    "## 本轮测试方向",
+    ""
+  ];
+
+  if (!tasks.length) {
+    lines.push("（暂无方向，请先在工作台补充或生成）", "");
+  } else {
+    lines.push(
+      "| # | 媒体 | 市场 | 角度 | Hook | 规格 | 数量 | 单变量 | 成功指标 |",
+      "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+    );
+    tasks.forEach((rawTask, index) => {
+      const task = normalizeCreativeTask(rawTask);
+      const cell = (value) => String(value || "—").replaceAll("|", "/").replaceAll("\n", " ");
+      lines.push(
+        `| ${index + 1} | ${cell(task.platform)} | ${cell(task.market)} | ${cell(task.angle)} | ${cell(task.hook)} | ${cell(`${task.deliverable} · ${task.format || "规格待确认"}`)} | ${task.quantity} | ${cell(task.testVariable)} | ${cell(task.successMetric || "观察期")} |`
+      );
+    });
+    lines.push("");
+    tasks.forEach((rawTask, index) => {
+      const task = normalizeCreativeTask(rawTask);
+      lines.push(
+        `### ${index + 1}. ${task.angle || "未命名方向"}（${task.platform}）`,
+        "",
+        `- **假设：** ${task.hypothesis || "待补充"}`,
+        `- **制作备注：** ${task.productionNotes || "无"}`,
+        `- **合规 / 不做：** ${task.complianceNotes || "无"}`,
+        `- **参考：** ${task.assetLink || "待补充"}`,
+        ""
+      );
+    });
+  }
+
+  lines.push(
+    "## 给设计",
+    "",
+    "1. 按上表规格与数量出稿；每条只改「单变量」列中的点。",
+    "2. 有疑问先对齐角度与 Hook，再开做多版本。",
+    "3. 成片/终稿链接回填到飞书本页或工作台「参考链接」。",
+    "",
+    `---`,
+    `由 OpenAdOps v${appVersion || "—"} 生成，可直接粘贴到飞书文档。`
+  );
   return lines.join("\n");
 }
