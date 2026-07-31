@@ -18,8 +18,11 @@ check("Intake schema", existsSync(path.join(root, "schemas", "intake.schema.json
 check("Launch Pack schema", existsSync(path.join(root, "schemas", "launch-pack.schema.json")), "schemas/launch-pack.schema.json");
 check("Experiment schema", existsSync(path.join(root, "schemas", "experiment-plan.schema.json")), "schemas/experiment-plan.schema.json");
 
+const grok = spawnSync(process.env.GROK_BIN || process.env.OPENADOPS_GROK_BIN || "grok", ["--version"], { encoding: "utf8", shell: false });
+check("Grok CLI (for Grok 4.5 mode)", grok.status === 0, grok.status === 0 ? (grok.stdout || grok.stderr).trim() : "not found — use 本地演示, or install/login grok");
+
 const codex = spawnSync(process.env.CODEX_BIN || "codex", ["--version"], { encoding: "utf8", shell: false });
-check("Codex CLI (optional)", codex.status === 0, codex.status === 0 ? codex.stdout.trim() : "not found — Mock mode still works");
+check("Codex CLI (optional / hidden provider)", codex.status === 0, codex.status === 0 ? codex.stdout.trim() : "not found — optional");
 
 console.log("OpenAdOps doctor\n");
 for (const item of checks) {

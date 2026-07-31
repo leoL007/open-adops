@@ -101,6 +101,7 @@ export function resolveAiRoute(routeKey, env = process.env) {
     model,
     effort,
     timeoutMs,
+    provider: "codex",
     fallback: base.structureFallback
       ? {
           model: deepModel,
@@ -112,22 +113,51 @@ export function resolveAiRoute(routeKey, env = process.env) {
   };
 }
 
+/** Live AI mode for the UI: Grok 4.5 high on every task. Codex Terra/Sol stays available as a hidden provider. */
+export function resolveGrokRoute(routeKey, env = process.env) {
+  const base = DEFAULT_ROUTES[routeKey];
+  if (!base) throw new Error(`未知 AI 路由：${routeKey}`);
+
+  const model = env.OPENADOPS_GROK_MODEL || "grok-4.5";
+  const effort = validEffort(env.OPENADOPS_GROK_REASONING_EFFORT) || "high";
+  const timeoutMs = validTimeout(env.OPENADOPS_GROK_TIMEOUT_MS) || validTimeout(env.OPENADOPS_TIMEOUT_MS) || base.timeoutMs;
+
+  return {
+    ...base,
+    model,
+    effort,
+    timeoutMs,
+    provider: "grok",
+    fallback: null
+  };
+}
+
+function publicRouteEntry(route) {
+  return {
+    key: route.key,
+    label: route.label,
+    model: route.model,
+    effort: route.effort,
+    timeoutMs: route.timeoutMs,
+    expectedSeconds: route.expectedSeconds,
+    fallbackModel: route.fallback?.model || null,
+    provider: route.provider || "codex"
+  };
+}
+
 export function publicAiRoutes(env = process.env) {
   return Object.fromEntries(
-    Object.keys(DEFAULT_ROUTES).map((key) => {
-      const route = resolveAiRoute(key, env);
-      return [
-        key,
-        {
-          key: route.key,
-          label: route.label,
-          model: route.model,
-          effort: route.effort,
-          timeoutMs: route.timeoutMs,
-          expectedSeconds: route.expectedSeconds,
-          fallbackModel: route.fallback?.model || null
-        }
-      ];
-    })
+    Object.keys(DEFAULT_ROUTES).map((key) => [key, publicRouteEntry(resolveAiRoute(key, env))])
   );
+}
+
+export function publicGrokRoutes(env = process.env) {
+  return Object.fromEntries(
+    Object.keys(DEFAULT_ROUTES).map((key) => [key, publicRouteEntry(resolveGrokRoute(key, env))])
+  );
+}
+
+export function resolveRouteForProvider(provider, routeKey, env = process.env) {
+  if (provider === "grok") return resolveGrokRoute(routeKey, env);
+  return resolveAiRoute(routeKey, env);
 }

@@ -379,7 +379,8 @@ select {
   cursor: not-allowed;
 }
 
-.mode-switch-btn[data-ai-mode="codex"].active {
+.mode-switch-btn[data-ai-mode="codex"].active,
+.mode-switch-btn[data-ai-mode="grok"].active {
   color: var(--accent-deep);
 }
 

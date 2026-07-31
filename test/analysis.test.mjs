@@ -58,12 +58,43 @@ test("mock analysis uses a target multiple only when an AF-CPI threshold exists"
 
 test("validator rejects incomplete or unsupported priority values", () => {
   const invalid = {
-    executive_summary: "summary",
-    findings: [{ title: "x", evidence: "x", diagnosis: "x", action: "x", priority: "urgent", confidence: "high", validation: "x" }],
-    creative_tests: [],
-    next_actions: []
+    executive_summary: "summary text",
+    findings: [{ title: "title", evidence: "evidence", diagnosis: "diagnosis", action: "action", priority: "urgent", confidence: "high", validation: "validation" }],
+    creative_tests: [{ angle: "angle", hook: "hook text", platform: "Meta Ads", variable: "opening", success_metric: "CTR" }],
+    next_actions: [{ action: "pause", owner: "Leo", timing: "today", success_metric: "CPA" }]
   };
   const validation = validateAnalysis(invalid);
   assert.equal(validation.valid, false);
   assert.match(validation.errors.join(" "), /priority/);
+});
+
+test("validator rejects ellipsis and other placeholder filler", () => {
+  const placeholders = {
+    executive_summary: "...",
+    findings: [{
+      title: "...",
+      evidence: "…",
+      diagnosis: "待补充",
+      action: "...",
+      priority: "high",
+      confidence: "high",
+      validation: "..."
+    }],
+    creative_tests: [{
+      angle: "...",
+      hook: "...",
+      platform: "Meta Ads",
+      variable: "...",
+      success_metric: "..."
+    }],
+    next_actions: [{
+      action: "...",
+      owner: "...",
+      timing: "...",
+      success_metric: "..."
+    }]
+  };
+  const validation = validateAnalysis(placeholders);
+  assert.equal(validation.valid, false);
+  assert.match(validation.errors.join(" "), /占位符/);
 });

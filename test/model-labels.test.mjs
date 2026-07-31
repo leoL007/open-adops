@@ -20,4 +20,7 @@ test("single-task operation bars share one routing label template", () => {
   assert.equal(modelRouteDetail("gpt-5.6-terra", "中"), "智能路由 · 模型：Terra · 推理：中");
   assert.equal(modelRouteDetail("gpt-5.6-sol", "高"), "智能路由 · 模型：Sol · 推理：高");
   assert.equal(modelRouteDetail("gpt-5.6", "高"), "智能路由 · 模型：Sol · 推理：高");
+  assert.equal(modelVariantName("grok-4.5"), "Grok 4.5");
+  assert.equal(modelFullName("grok-4.5-build"), "Grok 4.5");
+  assert.equal(modelRouteDetail("grok-4.5", "高"), "Grok 4.5 · 推理：高");
 });

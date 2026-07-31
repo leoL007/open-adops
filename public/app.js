@@ -103,7 +103,7 @@ let aiBusy = false;
 let currentAiJob = null;
 let aiJobTimer = null;
 let aiJobTicks = 0;
-let aiRoutes = {
+const DEFAULT_CODEX_ROUTES = {
   intakeQuestions: { label: "生成客户追问", model: "gpt-5.6-terra", effort: "low", expectedSeconds: [30, 90] },
   intakeStrategy: { label: "快速生成策略初稿", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
   intakeDeep: { label: "深度复核策略初稿", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
@@ -112,6 +112,15 @@ let aiRoutes = {
   launchPack: { label: "生成投放执行方案", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   experiments: { label: "生成实验账本", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] }
 };
+const DEFAULT_GROK_ROUTES = Object.fromEntries(
+  Object.entries(DEFAULT_CODEX_ROUTES).map(([key, route]) => [
+    key,
+    { ...route, model: "grok-4.5", effort: "high", fallbackModel: null, provider: "grok" }
+  ])
+);
+let codexRoutes = { ...DEFAULT_CODEX_ROUTES };
+let grokRoutes = { ...DEFAULT_GROK_ROUTES };
+let aiRoutes = { ...DEFAULT_GROK_ROUTES };
 
 const BRIEF_FIELD_META = Object.fromEntries(INTAKE_BRIEF_FIELDS.map(([key, label]) => [key, { label, multiline: ["audience", "creative_supply", "compliance", "constraints"].includes(key) }]));
 
@@ -304,9 +313,23 @@ function createDemoProject() {
   return project;
 }
 
+function normalizeAiMode(mode, { staticDemo = false } = {}) {
+  if (staticDemo) return "mock";
+  if (mode === "codex" || mode === "grok") return mode;
+  return "mock";
+}
+
+function isLiveAiMode(mode = state.aiMode) {
+  return mode === "grok" || mode === "codex";
+}
+
+function isLiveProviderMode(mode) {
+  return mode === "grok" || mode === "codex";
+}
+
 function initialState() {
   const demo = createDemoProject();
-  return { activeProjectId: demo.id, aiMode: "mock", mappingProfiles: [], projects: [demo] };
+  return { activeProjectId: demo.id, aiMode: "grok", mappingProfiles: [], projects: [demo] };
 }
 
 function normalizeStoredState(stored) {
@@ -328,7 +351,7 @@ function normalizeStoredState(stored) {
     activeProjectId: projects.some((project) => project.id === stored.activeProjectId)
       ? stored.activeProjectId
       : projects[0].id,
-    aiMode: stored.aiMode || "mock",
+    aiMode: normalizeAiMode(stored.aiMode),
     mappingProfiles: normalizeMappingProfiles(stored.mappingProfiles),
     projects
   };
@@ -343,9 +366,7 @@ const stateLoadResult = loadWorkspaceState({
 });
 let state = stateLoadResult.state;
 const isStaticDemo = location.hostname.endsWith("github.io") || location.protocol === "file:";
-if (isStaticDemo) {
-  state.aiMode = "mock";
-}
+state.aiMode = normalizeAiMode(state.aiMode, { staticDemo: isStaticDemo });
 
 function saveState(nextState = state) {
   try {
@@ -441,24 +462,37 @@ function expectedLabel(expectedSeconds = []) {
   return `通常 ${format(minimum)}–${format(maximum)}`;
 }
 
+function routesForMode(mode = state.aiMode) {
+  if (mode === "codex") return codexRoutes;
+  if (mode === "grok") return grokRoutes;
+  return aiRoutes;
+}
+
+function applyRoutesForMode(mode = state.aiMode) {
+  aiRoutes = routesForMode(mode);
+  return aiRoutes;
+}
+
 function routeSummary(routeKey) {
-  const config = aiRoutes[routeKey] || {};
+  const config = routesForMode()[routeKey] || {};
   return `${modelVariantName(config.model)} · ${effortLabel(config.effort)}`;
 }
 
 function routeDetail(routeKey) {
-  const config = aiRoutes[routeKey] || {};
+  const config = routesForMode()[routeKey] || {};
   return modelRouteDetail(config.model, effortLabel(config.effort));
 }
 
 function runRecordLabel(record) {
   if (!record) return "";
-  if (record.source !== "codex") return "演示结果";
+  if (record.source === "mock" || !record.source) return "演示结果";
   const details = [modelFullName(record.model)];
   if (record.reasoningEffort) details.push(`推理：${effortLabel(record.reasoningEffort)}`);
   if (record.durationMs) details.push(formatDuration(record.durationMs));
   if (record.fallbackUsed) details.push("自动复核");
-  return `本机 Codex · ${details.join(" · ")}`;
+  if (record.source === "grok") return `本机 Grok · ${details.join(" · ")}`;
+  if (record.source === "codex") return `本机 Codex · ${details.join(" · ")}`;
+  return details.join(" · ");
 }
 
 function displayRouteLabel(label) {
@@ -475,7 +509,7 @@ function renderAiJobPanel() {
     aiJobPanel.hidden = true;
     return;
   }
-  const config = aiRoutes[currentAiJob.routeKey] || {};
+  const config = routesForMode()[currentAiJob.routeKey] || {};
   const live = currentAiJob.live || {};
   aiJobPanel.hidden = false;
   aiJobLabel.textContent = displayRouteLabel(live.label || config.label || "正在生成");
@@ -535,15 +569,22 @@ async function loadAiRuntime() {
     const payload = await requestJson("./api/health", { cache: "no-store" });
     const versionWarning = runtimeVersionWarning(APP_VERSION, payload.version);
     if (versionWarning) showPersistentError(versionWarning);
-    if (payload.routes) {
-      const merged = { ...aiRoutes, ...payload.routes };
+    const labelize = (base, incoming) => {
+      const merged = { ...base, ...(incoming || {}) };
       for (const [key, route] of Object.entries(merged)) {
         if (route && typeof route === "object") {
-          merged[key] = { ...route, label: displayRouteLabel(route.label || aiRoutes[key]?.label || key) };
+          merged[key] = { ...route, label: displayRouteLabel(route.label || base[key]?.label || key) };
         }
       }
-      aiRoutes = merged;
+      return merged;
+    };
+    if (payload.routes) grokRoutes = labelize(DEFAULT_GROK_ROUTES, payload.routes);
+    if (payload.codexRoutes) codexRoutes = labelize(DEFAULT_CODEX_ROUTES, payload.codexRoutes);
+    else if (payload.routes && !payload.defaultLiveProvider) {
+      // Older servers only returned Codex routes under `routes`.
+      codexRoutes = labelize(DEFAULT_CODEX_ROUTES, payload.routes);
     }
+    applyRoutesForMode();
   } catch {
     // Local defaults remain usable if the health endpoint is temporarily unavailable.
   }
@@ -688,13 +729,13 @@ function emptyState(title, description, targetRoute, buttonLabel) {
 
 function analysisToolbar(stage) {
   const routeKey = stage === "optimize" ? "optimizeAnalysis" : "analysis";
-  const mode = state.aiMode === "codex" ? routeDetail(routeKey) : "本地演示 · 不耗额度";
+  const mode = isLiveAiMode() ? routeDetail(routeKey) : "本地演示 · 不耗额度";
   const title = stage === "creative" ? "生成素材方向" : "结构化判断";
   const action = stage === "creative" ? "生成素材方向" : "生成分析";
   const mockAction = stage === "creative" ? "生成演示方向" : "运行演示分析";
   return `<div class="analysis-toolbar">
     <div><strong>${title}</strong><span>${escapeHtml(mode)}</span></div>
-    <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : state.aiMode === "codex" ? action : mockAction}</button>
+    <button class="button button-primary" data-run-ai="${attr(stage)}" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在分析…" : isLiveAiMode() ? action : mockAction}</button>
   </div>`;
 }
 
@@ -814,7 +855,7 @@ function renderIntake(project) {
   const actions = result
     ? `<button class="button button-ghost" data-export-intake>导出文档</button><button class="button button-secondary" data-save-intake-version>保存版本</button>`
     : "";
-  const mode = state.aiMode === "codex"
+  const mode = isLiveAiMode()
     ? `智能路由 · 追问：${routeSummary("intakeQuestions")} ｜ 策略初稿：${routeSummary("intakeStrategy")} ｜ 深度复核：${routeSummary("intakeDeep")}`
     : "本地演示 · 不耗额度";
   return `${pageHeader("阶段 00 · 需求接收", "需求接收", "", actions)}
@@ -830,7 +871,7 @@ function renderIntake(project) {
         <div class="inline-actions">
           <button class="button button-ghost" data-run-intake="questions" ${aiBusy ? "disabled" : ""}>${aiBusy ? "处理中…" : "生成追问"}</button>
           <button class="button button-ghost" data-run-intake="deep" ${aiBusy ? "disabled" : ""}>${aiBusy ? "请稍候…" : "深度复核"}</button>
-          <button class="button button-primary" data-run-intake="strategy" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "生成策略初稿" : "生成演示策略"}</button>
+          <button class="button button-primary" data-run-intake="strategy" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : isLiveAiMode() ? "生成策略初稿" : "生成演示策略"}</button>
         </div>
       </div>
     </section>
@@ -1106,9 +1147,9 @@ function renderLaunch(project) {
   const actions = record?.result
     ? `<button class="button button-ghost" data-export-launch-pack>导出文档</button><button class="button button-ghost" data-export-launch-html>导出网页</button><button class="button button-secondary" data-save-launch-version>保存版本</button>`
     : "";
-  const mode = state.aiMode === "codex" ? routeDetail("launchPack") : "本地演示 · 不耗额度";
+  const mode = isLiveAiMode() ? routeDetail("launchPack") : "本地演示 · 不耗额度";
   return `${pageHeader("阶段 03 · 执行方案", "投放执行方案", "", actions)}
-    <section class="card launch-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只生成计划，不改广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "生成执行方案" : "生成演示执行方案"}</button></section>
+    <section class="card launch-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只生成计划，不改广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : isLiveAiMode() ? "生成执行方案" : "生成演示执行方案"}</button></section>
     ${renderLaunchPackResult(project)}`;
 }
 
@@ -1285,9 +1326,9 @@ function renderExperiments(project) {
   const actions = record?.result
     ? `<button class="button button-ghost" data-export-experiments>导出文档</button><button class="button button-ghost" data-export-experiment-html>导出网页</button><button class="button button-secondary" data-save-experiment-version>保存版本</button>`
     : "";
-  const mode = state.aiMode === "codex" ? routeDetail("experiments") : "本地演示 · 不耗额度";
+  const mode = isLiveAiMode() ? routeDetail("experiments") : "本地演示 · 不耗额度";
   return `${pageHeader("阶段 04 · 实验台", "实验台", "", actions)}
-    <section class="card experiment-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只规划记录，不创建后台实验</span></div><button class="button button-primary" data-run-experiments ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : state.aiMode === "codex" ? "生成实验账本" : "生成演示实验账本"}</button></section>
+    <section class="card experiment-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只规划记录，不创建后台实验</span></div><button class="button button-primary" data-run-experiments ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : isLiveAiMode() ? "生成实验账本" : "生成演示实验账本"}</button></section>
     ${renderExperimentPlanResult(project)}`;
 }
 
@@ -1481,11 +1522,14 @@ function refreshShell(project) {
   }
   document.querySelectorAll("[data-ai-mode]").forEach((button) => {
     const active = button.dataset.aiMode === state.aiMode;
+    const liveMode = isLiveProviderMode(button.dataset.aiMode);
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", active ? "true" : "false");
-    button.disabled = aiBusy || (isStaticDemo && button.dataset.aiMode === "codex");
-    if (isStaticDemo && button.dataset.aiMode === "codex") {
-      button.title = "请在本地启动后使用 GPT-5.6";
+    button.disabled = aiBusy || (isStaticDemo && liveMode);
+    if (isStaticDemo && liveMode) {
+      button.title = "请在本地启动后使用 Grok 4.5 / GPT-5.6";
+    } else {
+      button.removeAttribute("title");
     }
   });
   newProjectButton.disabled = aiBusy;
@@ -1966,7 +2010,7 @@ function aiRecordMeta(payload) {
 }
 
 function completionMessage(label, payload) {
-  if (payload.source !== "codex") return label;
+  if (payload.source !== "codex" && payload.source !== "grok") return label;
   const details = [modelFullName(payload.model)];
   if (payload.reasoningEffort) details.push(`推理：${effortLabel(payload.reasoningEffort)}`);
   if (payload.durationMs) details.push(formatDuration(payload.durationMs));
@@ -1979,7 +2023,7 @@ async function runAnalysis(stage) {
   const project = activeProject();
   const projectId = project.id;
   aiBusy = true;
-  if (state.aiMode === "codex") beginAiJob(stage === "optimize" ? "optimizeAnalysis" : "analysis");
+  if (isLiveAiMode()) beginAiJob(stage === "optimize" ? "optimizeAnalysis" : "analysis");
   render();
   try {
     let payload;
@@ -2029,7 +2073,7 @@ async function runAnalysis(stage) {
       }
     });
     if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
-    showToast(completionMessage(payload.source === "codex" ? "分析完成" : "演示结果已生成", payload));
+    showToast(completionMessage(payload.source === "mock" ? "演示结果已生成" : "分析完成", payload));
   } catch (error) {
     handleAiFailure(error);
   } finally {
@@ -2064,7 +2108,7 @@ async function runIntake(action) {
     return;
   }
   aiBusy = true;
-  if (state.aiMode === "codex") beginAiJob(routeKey);
+  if (isLiveAiMode()) beginAiJob(routeKey);
   render();
   try {
     let payload;
@@ -2127,7 +2171,7 @@ async function runLaunchPack() {
     return;
   }
   aiBusy = true;
-  if (state.aiMode === "codex") beginAiJob("launchPack");
+  if (isLiveAiMode()) beginAiJob("launchPack");
   render();
   try {
     let payload;
@@ -2186,7 +2230,7 @@ async function runExperimentPlan() {
     return;
   }
   aiBusy = true;
-  if (state.aiMode === "codex") beginAiJob("experiments");
+  if (isLiveAiMode()) beginAiJob("experiments");
   render();
   try {
     let payload;
@@ -2680,7 +2724,7 @@ async function importWorkspaceBackupFile(file) {
       }
       nextState = {
         activeProjectId: incoming.find((item) => item.id === parsed.activeProjectId)?.id || incoming[0].id,
-        aiMode: isStaticDemo ? "mock" : parsed.aiMode || state.aiMode,
+        aiMode: normalizeAiMode(isStaticDemo ? "mock" : (parsed.aiMode || state.aiMode), { staticDemo: isStaticDemo }),
         mappingProfiles: incomingMappingProfiles,
         projects: incoming
       };
@@ -2894,15 +2938,16 @@ projectSelect.addEventListener("change", () => {
 
 function setAiMode(mode) {
   if (aiBusy) return;
-  if (isStaticDemo && mode === "codex") {
-    showToast("在线演示只能使用本地演示模式，请本机 npm start 后使用 GPT-5.6。", "error");
+  if (isStaticDemo && isLiveProviderMode(mode)) {
+    showToast("在线演示只能使用本地演示模式，请本机 npm start 后使用 Grok 4.5 / GPT-5.6。", "error");
     return;
   }
-  const nextState = { ...state, aiMode: mode === "codex" ? "codex" : "mock" };
+  const nextState = { ...state, aiMode: normalizeAiMode(mode, { staticDemo: isStaticDemo }) };
   if (!commitState(nextState)) {
     render();
     return;
   }
+  applyRoutesForMode(state.aiMode);
   if (aiModeSelect) aiModeSelect.value = state.aiMode;
   render();
 }

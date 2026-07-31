@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { publicAiRoutes, resolveAiRoute } from "../src/ai-router.mjs";
+import { publicAiRoutes, publicGrokRoutes, resolveAiRoute, resolveGrokRoute } from "../src/ai-router.mjs";
 
 test("AI router uses Terra for lightweight work and Sol for deep work", () => {
   assert.deepEqual(
@@ -54,4 +54,18 @@ test("local environment overrides do not require changing global Codex config", 
   assert.equal(route.fallback.model, "deep-test");
   assert.equal(publicAiRoutes({}).experiments.model, "gpt-5.6-terra");
   assert.equal(publicAiRoutes({}).optimizeAnalysis.model, "gpt-5.6-sol");
+});
+
+test("Grok routes default to grok-4.5 high without Codex fallback", () => {
+  const analysis = resolveGrokRoute("analysis", {});
+  assert.equal(analysis.model, "grok-4.5");
+  assert.equal(analysis.effort, "high");
+  assert.equal(analysis.fallback, null);
+  assert.equal(analysis.provider, "grok");
+  assert.equal(resolveGrokRoute("launchPack", {}).effort, "high");
+  assert.equal(publicGrokRoutes({}).optimizeAnalysis.model, "grok-4.5");
+  assert.equal(
+    resolveGrokRoute("analysis", { OPENADOPS_GROK_MODEL: "grok-custom", OPENADOPS_GROK_REASONING_EFFORT: "medium" }).model,
+    "grok-custom"
+  );
 });

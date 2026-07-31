@@ -1,7 +1,7 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile, unlink } from "node:fs/promises";
+import { readFile, unlink, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -13,13 +13,14 @@ import { buildMockIntake } from "./public/lib/mock-intake.js";
 import { buildMockLaunchPack } from "./public/lib/mock-launch-pack.js";
 import { performanceTargetsForAi } from "./public/lib/project-targets.js";
 import { APP_VERSION } from "./public/version.js";
-import { publicAiRoutes, resolveAiRoute } from "./src/ai-router.mjs";
+import { publicAiRoutes, publicGrokRoutes, resolveRouteForProvider } from "./src/ai-router.mjs";
 import { validateAnalysis } from "./src/analysis-validator.mjs";
 import { formatCodexProcessFailure } from "./src/codex-process-error.mjs";
 import { validateExperimentPlan } from "./src/experiment-validator.mjs";
 import { validateIntake } from "./src/intake-validator.mjs";
 import { validateLaunchPack } from "./src/launch-pack-validator.mjs";
 import { parseRequestUrl } from "./src/request-url.mjs";
+import { parseGrokCliOutput } from "./src/grok-cli-output.mjs";
 import { formatServerStartupError } from "./src/server-startup-error.mjs";
 import { resolveStaticFile, shouldSendStaticBody } from "./src/static-request.mjs";
 
@@ -31,8 +32,15 @@ const LAUNCH_PACK_SCHEMA_PATH = path.join(APP_ROOT, "schemas", "launch-pack.sche
 const EXPERIMENT_SCHEMA_PATH = path.join(APP_ROOT, "schemas", "experiment-plan.schema.json");
 const PORT = Number(process.env.PORT || 4173);
 const CODEX_BIN = process.env.CODEX_BIN || "codex";
+const GROK_BIN = process.env.GROK_BIN || process.env.OPENADOPS_GROK_BIN || "grok";
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 let activeAiJob = null;
+
+function liveProviderFromMode(mode) {
+  if (mode === "grok") return "grok";
+  if (mode === "codex") return "codex";
+  return "";
+}
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -97,16 +105,25 @@ function buildAnalysisPrompt({ project, metrics, stage }) {
     stage
   };
 
+  const stageFocus = stage === "creative"
+    ? `当前 stage=creative（生成素材方向）。请以 creative_tests 为核心输出 3～5 条可测方向：每条必须包含完整中文 angle、平台原生 Hook、单一变量 variable、success_metric；findings 用 1～3 条说明测试优先级与假设。禁止用 "..."、"…"、"待补充" 等占位符填充任何字段。没有投放数据时，仍须基于产品/市场/卖点写可执行方向，但不得编造具体花费或 CPI 数字。`
+    : stage === "optimize"
+      ? `当前 stage=optimize（投放优化诊断）。优先基于 metrics 做诊断与动作；无数据时降低 confidence 并说明缺口。`
+      : `当前 stage=${stage || "strategy"}。覆盖策略判断、素材测试与下一步动作。`;
+
   return `你是海外 App 投放策略与优化助手。不要读取通用 ads skill。仅当输入只涉及一个媒体时，最多读取一个对应媒体 skill（ads-google、ads-meta 或 ads-tiktok）；跨媒体任务直接基于输入与通用投放知识判断。不要读取图片生成、拍摄或报告生成 skill。只做只读分析，不修改文件，不登录或操作广告账户。
 
-任务：根据项目设定与已计算的媒体/AppsFlyer指标，输出可执行的中文投放判断。覆盖策略、素材测试、广告调整和下一步动作。证据不足时必须降低 confidence，并在 validation 中说明如何验证；禁止编造输入中不存在的数据。
+任务：根据项目设定与已计算的媒体/AppsFlyer指标，输出可执行的中文投放判断。证据不足时必须降低 confidence，并在 validation 中说明如何验证；禁止编造输入中不存在的数据。
+
+${stageFocus}
 
 判断规则：
-1. 明确区分证据、诊断、动作。
+1. 明确区分证据、诊断、动作；所有字符串字段必须是完整可读中文句子或短语，禁止 "..." / "…" / "待填" / "TBD" 等占位。
 2. 优先处理高花费、高于已确认目标成本、归因差异和留存质量问题。performanceTargets.status=missing 或指标仅观察时，不得编造阈值或写成超目标。
 3. 素材测试必须遵守单变量原则，并按媒体给出平台原生 Hook。
 4. 所有动作必须给出负责人、时点和成功指标。
-5. 最终只输出符合给定 JSON Schema 的 JSON 对象，不要 Markdown。
+5. findings、creative_tests、next_actions 均不得为空数组。
+6. 最终只输出符合给定 JSON Schema 的 JSON 对象，不要 Markdown。
 
 输入：
 ${JSON.stringify(safeInput, null, 2)}`;
@@ -361,8 +378,109 @@ function runCodexStructured({ prompt, schemaPath, validate, jobName, route, job,
   });
 }
 
-async function runRoutedCodex({ routeKey, prompt, schemaPath, validate, jobName, transform }) {
-  const route = resolveAiRoute(routeKey);
+function runGrokStructured({ prompt, schemaPath, validate, jobName, route, job, transform = (value) => value }) {
+  return new Promise((resolve, reject) => {
+    const promptPath = path.join(tmpdir(), `openadops-${jobName}-${randomUUID()}.prompt.txt`);
+    let settled = false;
+    let timeout;
+    let child = null;
+    let stdout = "";
+    let stderr = "";
+
+    const cleanup = async () => {
+      if (existsSync(promptPath)) await unlink(promptPath).catch(() => {});
+    };
+    const finish = async (error, result) => {
+      if (settled) return;
+      settled = true;
+      if (timeout) clearTimeout(timeout);
+      if (job.child === child) job.child = null;
+      if (job.cancel === cancel) job.cancel = null;
+      await cleanup();
+      if (error) reject(error);
+      else resolve(result);
+    };
+    const cancel = () => {
+      job.cancelRequested = true;
+      if (child) child.kill("SIGTERM");
+      finish(aiError("已取消本次 Grok 生成。本次没有写入结果。", "CANCELLED"));
+    };
+    job.cancel = cancel;
+
+    (async () => {
+      try {
+        const schemaText = await readFile(schemaPath, "utf8");
+        await writeFile(promptPath, prompt, "utf8");
+        const args = [
+          "--prompt-file", promptPath,
+          "--model", route.model,
+          "--reasoning-effort", route.effort,
+          "--json-schema", schemaText,
+          "--output-format", "json",
+          "--permission-mode", "dontAsk",
+          "--disable-web-search",
+          "--no-subagents",
+          "--max-turns", "3",
+          "--always-approve"
+        ];
+        child = spawn(GROK_BIN, args, {
+          cwd: APP_ROOT,
+          env: { ...process.env, NO_COLOR: "1" },
+          shell: false,
+          stdio: ["ignore", "pipe", "pipe"]
+        });
+        job.child = child;
+        child.stdout.on("data", (chunk) => {
+          stdout = (stdout + chunk.toString()).slice(-500000);
+        });
+        child.stderr.on("data", (chunk) => {
+          stderr = (stderr + chunk.toString()).slice(-20000);
+        });
+        child.on("error", (error) => finish(aiError(
+          `无法启动 Grok CLI（${GROK_BIN}）：${error.message}。请确认已安装并登录 grok（grok login），或设置 GROK_BIN。`,
+          "START_FAILED"
+        )));
+        child.on("close", async (code, signal) => {
+          if (settled) return;
+          if (job.cancelRequested) {
+            finish(aiError("已取消本次 Grok 生成。本次没有写入结果。", "CANCELLED"));
+            return;
+          }
+          if (code !== 0) {
+            const detail = [stderr, stdout].map((part) => String(part || "").trim()).filter(Boolean).join("\n").slice(0, 1200);
+            finish(aiError(
+              detail
+                ? `Grok 运行失败（退出码 ${code ?? "null"}${signal ? ` / ${signal}` : ""}）：${detail}`
+                : `Grok 运行失败（退出码 ${code ?? "null"}${signal ? ` / ${signal}` : ""}）。`,
+              "GROK_FAILED"
+            ));
+            return;
+          }
+          try {
+            const result = transform(parseGrokCliOutput(stdout));
+            const validation = validate(result);
+            if (!validation.valid) throw aiError(`结构校验失败：${validation.errors.join("；")}`, "STRUCTURE_ERROR");
+            finish(null, result);
+          } catch (error) {
+            finish(aiError(
+              `无法读取 Grok 结构化结果：${error.message}`,
+              error.code === "STRUCTURE_ERROR" ? "STRUCTURE_ERROR" : "PARSE_ERROR"
+            ));
+          }
+        });
+        timeout = setTimeout(() => {
+          if (child) child.kill("SIGTERM");
+          finish(aiError(`Grok 分析超过 ${Math.round(route.timeoutMs / 60000)} 分钟，已停止。本次没有写入结果。`, "TIMEOUT"));
+        }, route.timeoutMs);
+      } catch (error) {
+        finish(aiError(`准备 Grok 任务失败：${error.message}`, "START_FAILED"));
+      }
+    })();
+  });
+}
+
+async function runRoutedAi({ provider, routeKey, prompt, schemaPath, validate, jobName, transform }) {
+  const route = resolveRouteForProvider(provider, routeKey);
   const job = {
     id: randomUUID(),
     routeKey,
@@ -377,14 +495,16 @@ async function runRoutedCodex({ routeKey, prompt, schemaPath, validate, jobName,
     status: "running",
     cancelRequested: false,
     child: null,
-    cancel: null
+    cancel: null,
+    provider
   };
   activeAiJob = job;
+  const runner = provider === "grok" ? runGrokStructured : runCodexStructured;
 
   try {
     let result;
     try {
-      result = await runCodexStructured({ prompt, schemaPath, validate, jobName, route, job, transform });
+      result = await runner({ prompt, schemaPath, validate, jobName, route, job, transform });
     } catch (error) {
       if (error.code !== "STRUCTURE_ERROR" || !route.fallback || job.cancelRequested) throw error;
       job.attempt = 2;
@@ -393,7 +513,7 @@ async function runRoutedCodex({ routeKey, prompt, schemaPath, validate, jobName,
       job.model = route.fallback.model;
       job.effort = route.fallback.effort;
       job.timeoutMs = route.fallback.timeoutMs;
-      result = await runCodexStructured({
+      result = await runner({
         prompt,
         schemaPath,
         validate,
@@ -407,6 +527,7 @@ async function runRoutedCodex({ routeKey, prompt, schemaPath, validate, jobName,
     return {
       result,
       meta: {
+        source: provider,
         routeKey,
         label: route.label,
         model: job.model,
@@ -420,8 +541,9 @@ async function runRoutedCodex({ routeKey, prompt, schemaPath, validate, jobName,
   }
 }
 
-function runCodexAnalysis(payload) {
-  return runRoutedCodex({
+function runLiveAnalysis(payload, provider) {
+  return runRoutedAi({
+    provider,
     routeKey: payload.stage === "optimize" ? "optimizeAnalysis" : "analysis",
     prompt: buildAnalysisPrompt(payload),
     schemaPath: SCHEMA_PATH,
@@ -430,13 +552,14 @@ function runCodexAnalysis(payload) {
   });
 }
 
-function runCodexIntake(payload) {
+function runLiveIntake(payload, provider) {
   const routeKey = payload.profile === "deep"
     ? "intakeDeep"
     : payload.intent === "questions"
       ? "intakeQuestions"
       : "intakeStrategy";
-  return runRoutedCodex({
+  return runRoutedAi({
+    provider,
     routeKey,
     prompt: buildIntakePrompt(payload),
     schemaPath: INTAKE_SCHEMA_PATH,
@@ -445,8 +568,9 @@ function runCodexIntake(payload) {
   });
 }
 
-function runCodexLaunchPack(payload) {
-  return runRoutedCodex({
+function runLiveLaunchPack(payload, provider) {
+  return runRoutedAi({
+    provider,
     routeKey: "launchPack",
     prompt: buildLaunchPackPrompt(payload),
     schemaPath: LAUNCH_PACK_SCHEMA_PATH,
@@ -455,8 +579,9 @@ function runCodexLaunchPack(payload) {
   });
 }
 
-function runCodexExperimentPlan(payload) {
-  return runRoutedCodex({
+function runLiveExperimentPlan(payload, provider) {
+  return runRoutedAi({
+    provider,
     routeKey: "experiments",
     prompt: buildExperimentPrompt(payload),
     schemaPath: EXPERIMENT_SCHEMA_PATH,
@@ -493,14 +618,20 @@ async function handleAnalyze(request, response) {
     return;
   }
 
+  const provider = liveProviderFromMode(payload.mode);
+  if (!provider) {
+    sendJson(response, 400, { ok: false, error: "未知 AI 模式，请使用本地演示或 Grok 4.5。" });
+    return;
+  }
+
   if (activeAiJob) {
-    sendJson(response, 409, { ok: false, error: "已有一个 Codex 分析任务在运行，请等待完成。" });
+    sendJson(response, 409, { ok: false, error: "已有一个 AI 分析任务在运行，请等待完成。" });
     return;
   }
 
   try {
-    const { result, meta } = await runCodexAnalysis(payload);
-    sendJson(response, 200, { ok: true, source: "codex", ...meta, result });
+    const { result, meta } = await runLiveAnalysis(payload, provider);
+    sendJson(response, 200, { ok: true, ...meta, result });
   } catch (error) {
     sendJson(response, error.code === "CANCELLED" ? 499 : 502, { ok: false, code: error.code, error: error.message });
   }
@@ -533,14 +664,20 @@ async function handleIntake(request, response) {
     return;
   }
 
+  const provider = liveProviderFromMode(payload.mode);
+  if (!provider) {
+    sendJson(response, 400, { ok: false, error: "未知 AI 模式，请使用本地演示或 Grok 4.5。" });
+    return;
+  }
+
   if (activeAiJob) {
-    sendJson(response, 409, { ok: false, error: "已有一个 Codex 分析任务在运行，请等待完成。" });
+    sendJson(response, 409, { ok: false, error: "已有一个 AI 分析任务在运行，请等待完成。" });
     return;
   }
 
   try {
-    const { result, meta } = await runCodexIntake(payload);
-    sendJson(response, 200, { ok: true, source: "codex", ...meta, result });
+    const { result, meta } = await runLiveIntake(payload, provider);
+    sendJson(response, 200, { ok: true, ...meta, result });
   } catch (error) {
     sendJson(response, error.code === "CANCELLED" ? 499 : 502, { ok: false, code: error.code, error: error.message });
   }
@@ -573,14 +710,20 @@ async function handleLaunchPack(request, response) {
     return;
   }
 
+  const provider = liveProviderFromMode(payload.mode);
+  if (!provider) {
+    sendJson(response, 400, { ok: false, error: "未知 AI 模式，请使用本地演示或 Grok 4.5。" });
+    return;
+  }
+
   if (activeAiJob) {
-    sendJson(response, 409, { ok: false, error: "已有一个 Codex 分析任务在运行，请等待完成。" });
+    sendJson(response, 409, { ok: false, error: "已有一个 AI 分析任务在运行，请等待完成。" });
     return;
   }
 
   try {
-    const { result, meta } = await runCodexLaunchPack(payload);
-    sendJson(response, 200, { ok: true, source: "codex", ...meta, result });
+    const { result, meta } = await runLiveLaunchPack(payload, provider);
+    sendJson(response, 200, { ok: true, ...meta, result });
   } catch (error) {
     sendJson(response, error.code === "CANCELLED" ? 499 : 502, { ok: false, code: error.code, error: error.message });
   }
@@ -613,14 +756,20 @@ async function handleExperimentPlan(request, response) {
     return;
   }
 
+  const provider = liveProviderFromMode(payload.mode);
+  if (!provider) {
+    sendJson(response, 400, { ok: false, error: "未知 AI 模式，请使用本地演示或 Grok 4.5。" });
+    return;
+  }
+
   if (activeAiJob) {
-    sendJson(response, 409, { ok: false, error: "已有一个 Codex 分析任务在运行，请等待完成。" });
+    sendJson(response, 409, { ok: false, error: "已有一个 AI 分析任务在运行，请等待完成。" });
     return;
   }
 
   try {
-    const { result, meta } = await runCodexExperimentPlan(payload);
-    sendJson(response, 200, { ok: true, source: "codex", ...meta, result });
+    const { result, meta } = await runLiveExperimentPlan(payload, provider);
+    sendJson(response, 200, { ok: true, ...meta, result });
   } catch (error) {
     sendJson(response, error.code === "CANCELLED" ? 499 : 502, { ok: false, code: error.code, error: error.message });
   }
@@ -663,7 +812,9 @@ const server = http.createServer(async (request, response) => {
       app: "OpenAdOps",
       version: APP_VERSION,
       routing: "task-aware",
-      routes: publicAiRoutes(),
+      defaultLiveProvider: "grok",
+      routes: publicGrokRoutes(),
+      codexRoutes: publicAiRoutes(),
       aiBusy: Boolean(activeAiJob),
       activeJob: activeJobPayload()
     });
@@ -671,7 +822,7 @@ const server = http.createServer(async (request, response) => {
   }
   if (request.method === "POST" && url.pathname === "/api/cancel") {
     if (!activeAiJob) {
-      sendJson(response, 409, { ok: false, error: "当前没有正在运行的 Codex 任务。" });
+      sendJson(response, 409, { ok: false, error: "当前没有正在运行的 AI 任务。" });
       return;
     }
     const cancelled = activeJobPayload();
@@ -711,7 +862,14 @@ server.on("error", (error) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`OpenAdOps v${APP_VERSION}: http://127.0.0.1:${PORT}`);
-  console.log("AI routing: GPT-5.6 Terra low/medium for routine work · GPT-5.6 Sol high for deep review and 投放执行方案");
+  console.log("AI routing: Grok 4.5 high via local Grok CLI · Codex path retained for later · mock without model usage");
 });
 
-export { activeJobPayload, buildAnalysisPrompt, buildExperimentPrompt, buildIntakePrompt, buildLaunchPackPrompt, server };
+export {
+  activeJobPayload,
+  buildAnalysisPrompt,
+  buildExperimentPrompt,
+  buildIntakePrompt,
+  buildLaunchPackPrompt,
+  server
+};
