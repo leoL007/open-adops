@@ -5,13 +5,13 @@ import { modelFullName, modelRouteDetail, modelVariantName } from "../public/lib
 test("model labels distinguish Terra and Sol without repeating the family name", () => {
   assert.equal(modelVariantName("gpt-5.6-terra"), "Terra");
   assert.equal(modelVariantName("gpt-5.6-sol"), "Sol");
-  assert.equal(modelFullName("gpt-5.6-terra"), "GPT-5.6 Terra");
-  assert.equal(modelFullName("gpt-5.6-sol"), "GPT-5.6 Sol");
+  assert.equal(modelFullName("gpt-5.6-terra"), "GPT 5.6 Terra");
+  assert.equal(modelFullName("gpt-5.6-sol"), "GPT 5.6 Sol");
 });
 
 test("model labels map the legacy deep model id to Sol and preserve custom ids", () => {
   assert.equal(modelVariantName("gpt-5.6"), "Sol");
-  assert.equal(modelFullName("gpt-5.6"), "GPT-5.6 Sol");
+  assert.equal(modelFullName("gpt-5.6"), "GPT 5.6 Sol");
   assert.equal(modelFullName("custom-deep-model"), "custom-deep-model");
   assert.equal(modelFullName("codex-default"), "本机模型");
 });

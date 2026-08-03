@@ -10,7 +10,7 @@ export function modelVariantName(model) {
 
 export function modelFullName(model) {
   const variant = modelVariantName(model);
-  if (variant === "Terra" || variant === "Sol") return `GPT-5.6 ${variant}`;
+  if (variant === "Terra" || variant === "Sol") return `GPT 5.6 ${variant}`;
   if (variant === "Grok 4.5") return "Grok 4.5";
   return variant;
 }

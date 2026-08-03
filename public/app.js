@@ -1527,7 +1527,7 @@ function refreshShell(project) {
     button.setAttribute("aria-pressed", active ? "true" : "false");
     button.disabled = aiBusy || (isStaticDemo && liveMode);
     if (isStaticDemo && liveMode) {
-      button.title = "请在本地启动后使用 Grok 4.5 / GPT-5.6";
+      button.title = "请在本地启动后使用 Grok 4.5 / GPT 5.6";
     } else {
       button.removeAttribute("title");
     }
@@ -2939,7 +2939,7 @@ projectSelect.addEventListener("change", () => {
 function setAiMode(mode) {
   if (aiBusy) return;
   if (isStaticDemo && isLiveProviderMode(mode)) {
-    showToast("在线演示只能使用本地演示模式，请本机 npm start 后使用 Grok 4.5 / GPT-5.6。", "error");
+    showToast("在线演示只能使用本地演示模式，请本机 npm start 后使用 Grok 4.5 / GPT 5.6。", "error");
     return;
   }
   const nextState = { ...state, aiMode: normalizeAiMode(mode, { staticDemo: isStaticDemo }) };
