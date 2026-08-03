@@ -19,10 +19,11 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 
 ## Current release (v0.5.12)
 
-- **End-to-end loop**: intake → strategy draft → plan → **creative production** → **execution plan** → **experiment ledger** → optimize → report
+- **End-to-end loop**: intake → strategy draft → optional build strategy → **creative directions** → **execution plan** → **experiment ledger** → optimize → report
 - **Chinese-first UI** in the product (English docs keep clear English names)  
 - **Task-aware model routing**: lighter models for the operator preflight checklist / fast draft; stronger models for deep review and execution plans; automatic structure retry
 - **Optional performance targets**: add or remove Media CPI, AF-CPI, CPA, and ROAS independently; keep a metric observation-only during learning instead of inventing a threshold
+- **Optional build strategy**: skip it when a project needs no separate build sheet, or capture Campaign / Ad group / Ad parameters and export a real Excel workbook
 - **Code does the math**: KPI and experiment sizing are deterministic  
 - **Workspace backup**: export current project or full workspace as JSON; import with merge or replace  
 - **Consistent model identity**: all generation surfaces show the actual Terra / Sol variant and reasoning effort
@@ -56,11 +57,12 @@ OpenAdOps keeps one local project for the full loop:
 
 1. **Intake** — paste client material and media notes; structure a brief and an operator-owned preflight strategy checklist
 2. **Strategy draft** — fast draft or deep review of a working strategy  
-3. **Plan / creative production** — goals, media roles, budgets, then production quantities, specs, owners, deadlines, and delivery status
-4. **Execution plan** — campaign blueprints, production briefs, measurement layers, launch checks, first 7 days  
-5. **Experiment ledger** — now / next / later queue with thresholds, evidence, and learnings  
-6. **Optimize** — CSV metrics by code, evidence-backed diagnosis, and operator adoption / execution / validation notes
-7. **Report** — management HTML and print / PDF with recent optimization decisions
+3. **Build strategy (optional)** — Campaign, Ad group, events, bids, placements, exclusions, asset counts, review rules, and Excel export
+4. **Creative directions** — angles, hooks, hypotheses, specs, and quantities for design handoff
+5. **Execution plan** — campaign blueprints, production briefs, measurement layers, launch checks, first 7 days
+6. **Experiment ledger** — now / next / later queue with thresholds, evidence, and learnings
+7. **Optimize** — CSV metrics by code, evidence-backed diagnosis, and operator adoption / execution / validation notes
+8. **Report** — management HTML and print / PDF with recent optimization decisions
 
 ## What makes it different
 

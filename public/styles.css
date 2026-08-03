@@ -964,6 +964,57 @@ select {
   padding-top: 2px;
 }
 
+.build-strategy-mode,
+.build-adgroup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.build-strategy-mode > div:first-child strong,
+.build-adgroup-header strong {
+  display: block;
+  margin-top: 4px;
+}
+
+.build-strategy-mode > div:first-child strong {
+  font-size: 15px;
+}
+
+.build-strategy-empty {
+  min-height: 280px;
+  display: grid;
+  place-items: center;
+}
+
+.build-campaign-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.build-adgroup-list {
+  display: grid;
+  gap: 14px;
+}
+
+.build-adgroup-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fafbfc;
+}
+
+.build-adgroup-header {
+  align-items: flex-start;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.build-adgroup-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
 .platform-field {
   display: flex;
   flex-wrap: wrap;
@@ -3821,8 +3872,16 @@ tbody tr:hover td {
   }
 
   .creative-task-operational-grid,
-  .creative-task-brief-grid {
+  .creative-task-brief-grid,
+  .build-campaign-grid,
+  .build-adgroup-grid {
     grid-template-columns: 1fr;
+  }
+
+  .build-strategy-mode,
+  .build-adgroup-header {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .creative-status-select {

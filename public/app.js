@@ -59,6 +59,13 @@ import {
 } from "./lib/project-targets.js";
 import { PROJECT_STAGES, normalizeProjectStage } from "./lib/project-stage.js";
 import {
+  buildStrategyDecisionComplete,
+  createBuildAdGroup,
+  ensureBuildStrategy,
+  normalizeBuildStrategy
+} from "./lib/build-strategy.js";
+import { strategyWorkbookDownload } from "./lib/xlsx-export.js";
+import {
   dataQualityIssues,
   dataQualityNeedsAttention,
   dataQualityText
@@ -259,11 +266,36 @@ function createDemoProject() {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     strategy: {
+      enabled: true,
       objective: "用可控成本建立三媒体安装基线，同时验证留存质量。",
       audience: "18–34 岁、日常使用社交与内容工具的移动端用户。",
       budgetLogic: "70% 稳定获量、20% 素材放量、10% 新市场探索。",
       testLogic: "先固定国家与出价，仅测试 Hook；3 天达到判定门槛后再调整预算。",
-      budgetShares: { "Google Ads": 40, "Meta Ads": 35, "TikTok Ads": 25 }
+      budgetShares: { "Google Ads": 40, "Meta Ads": 35, "TikTok Ads": 25 },
+      campaign: {
+        name: "APP_GLOBAL_INSTALL_TEST_01",
+        storeUrl: "https://example.com/demo-app",
+        os: "Android / iOS",
+        language: "按市场语言",
+        primaryEvent: "Install",
+        supportingEvents: "Registration, D1 Retention, Purchase",
+        bidStrategy: "先自动出价建立基线，再评估目标出价",
+        placements: "媒体默认版位",
+        exclusions: "排除已安装用户"
+      },
+      adGroups: [
+        { id: "demo-build-1", name: "JP_Install_Result_01", platform: "Google Ads", market: "JP", language: "日语", optimizationEvent: "Install", bidding: "Maximize Conversions", placements: "默认版位", exclusions: "已安装用户", creativeDirection: "结果前置", assetCount: 6 },
+        { id: "demo-build-2", name: "US_Install_UGC_02", platform: "Meta Ads", market: "US", language: "英语", optimizationEvent: "Install", bidding: "Lowest Cost", placements: "Advantage+ placements", exclusions: "已安装用户", creativeDirection: "真实录屏", assetCount: 4 },
+        { id: "demo-build-3", name: "GB_Install_Hook_03", platform: "TikTok Ads", market: "GB", language: "英语", optimizationEvent: "Install", bidding: "Maximum Delivery", placements: "自动版位", exclusions: "已安装用户", creativeDirection: "痛点反转", assetCount: 4 }
+      ],
+      ad: {
+        firstLaunchAssets: 14,
+        totalAssets: 24,
+        splitRule: "先按素材方向拆分；表现差异明确后再拆国家、语言或媒体",
+        iterationMetrics: "CTR、CVR、AF-CPI 与安装后事件率",
+        reportingMetrics: "花费、媒体安装、AF 安装、媒体 CPI、AF-CPI、D1 留存"
+      },
+      notes: "演示数据，仅展示可导出的搭建结构。"
     },
     creativePlan: [
       { angle: "结果前置", hook: "首帧直接展示处理前后差异", platform: "Google Ads", variable: "前 3 秒", metric: "AF-CPI" },
@@ -343,7 +375,8 @@ function normalizeStoredState(stored) {
       intake: createIntake(project.intake || {}),
       launch: createLaunch(project.launch || {}),
       experiments: createExperiments(project.experiments || {}),
-      optimizationHistory: projectOptimizationHistory(project)
+      optimizationHistory: projectOptimizationHistory(project),
+      strategy: normalizeBuildStrategy(project)
     };
     syncCreativeProduction(normalizedProject);
     return normalizedProject;
@@ -832,7 +865,7 @@ function renderIntakeResult(project) {
     </div>
 
     <section class="card">
-      <div class="card-header"><div><h2>媒体角色与预算场景</h2><p>只对入选媒体给出角色；预算缺失时不生成虚假金额</p></div><button class="button button-primary button-small" data-adopt-intake>采用到投放策略</button></div>
+      <div class="card-header"><div><h2>媒体角色与预算场景</h2><p>只对入选媒体给出角色；预算缺失时不生成虚假金额</p></div><button class="button button-primary button-small" data-adopt-intake>采用到搭建策略</button></div>
       <div class="platform-plan-grid">${draft.platform_plan.map((item) => `<article class="platform-plan-card"><span>${escapeHtml(item.platform)}</span><h3>${escapeHtml(item.role)}</h3><p>${escapeHtml(item.rationale)}</p><small>${escapeHtml(item.budget_scenario)}</small></article>`).join("")}</div>
     </section>
 
@@ -886,7 +919,7 @@ function textLength(value) {
 
 function renderOverview(project) {
   const hasIntake = Boolean(project.intake?.analysis?.result);
-  const hasStrategy = Boolean(project.strategy?.objective && project.strategy?.testLogic);
+  const hasStrategy = buildStrategyDecisionComplete(project);
   const hasCreative = Boolean(creativeTasks(project).length);
   const launchPack = project.launch?.pack?.result;
   const launchReady = Boolean(launchPack);
@@ -899,7 +932,7 @@ function renderOverview(project) {
         <div class="card-header"><div><h2>全链路进度</h2></div><button class="button button-primary button-small" data-go-route="report">查看报告</button></div>
         <div class="stage-flow">
           <button type="button" class="stage-step ${hasIntake ? "complete" : ""}" data-step="00" data-go-route="intake"><h3>需求接收</h3><p>资料、投前清单与策略初稿</p></button>
-          <button type="button" class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01" data-go-route="strategy"><h3>投放策略</h3><p>目标、媒体与预算逻辑</p></button>
+          <button type="button" class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01" data-go-route="strategy"><h3>搭建策略</h3><p>可选 · Campaign / Ad group / Ad</p></button>
           <button type="button" class="stage-step ${hasCreative ? "complete" : ""}" data-step="02" data-go-route="creative"><h3>素材方向</h3><p>角度、Hook 与设计 Brief</p></button>
           <button type="button" class="stage-step ${launchReady ? "complete" : ""}" data-step="03" data-go-route="launch"><h3>执行方案</h3><p>Campaign 与上线检查</p></button>
           <button type="button" class="stage-step ${hasExperiments ? "complete" : ""}" data-step="04" data-go-route="experiments"><h3>实验台</h3><p>样本门槛与学习</p></button>
@@ -970,36 +1003,93 @@ function nextPerformanceTargetMetric(project, targets) {
   return [preferred, ...PERFORMANCE_TARGET_METRICS.map((item) => item.value)].find((metric) => !used.has(metric)) || "";
 }
 
-function renderStrategy(project) {
-  return `${pageHeader("阶段 01 · 投放策略", "投放策略", "")}
-    <div class="grid grid-2 mb-16">
-      <section class="card">
-        <div class="card-header"><div><h2>项目输入</h2><p>这些信息会随聚合指标一起发送给本机模型</p></div></div>
-        <div class="form-grid two-columns">
-          <label class="field"><span>目标市场</span><input data-project-field="markets" value="${attr(project.markets)}" /></label>
-          <label class="field"><span>项目阶段</span><select data-project-field="stage">${PROJECT_STAGES.map((value) => `<option ${project.stage === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
-          <label class="field"><span>主要目标</span><select data-project-field="goal">${[["Install", "安装"], ["Registration", "注册"], ["Purchase", "付费"], ["ROAS", "ROAS"]].map(([value, label]) => `<option value="${value}" ${project.goal === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
-          <label class="field"><span>归因来源</span><select data-project-field="attribution">${["AppsFlyer", "Adjust", "媒体后台", "GA4"].map((value) => `<option ${project.attribution === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
-          <label class="field"><span>月预算</span><input type="number" step="1" data-project-field="budget" value="${attr(project.budget)}" /></label>
-          ${performanceTargetEditor(project)}
-          <label class="field field-wide"><span>产品卖点</span><textarea data-project-field="sellingPoints">${escapeHtml(project.sellingPoints)}</textarea></label>
-          <label class="field field-wide"><span>补充说明</span><textarea data-project-field="notes">${escapeHtml(project.notes)}</textarea></label>
-        </div>
-      </section>
-      <section class="card">
-        <div class="card-header"><div><h2>策略假设</h2></div></div>
-        <div class="form-grid">
-          <label class="field"><span>阶段目标</span><textarea data-project-field="strategy.objective">${escapeHtml(project.strategy?.objective || "")}</textarea></label>
-          <label class="field"><span>核心用户</span><textarea data-project-field="strategy.audience">${escapeHtml(project.strategy?.audience || "")}</textarea></label>
-          <label class="field"><span>预算逻辑</span><textarea data-project-field="strategy.budgetLogic">${escapeHtml(project.strategy?.budgetLogic || "")}</textarea></label>
-          <label class="field"><span>测试逻辑</span><textarea data-project-field="strategy.testLogic">${escapeHtml(project.strategy?.testLogic || "")}</textarea></label>
-        </div>
-      </section>
+function buildStrategyModeControl(strategy) {
+  const status = strategy.enabled === true ? "需要搭建策略" : strategy.enabled === false ? "无需单独搭建策略" : "尚未选择";
+  return `<section class="card build-strategy-mode mb-16">
+    <div><span class="card-label">本项目是否需要单独搭建策略</span><strong>${escapeHtml(status)}</strong></div>
+    <div class="mode-switch" role="group" aria-label="搭建策略状态">
+      <button type="button" class="mode-switch-btn ${strategy.enabled === false ? "active" : ""}" data-build-strategy-enabled="false">无需单独搭建</button>
+      <button type="button" class="mode-switch-btn ${strategy.enabled === true ? "active" : ""}" data-build-strategy-enabled="true">需要搭建策略</button>
     </div>
-    <section class="card mb-16"><div class="card-header"><div><h2>媒体预算分工</h2><p>数值为策略起点，不代替后续数据判断</p></div><span class="card-label">TOTAL ${project.platforms.reduce((sum, platform) => sum + Number(project.strategy?.budgetShares?.[platform] || 0), 0)}%</span></div>
-      <div class="grid grid-3">${project.platforms.map((platform) => `<label class="field"><span>${escapeHtml(platform)} 占比</span><input type="number" min="0" max="100" data-budget-platform="${attr(platform)}" value="${attr(project.strategy?.budgetShares?.[platform] ?? Math.round(100 / project.platforms.length))}" /></label>`).join("")}</div>
+  </section>`;
+}
+
+function buildAdGroupCard(project, group, index) {
+  const field = (name) => `data-build-adgroup-id="${attr(group.id)}" data-build-adgroup-field="${name}"`;
+  const platformOptions = [...new Set([...(project.platforms || []), group.platform].filter(Boolean))]
+    .map((platform) => `<option value="${attr(platform)}" ${platform === group.platform ? "selected" : ""}>${escapeHtml(platform)}</option>`)
+    .join("");
+  return `<article class="build-adgroup-card">
+    <div class="build-adgroup-header"><div><span class="card-label">AD GROUP ${String(index + 1).padStart(2, "0")}</span><strong>${escapeHtml(group.name || "未命名 Ad group")}</strong></div><button type="button" class="button button-ghost button-small" data-remove-build-adgroup="${attr(group.id)}">删除</button></div>
+    <div class="form-grid build-adgroup-grid">
+      <label class="field"><span>Ad group 名称</span><input ${field("name")} value="${attr(group.name)}" placeholder="例如：BR_Android_Deposit_01" /></label>
+      <label class="field"><span>媒体</span><select ${field("platform")}>${platformOptions}</select></label>
+      <label class="field"><span>市场</span><input ${field("market")} value="${attr(group.market)}" placeholder="例如：BR, VN" /></label>
+      <label class="field"><span>语言</span><input ${field("language")} value="${attr(group.language)}" placeholder="例如：葡语 / 越南语" /></label>
+      <label class="field"><span>优化事件</span><input ${field("optimizationEvent")} value="${attr(group.optimizationEvent)}" placeholder="例如：Purchase / First Deposit" /></label>
+      <label class="field"><span>素材数量</span><input type="number" min="0" ${field("assetCount")} value="${attr(group.assetCount)}" /></label>
+      <label class="field"><span>出价方式</span><input ${field("bidding")} value="${attr(group.bidding)}" placeholder="例如：Lowest Cost / 自动出价" /></label>
+      <label class="field"><span>版位</span><input ${field("placements")} value="${attr(group.placements)}" /></label>
+      <label class="field field-wide"><span>素材方向</span><textarea ${field("creativeDirection")} placeholder="本组只写可执行的素材方向，不写产品卖点。">${escapeHtml(group.creativeDirection)}</textarea></label>
+      <label class="field field-wide"><span>排除条件</span><textarea ${field("exclusions")} placeholder="例如：已安装用户、已付费用户、不投市场。">${escapeHtml(group.exclusions)}</textarea></label>
+    </div>
+  </article>`;
+}
+
+function renderStrategy(project) {
+  const strategy = ensureBuildStrategy(project, { makeId });
+  const actions = strategy.enabled === true
+    ? `<button class="button button-primary" data-export-build-strategy-xlsx>导出 Excel</button>`
+    : "";
+  if (strategy.enabled !== true) {
+    const message = strategy.enabled === false
+      ? "本项目已标记为无需单独搭建策略，可直接进入素材方向或执行方案。"
+      : "先判断项目是否需要给客户单独输出 Campaign、Ad group 与 Ad 搭建表。";
+    return `${pageHeader("阶段 01 · 搭建策略", "搭建策略", "可选模块", actions)}
+      ${buildStrategyModeControl(strategy)}
+      <section class="card build-strategy-empty">${emptyState(strategy.enabled === false ? "无需单独搭建策略" : "尚未选择", message, strategy.enabled === false ? "creative" : "", strategy.enabled === false ? "进入素材方向" : "")}</section>`;
+  }
+
+  return `${pageHeader("阶段 01 · 搭建策略", "搭建策略", "Campaign、Ad group 与 Ad 的可执行搭建表", actions)}
+    ${buildStrategyModeControl(strategy)}
+    <section class="card mb-16">
+      <div class="card-header"><div><h2>Campaign 基础</h2></div><span class="card-label">CAMPAIGN</span></div>
+      <div class="form-grid build-campaign-grid">
+        <label class="field"><span>目标市场</span><input data-project-field="markets" value="${attr(project.markets)}" /></label>
+        <label class="field"><span>项目阶段</span><select data-project-field="stage">${PROJECT_STAGES.map((value) => `<option ${project.stage === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+        <label class="field"><span>主要目标</span><select data-project-field="goal">${[["Install", "安装"], ["Registration", "注册"], ["Purchase", "付费"], ["ROAS", "ROAS"]].map(([value, label]) => `<option value="${value}" ${project.goal === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
+        <label class="field"><span>归因来源</span><select data-project-field="attribution">${["AppsFlyer", "Adjust", "媒体后台", "GA4"].map((value) => `<option ${project.attribution === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
+        <label class="field"><span>月预算</span><input type="number" step="1" data-project-field="budget" value="${attr(project.budget)}" /></label>
+        <label class="field"><span>操作系统</span><input data-project-field="strategy.campaign.os" value="${attr(strategy.campaign.os)}" placeholder="Android / iOS" /></label>
+        <label class="field"><span>Campaign 命名</span><input data-project-field="strategy.campaign.name" value="${attr(strategy.campaign.name)}" /></label>
+        <label class="field"><span>语言</span><input data-project-field="strategy.campaign.language" value="${attr(strategy.campaign.language)}" /></label>
+        <label class="field field-wide"><span>商店链接</span><input data-project-field="strategy.campaign.storeUrl" value="${attr(strategy.campaign.storeUrl)}" placeholder="App Store / Google Play URL" /></label>
+        <label class="field"><span>主要事件</span><input data-project-field="strategy.campaign.primaryEvent" value="${attr(strategy.campaign.primaryEvent)}" /></label>
+        <label class="field"><span>辅助事件</span><input data-project-field="strategy.campaign.supportingEvents" value="${attr(strategy.campaign.supportingEvents)}" /></label>
+        <label class="field"><span>出价方式</span><input data-project-field="strategy.campaign.bidStrategy" value="${attr(strategy.campaign.bidStrategy)}" placeholder="自动出价 / Lowest Cost / tCPA" /></label>
+        <label class="field"><span>版位</span><input data-project-field="strategy.campaign.placements" value="${attr(strategy.campaign.placements)}" /></label>
+        <label class="field field-wide"><span>排除条件</span><input data-project-field="strategy.campaign.exclusions" value="${attr(strategy.campaign.exclusions)}" placeholder="已安装、已付费、不投市场等" /></label>
+        ${performanceTargetEditor(project)}
+      </div>
     </section>
-    <section class="card">${analysisToolbar("strategy")}${aiResult(project, "strategy")}</section>`;
+    <section class="card mb-16"><div class="card-header"><div><h2>媒体预算</h2></div><span class="card-label">TOTAL ${project.platforms.reduce((sum, platform) => sum + Number(strategy.budgetShares?.[platform] || 0), 0)}%</span></div>
+      <div class="grid grid-3">${project.platforms.map((platform) => `<label class="field"><span>${escapeHtml(platform)} 占比</span><input type="number" min="0" max="100" data-budget-platform="${attr(platform)}" value="${attr(strategy.budgetShares?.[platform] ?? Math.round(100 / project.platforms.length))}" /></label>`).join("")}</div>
+    </section>
+    <section class="card mb-16">
+      <div class="card-header"><div><h2>Ad group 搭建矩阵</h2></div><button type="button" class="button button-secondary button-small" data-add-build-adgroup>＋ 添加 Ad group</button></div>
+      <div class="build-adgroup-list">${strategy.adGroups.map((group, index) => buildAdGroupCard(project, group, index)).join("")}</div>
+    </section>
+    <section class="card mb-16">
+      <div class="card-header"><div><h2>Ad 与复盘规则</h2></div><span class="card-label">AD / REVIEW</span></div>
+      <div class="form-grid two-columns">
+        <label class="field"><span>首发素材数</span><input type="number" min="0" data-project-field="strategy.ad.firstLaunchAssets" value="${attr(strategy.ad.firstLaunchAssets)}" /></label>
+        <label class="field"><span>素材池总量</span><input type="number" min="0" data-project-field="strategy.ad.totalAssets" value="${attr(strategy.ad.totalAssets)}" /></label>
+        <label class="field field-wide"><span>拆分规则</span><textarea data-project-field="strategy.ad.splitRule">${escapeHtml(strategy.ad.splitRule)}</textarea></label>
+        <label class="field"><span>迭代指标</span><textarea data-project-field="strategy.ad.iterationMetrics">${escapeHtml(strategy.ad.iterationMetrics)}</textarea></label>
+        <label class="field"><span>汇报指标</span><textarea data-project-field="strategy.ad.reportingMetrics">${escapeHtml(strategy.ad.reportingMetrics)}</textarea></label>
+        <label class="field field-wide"><span>特殊限制</span><textarea data-project-field="strategy.notes">${escapeHtml(strategy.notes)}</textarea></label>
+      </div>
+    </section>`;
 }
 
 function creativeTaskOptions(values, current) {
@@ -1583,6 +1673,54 @@ function attachPageListeners() {
       if (saved) showToast("项目已保存");
     });
   });
+  document.querySelectorAll("[data-build-strategy-enabled]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const enabled = button.dataset.buildStrategyEnabled === "true";
+      const saved = updateProject((project) => {
+        project.strategy = ensureBuildStrategy(project, { makeId });
+        project.strategy.enabled = enabled;
+        if (enabled && !project.strategy.adGroups.length) {
+          project.strategy.adGroups.push(createBuildAdGroup(project, {}, { makeId }));
+        }
+      });
+      render();
+      if (saved) showToast(enabled ? "已启用搭建策略" : "已标记为无需单独搭建策略");
+    });
+  });
+  document.querySelectorAll("[data-build-adgroup-field]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const saved = updateProject((project) => {
+        project.strategy = ensureBuildStrategy(project, { makeId });
+        const group = project.strategy.adGroups.find((item) => item.id === input.dataset.buildAdgroupId);
+        if (!group) return;
+        const field = input.dataset.buildAdgroupField;
+        group[field] = field === "assetCount" ? Math.max(0, Number(input.value) || 0) : input.value;
+      });
+      render();
+      if (saved) showToast("Ad group 已更新");
+    });
+  });
+  document.querySelector("[data-add-build-adgroup]")?.addEventListener("click", () => {
+    const saved = updateProject((project) => {
+      project.strategy = ensureBuildStrategy(project, { makeId });
+      project.strategy.enabled = true;
+      project.strategy.adGroups.push(createBuildAdGroup(project, {}, { makeId }));
+    });
+    render();
+    if (saved) showToast("已添加 Ad group");
+  });
+  document.querySelectorAll("[data-remove-build-adgroup]").forEach((button) => {
+    button.addEventListener("click", () => {
+      if (!window.confirm("删除这条 Ad group？此操作会立即保存。")) return;
+      const saved = updateProject((project) => {
+        project.strategy = ensureBuildStrategy(project, { makeId });
+        project.strategy.adGroups = project.strategy.adGroups.filter((item) => item.id !== button.dataset.removeBuildAdgroup);
+      });
+      render();
+      if (saved) showToast("Ad group 已删除");
+    });
+  });
+  document.querySelectorAll("[data-export-build-strategy-xlsx]").forEach((button) => button.addEventListener("click", exportBuildStrategyXlsx));
   document.querySelector("[data-add-performance-target]")?.addEventListener("click", () => {
     const current = normalizePerformanceTargets(activeProject(), { makeId });
     const metric = nextPerformanceTargetMetric(activeProject(), current);
@@ -2404,18 +2542,28 @@ function adoptIntakeStrategy() {
   const draft = result.strategy_draft;
   const saved = updateProject((project) => {
     const markets = briefFieldValue(result, "markets");
-    const audience = briefFieldValue(result, "audience");
     if (markets) project.markets = markets;
-    if (!project.strategy) project.strategy = {};
+    project.strategy = ensureBuildStrategy(project, { makeId });
+    project.strategy.enabled = true;
     project.strategy.objective = draft.positioning;
-    project.strategy.audience = audience || draft.working_assumptions.join("\n");
+    project.strategy.audience = briefFieldValue(result, "audience") || draft.working_assumptions.join("\n");
     project.strategy.budgetLogic = draft.platform_plan.map((item) => `${item.platform}：${item.budget_scenario}`).join("\n");
     project.strategy.testLogic = draft.first_week_plan.join("\n");
+    project.strategy.campaign.primaryEvent ||= project.goal || "";
+    project.strategy.notes ||= draft.working_assumptions.join("\n");
+    if (!project.strategy.adGroups.length) {
+      project.strategy.adGroups = draft.platform_plan.map((item) => createBuildAdGroup(project, {
+        platform: item.platform,
+        market: project.markets,
+        optimizationEvent: project.goal,
+        creativeDirection: draft.creative_plan.join("；")
+      }, { makeId }));
+    }
   });
   if (!saved) return;
   location.hash = "strategy";
   render();
-  showToast("策略初稿已同步到投放策略，可继续人工修改");
+  showToast("策略初稿已同步到搭建策略，可继续补充搭建参数");
 }
 
 function saveLaunchVersion() {
@@ -2585,6 +2733,28 @@ function downloadText(content, fileName, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function downloadBinary(bytes, fileName, type) {
+  const blob = new Blob([bytes], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function exportBuildStrategyXlsx() {
+  const project = activeProject();
+  const strategy = normalizeBuildStrategy(project, { makeId });
+  if (strategy.enabled !== true) {
+    showToast("请先选择“需要搭建策略”", "error");
+    return;
+  }
+  const output = strategyWorkbookDownload(project, strategy, { appVersion: APP_VERSION });
+  downloadBinary(output.bytes, output.fileName, output.mime);
+  showToast("搭建策略 Excel 已导出");
+}
+
 async function copyCreativeFeishuBrief() {
   const project = activeProject();
   const tasks = creativeTasks(project);
@@ -2641,9 +2811,12 @@ function normalizeImportedProject(project) {
     intake: createIntake(project.intake || {}),
     launch: createLaunch(project.launch || {}),
     experiments: createExperiments(project.experiments || {}),
-    strategy: isRecord(project.strategy)
-      ? project.strategy
-      : { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: {} },
+    strategy: normalizeBuildStrategy({
+      ...project,
+      strategy: isRecord(project.strategy)
+        ? project.strategy
+        : { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: {} }
+    }, { makeId }),
     creativePlan: Array.isArray(project.creativePlan) ? project.creativePlan : [],
     ai: isRecord(project.ai) ? project.ai : {},
     optimizationHistory: projectOptimizationHistory(project),
@@ -3004,7 +3177,18 @@ projectForm.addEventListener("submit", (event) => {
     notes: "",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    strategy: { objective: "", audience: "", budgetLogic: "", testLogic: "", budgetShares: equalBudgetShares(platforms) },
+    strategy: {
+      enabled: null,
+      objective: "",
+      audience: "",
+      budgetLogic: "",
+      testLogic: "",
+      budgetShares: equalBudgetShares(platforms),
+      campaign: {},
+      adGroups: [],
+      ad: {},
+      notes: ""
+    },
     creativePlan: [],
     creativeProduction: { tasks: [], updatedAt: new Date().toISOString() },
     launch: createLaunch(),
