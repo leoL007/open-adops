@@ -3,7 +3,7 @@ const VALID_EFFORTS = new Set(["low", "medium", "high", "xhigh"]);
 const DEFAULT_ROUTES = {
   intakeQuestions: {
     key: "intakeQuestions",
-    label: "生成客户追问",
+    label: "生成投放前策略清单",
     modelTier: "terra",
     model: "gpt-5.6-terra",
     effort: "low",

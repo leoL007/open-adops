@@ -205,9 +205,9 @@ export function buildMockLaunchPack(project = {}, intakeResult = null) {
   const readyCount = launchChecklist.filter((item) => item.status === "ready").length;
   const score = Math.round((readyCount / launchChecklist.length) * 100);
   const questions = (intakeResult?.clarification_questions || []).map((item) => item.question);
-  if (!budget && !questions.some((item) => /预算/.test(item))) questions.unshift("本次测试的月预算、币种和各市场上限是多少？");
-  if (!confirmedBrief(intakeResult, "creative_supply") && !questions.some((item) => /素材/.test(item))) questions.push("首批素材数量、格式、语言和每周更新频率是多少？");
-  if (industry === "金融" && !questions.some((item) => /合规|牌照|免责声明/.test(item))) questions.push("牌照、当地政策、免责声明和平台特殊广告类别由谁确认？");
+  if (!budget && !questions.some((item) => /预算/.test(item))) questions.unshift("内部确认本次测试的月预算、币种和各市场上限；未确认前不填写媒体金额。");
+  if (!confirmedBrief(intakeResult, "creative_supply") && !questions.some((item) => /素材/.test(item))) questions.push("内部确认首批素材数量、格式、语言和每周更新频率；产能不足时收缩测试矩阵。");
+  if (industry === "金融" && !questions.some((item) => /合规|牌照|免责声明/.test(item))) questions.push("上线前核对牌照、当地政策、免责声明和平台特殊广告类别；未完成时不启用对应市场。");
 
   return {
     schema_version: "1.0",

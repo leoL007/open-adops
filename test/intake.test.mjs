@@ -48,3 +48,18 @@ test("an observation metric is confirmed without inventing a KPI threshold", () 
   assert.equal(kpi.value, "AF-CPI 仅观察，暂无阈值");
   assert.doesNotMatch(kpi.value, /\b0\b/);
 });
+
+test("preflight strategy checklist is written for the operator instead of as client questions", () => {
+  const result = buildMockIntake({
+    name: "Utility App",
+    industry: "工具",
+    platforms: ["Google Ads", "Meta Ads"],
+    goal: "Install"
+  }, { rawOffer: "工具 App，计划先测试 Google 和 Meta。" }, "questions");
+  const budget = result.clarification_questions.find((item) => item.field_key === "budget");
+  assert.ok(result.clarification_questions.length > 0);
+  assert.ok(result.clarification_questions.every((item) => !/[?？]$/.test(item.question.trim())));
+  assert.match(result.executive_summary, /优化师.*投放前策略清单/);
+  assert.equal(budget.priority, "recommended");
+  assert.match(budget.question, /未确认前/);
+});

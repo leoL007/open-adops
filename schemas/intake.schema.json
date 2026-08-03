@@ -27,6 +27,7 @@
     },
     "clarification_questions": {
       "type": "array",
+      "description": "兼容字段：优化师在投放前需要处理的策略事项，不是发给客户的问题。",
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -36,7 +37,7 @@
             "type": "string",
             "enum": ["product", "industry", "markets", "objective", "platforms", "budget", "kpi", "conversion_event", "timeline", "audience", "creative_supply", "attribution", "compliance", "constraints"]
           },
-          "question": { "type": "string", "minLength": 1 },
+          "question": { "type": "string", "minLength": 1, "description": "陈述式策略事项，包含需要确定的内容以及缺失时的保守处理。" },
           "reason": { "type": "string", "minLength": 1 },
           "priority": { "type": "string", "enum": ["required", "recommended"] }
         }

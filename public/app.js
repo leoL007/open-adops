@@ -104,7 +104,7 @@ let currentAiJob = null;
 let aiJobTimer = null;
 let aiJobTicks = 0;
 const DEFAULT_CODEX_ROUTES = {
-  intakeQuestions: { label: "生成客户追问", model: "gpt-5.6-terra", effort: "low", expectedSeconds: [30, 90] },
+  intakeQuestions: { label: "生成投放前策略清单", model: "gpt-5.6-terra", effort: "low", expectedSeconds: [30, 90] },
   intakeStrategy: { label: "快速生成策略初稿", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
   intakeDeep: { label: "深度复核策略初稿", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   analysis: { label: "投放数据诊断", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
@@ -819,8 +819,8 @@ function renderIntakeResult(project) {
 
     <div class="grid intake-decision-grid">
       <section class="card">
-        <div class="card-header"><div><h2>客户追问清单</h2><p>按策略影响排序</p></div><div class="inline-actions"><span class="badge question-badge">${questions.length} QUESTIONS</span>${questions.length ? `<button class="button button-ghost button-small" data-copy-questions>复制追问</button>` : ""}</div></div>
-        ${questions.length ? `<div class="question-list">${questions.map((item, index) => `<article class="question-item"><span>${String(index + 1).padStart(2, "0")}</span><div><div class="question-top"><strong>${escapeHtml(item.question)}</strong><em class="${attr(item.priority)}">${item.priority === "required" ? "必须确认" : "建议确认"}</em></div><p>${escapeHtml(item.reason)}</p></div></article>`).join("")}</div>` : `<div class="success-note">关键资料已覆盖，建议由项目负责人做最后口径确认。</div>`}
+        <div class="card-header"><div><h2>投放前策略清单</h2><p>由优化师确认上线阻塞与可带假设项</p></div><div class="inline-actions"><span class="badge question-badge">${questions.length} 项</span>${questions.length ? `<button class="button button-ghost button-small" data-copy-preflight>复制策略清单</button>` : ""}</div></div>
+        ${questions.length ? `<div class="question-list">${questions.map((item, index) => `<article class="question-item"><span>${String(index + 1).padStart(2, "0")}</span><div><div class="question-top"><strong>${escapeHtml(item.question)}</strong><em class="${attr(item.priority)}">${item.priority === "required" ? "上线阻塞" : "可带假设"}</em></div><p>${escapeHtml(item.reason)}</p></div></article>`).join("")}</div>` : `<div class="success-note">投放前关键口径已覆盖，可由优化师复核后采用策略初稿。</div>`}
       </section>
       <section class="card strategy-v0-hero">
         <div class="card-header"><div><h2>策略初稿</h2><p>带假设的前期策略草案，不等同于最终执行方案</p></div><span class="card-label">工作草案</span></div>
@@ -856,7 +856,7 @@ function renderIntake(project) {
     ? `<button class="button button-ghost" data-export-intake>导出文档</button><button class="button button-secondary" data-save-intake-version>保存版本</button>`
     : "";
   const mode = isLiveAiMode()
-    ? `智能路由 · 追问：${routeSummary("intakeQuestions")} ｜ 策略初稿：${routeSummary("intakeStrategy")} ｜ 深度复核：${routeSummary("intakeDeep")}`
+    ? `智能路由 · 投前清单：${routeSummary("intakeQuestions")} ｜ 策略初稿：${routeSummary("intakeStrategy")} ｜ 深度复核：${routeSummary("intakeDeep")}`
     : "本地演示 · 不耗额度";
   return `${pageHeader("阶段 00 · 需求接收", "需求接收", "", actions)}
     <section class="card intake-source-card mb-16">
@@ -869,7 +869,7 @@ function renderIntake(project) {
       <div class="intake-runbar">
         <div><strong>本页主操作</strong><span>${escapeHtml(mode)}</span></div>
         <div class="inline-actions">
-          <button class="button button-ghost" data-run-intake="questions" ${aiBusy ? "disabled" : ""}>${aiBusy ? "处理中…" : "生成追问"}</button>
+          <button class="button button-ghost" data-run-intake="questions" ${aiBusy ? "disabled" : ""}>${aiBusy ? "处理中…" : "生成投前清单"}</button>
           <button class="button button-ghost" data-run-intake="deep" ${aiBusy ? "disabled" : ""}>${aiBusy ? "请稍候…" : "深度复核"}</button>
           <button class="button button-primary" data-run-intake="strategy" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : isLiveAiMode() ? "生成策略初稿" : "生成演示策略"}</button>
         </div>
@@ -896,7 +896,7 @@ function renderOverview(project) {
       <section class="card">
         <div class="card-header"><div><h2>全链路进度</h2></div><button class="button button-primary button-small" data-go-route="report">查看报告</button></div>
         <div class="stage-flow">
-          <button type="button" class="stage-step ${hasIntake ? "complete" : ""}" data-step="00" data-go-route="intake"><h3>需求接收</h3><p>资料、追问与策略初稿</p></button>
+          <button type="button" class="stage-step ${hasIntake ? "complete" : ""}" data-step="00" data-go-route="intake"><h3>需求接收</h3><p>资料、投前清单与策略初稿</p></button>
           <button type="button" class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01" data-go-route="strategy"><h3>投放策略</h3><p>目标、媒体与预算逻辑</p></button>
           <button type="button" class="stage-step ${hasCreative ? "complete" : ""}" data-step="02" data-go-route="creative"><h3>素材方向</h3><p>角度、Hook 与设计 Brief</p></button>
           <button type="button" class="stage-step ${launchReady ? "complete" : ""}" data-step="03" data-go-route="launch"><h3>执行方案</h3><p>Campaign 与上线检查</p></button>
@@ -1131,7 +1131,7 @@ function renderLaunchPackResult(project) {
     </section>
 
     <div class="grid grid-2">
-      <section class="card"><div class="card-header"><div><h2>待确认问题</h2></div><span class="badge question-badge">${pack.open_questions.length}</span></div>${pack.open_questions.length ? `<ol class="launch-question-list">${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : `<div class="success-note">当前没有未记录的问题。</div>`}</section>
+      <section class="card"><div class="card-header"><div><h2>内部待确认</h2></div><span class="badge question-badge">${pack.open_questions.length}</span></div>${pack.open_questions.length ? `<ol class="launch-question-list">${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : `<div class="success-note">当前没有未处理的内部事项。</div>`}</section>
       <section class="card"><div class="card-header"><div><h2>风险说明</h2><p>不把 AI 草案伪装成正式客户结论</p></div><span class="card-label">RISK REGISTER</span></div><div class="launch-risk-list">${pack.risks.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div></section>
     </div>
 
@@ -1791,7 +1791,7 @@ function attachPageListeners() {
   document.querySelectorAll("[data-restore-intake-version]").forEach((button) => button.addEventListener("click", () => restoreIntakeVersion(button.dataset.restoreIntakeVersion)));
   document.querySelector("[data-export-intake]")?.addEventListener("click", exportIntakeMarkdown);
   document.querySelector("[data-adopt-intake]")?.addEventListener("click", adoptIntakeStrategy);
-  document.querySelector("[data-copy-questions]")?.addEventListener("click", copyClarificationQuestions);
+  document.querySelector("[data-copy-preflight]")?.addEventListener("click", copyPreflightStrategyChecklist);
   document.querySelectorAll("[data-save-launch-version]").forEach((button) => button.addEventListener("click", saveLaunchVersion));
   document.querySelectorAll("[data-restore-launch-version]").forEach((button) => button.addEventListener("click", () => restoreLaunchVersion(button.dataset.restoreLaunchVersion)));
   document.querySelector("[data-export-launch-pack]")?.addEventListener("click", exportLaunchPackMarkdown);
@@ -2137,7 +2137,7 @@ async function runIntake(action) {
       };
     });
     if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
-    const label = intent === "questions" ? "客户追问清单已生成" : action === "deep" ? "策略初稿深度复核完成" : "策略初稿已生成";
+    const label = intent === "questions" ? "投放前策略清单已生成" : action === "deep" ? "策略初稿深度复核完成" : "策略初稿已生成";
     showToast(completionMessage(label, payload));
   } catch (error) {
     handleAiFailure(error);
@@ -2337,9 +2337,9 @@ function intakeMarkdown(project) {
     "| --- | --- | --- | --- |",
     ...result.brief_fields.map((field) => `| ${BRIEF_FIELD_META[field.key]?.label || field.key} | ${markdownCell(field.value || "—")} | ${intakeStatusText(field.status)} | ${intakeSourceText(field.source)} |`),
     "",
-    "## 客户追问",
+    "## 投放前策略清单",
     "",
-    ...(result.clarification_questions.length ? result.clarification_questions.map((item, index) => `${index + 1}. ${item.question}\n   - 原因：${item.reason}`) : ["关键资料已覆盖，无必须追问项。"]),
+    ...(result.clarification_questions.length ? result.clarification_questions.map((item, index) => `${index + 1}. ${item.question}\n   - 影响：${item.reason}\n   - 处理：${item.priority === "required" ? "上线前完成内部核对" : "可按保守假设推进"}`) : ["投放前关键口径已覆盖。"]),
     "",
     "## 策略初稿",
     "",
@@ -2385,12 +2385,12 @@ function exportIntakeMarkdown() {
   showToast("策略初稿 文档已导出");
 }
 
-async function copyClarificationQuestions() {
+async function copyPreflightStrategyChecklist() {
   const questions = activeProject().intake?.analysis?.result?.clarification_questions || [];
-  const content = questions.map((item, index) => `${index + 1}. ${item.question}`).join("\n");
+  const content = questions.map((item, index) => `${index + 1}. ${item.question}\n   - ${item.priority === "required" ? "上线阻塞：上线前完成内部核对" : "可带假设：按保守方案推进"}\n   - 影响：${item.reason}`).join("\n");
   try {
     await navigator.clipboard.writeText(content);
-    showToast("客户追问已复制");
+    showToast("投放前策略清单已复制");
   } catch {
     showToast("浏览器不允许复制，请使用导出文档。", "error");
   }
@@ -2559,7 +2559,7 @@ function launchPackMarkdown(project) {
     "## 首 7 天行动",
     "",
     ...pack.first_7_days.flatMap((item) => [`### ${item.period}`, ...item.actions.map((value) => `- ${value}`), `- **决策规则：** ${item.decision_rule}`, ""]),
-    "## 待确认问题",
+    "## 内部待确认",
     "",
     ...(pack.open_questions.length ? pack.open_questions.map((item, index) => `${index + 1}. ${item}`) : ["无。"]),
     "",
@@ -2774,7 +2774,7 @@ function launchPackDocument(project) {
   const gateRows = pack.launch_checklist.map((item) => `<tr><td>${escapeHtml(item.category)}</td><td><strong>${escapeHtml(item.item)}</strong></td><td><span class="status ${attr(item.status)}">${escapeHtml(launchStatusText(item.status))}</span></td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.evidence)}</td></tr>`).join("");
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(pack.title)}</title><style>
   :root{--ink:#17212b;--muted:#687382;--line:#dfe4e8;--paper:#fff;--bg:#edf0f2;--accent:#e86f34;--accent-soft:#fff0e8;--success:#247a55;--risk:#b8443e}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,Arial,"PingFang SC",sans-serif}main{width:min(1120px,calc(100% - 32px));margin:32px auto;background:var(--paper);padding:56px}.eyebrow{font-size:11px;font-weight:800;letter-spacing:.14em;color:var(--accent)}h1{font-size:42px;line-height:1.12;margin:10px 0 20px}.lead{font-size:16px;line-height:1.8;color:var(--muted);max-width:860px}.readiness{margin:34px 0;display:grid;grid-template-columns:150px 1fr 220px;gap:28px;padding:26px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(135deg,#fff,var(--accent-soft))}.score strong{font-size:58px}.score span{color:var(--muted)}.state{font-size:24px;font-weight:800}.blockers{border-left:1px solid var(--line);padding-left:22px}.blockers strong{display:block;font-size:32px}.meta{display:flex;gap:18px;color:var(--muted);font-size:12px}.section{margin-top:42px}.section h2{font-size:22px;margin:0 0 16px}.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}.card{border:1px solid var(--line);border-radius:12px;padding:18px;break-inside:avoid}.card span{font-size:10px;font-weight:800;color:var(--accent);letter-spacing:.08em}.card h3{font-size:16px;margin:8px 0}.card p,.card li{font-size:12px;line-height:1.7;color:var(--muted)}blockquote{margin:12px 0;padding:12px 14px;border-left:3px solid var(--accent);background:var(--accent-soft);font-weight:700}table{width:100%;border-collapse:collapse;font-size:11px}th,td{padding:11px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{color:var(--muted);font-size:9px;letter-spacing:.08em;text-transform:uppercase}.status{display:inline-block;padding:4px 8px;border-radius:99px;background:#eef1f3}.status.ready{color:var(--success);background:#e7f5ee}.status.blocker{color:var(--risk);background:#fdebea}.week{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.week strong{display:block;margin-bottom:8px}.foot{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:10px}@media(max-width:760px){main{width:100%;margin:0;padding:24px}.readiness,.cards,.week{grid-template-columns:1fr}.blockers{border-left:0;border-top:1px solid var(--line);padding:14px 0 0}h1{font-size:30px}}@media print{body{background:#fff}main{width:auto;margin:0;padding:28px}.section{break-inside:auto}.card{break-inside:avoid}}
-  </style></head><body><main><p class="eyebrow">OPENADOPS · 投放执行方案 · v${APP_VERSION}</p><h1>${escapeHtml(pack.title)}</h1><p class="lead">${escapeHtml(pack.executive_summary)}</p><div class="meta"><span>${escapeHtml(project.industry)} App</span><span>${escapeHtml(project.markets || "市场待确认")}</span><span>${escapeHtml(project.platforms.join(" / "))}</span><span>${dateText(project.launch.pack.generatedAt)}</span></div><section class="readiness"><div class="score"><strong>${pack.readiness.score}</strong><span>/100</span></div><div><div class="state">${escapeHtml(launchStatusText(pack.readiness.status))}</div><p>${pack.assumptions.map((item) => escapeHtml(item)).join("<br>") || "关键输入已覆盖。"}</p></div><div class="blockers"><span>阻塞项</span><strong>${pack.readiness.blockers.length}</strong><p>${pack.readiness.blockers.map((item) => escapeHtml(item)).join("<br>") || "没有硬阻塞项"}</p></div></section><section class="section"><h2>01 · 媒体分工与预算</h2><table><thead><tr><th>媒体</th><th>角色</th><th>Campaign</th><th>占比</th><th>预算</th></tr></thead><tbody>${pack.media_plan.map((item) => `<tr><td><strong>${escapeHtml(item.platform)}</strong></td><td>${escapeHtml(item.role)}</td><td>${escapeHtml(item.campaign_type)}</td><td>${item.allocation_percent === null ? "—" : `${item.allocation_percent}%`}</td><td>${escapeHtml(launchBudgetText(item))}</td></tr>`).join("")}</tbody></table></section><section class="section"><h2>02 · Campaign 蓝图</h2><div class="cards">${pack.campaigns.map((item) => `<article class="card"><span>${escapeHtml(item.platform)}</span><h3>${escapeHtml(item.campaign_name)}</h3><p><strong>目标 / 事件：</strong>${escapeHtml(item.objective)} / ${escapeHtml(item.optimization_event)}<br><strong>市场：</strong>${escapeHtml(item.geo)}<br><strong>出价：</strong>${escapeHtml(item.bidding)}<br><strong>预算：</strong>${escapeHtml(item.budget_note)}</p><ul>${item.ad_group_logic.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></article>`).join("")}</div></section><section class="section"><h2>03 · 素材生产简报</h2><div class="cards">${pack.creative_briefs.map((item) => `<article class="card"><span>${escapeHtml(item.platform)} · ${item.variants} 个版本</span><h3>${escapeHtml(item.angle)}</h3><blockquote>${escapeHtml(item.hook)}</blockquote><p><strong>假设：</strong>${escapeHtml(item.hypothesis)}</p><p><strong>格式：</strong>${escapeHtml(item.format)}<br><strong>单变量：</strong>${escapeHtml(item.test_variable)}<br><strong>成功指标：</strong>${escapeHtml(item.success_metric)}</p></article>`).join("")}</div></section><section class="section"><h2>04 · 监测与归因</h2><article class="card"><h3>${escapeHtml(pack.measurement.source_of_truth)}</h3><p><strong>主要事件：</strong>${escapeHtml(pack.measurement.primary_event)}</p><ul>${[...pack.measurement.supporting_events,...pack.measurement.attribution_rules,...pack.measurement.tracking_checklist].map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></article></section><section class="section"><h2>05 · 上线检查项</h2><table><thead><tr><th>类别</th><th>检查项</th><th>状态</th><th>负责人</th><th>证据 / 缺口</th></tr></thead><tbody>${gateRows}</tbody></table></section><section class="section"><h2>06 · 首 7 天行动</h2><div class="week">${pack.first_7_days.map((item) => `<article class="card"><strong>${escapeHtml(item.period)}</strong>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<blockquote>${escapeHtml(item.decision_rule)}</blockquote></article>`).join("")}</div></section><section class="section"><h2>07 · 待确认与风险</h2><div class="cards"><article class="card"><h3>待确认问题</h3><ol>${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>无</li>"}</ol></article><article class="card"><h3>风险说明</h3><ul>${pack.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></article></div></section><p class="foot">OpenAdOps v${APP_VERSION} · 本文件为投前工作草案，不会修改真实广告账户；正式上线前由项目负责人和相关合规人员确认。</p></main></body></html>`;
+  </style></head><body><main><p class="eyebrow">OPENADOPS · 投放执行方案 · v${APP_VERSION}</p><h1>${escapeHtml(pack.title)}</h1><p class="lead">${escapeHtml(pack.executive_summary)}</p><div class="meta"><span>${escapeHtml(project.industry)} App</span><span>${escapeHtml(project.markets || "市场待确认")}</span><span>${escapeHtml(project.platforms.join(" / "))}</span><span>${dateText(project.launch.pack.generatedAt)}</span></div><section class="readiness"><div class="score"><strong>${pack.readiness.score}</strong><span>/100</span></div><div><div class="state">${escapeHtml(launchStatusText(pack.readiness.status))}</div><p>${pack.assumptions.map((item) => escapeHtml(item)).join("<br>") || "关键输入已覆盖。"}</p></div><div class="blockers"><span>阻塞项</span><strong>${pack.readiness.blockers.length}</strong><p>${pack.readiness.blockers.map((item) => escapeHtml(item)).join("<br>") || "没有硬阻塞项"}</p></div></section><section class="section"><h2>01 · 媒体分工与预算</h2><table><thead><tr><th>媒体</th><th>角色</th><th>Campaign</th><th>占比</th><th>预算</th></tr></thead><tbody>${pack.media_plan.map((item) => `<tr><td><strong>${escapeHtml(item.platform)}</strong></td><td>${escapeHtml(item.role)}</td><td>${escapeHtml(item.campaign_type)}</td><td>${item.allocation_percent === null ? "—" : `${item.allocation_percent}%`}</td><td>${escapeHtml(launchBudgetText(item))}</td></tr>`).join("")}</tbody></table></section><section class="section"><h2>02 · Campaign 蓝图</h2><div class="cards">${pack.campaigns.map((item) => `<article class="card"><span>${escapeHtml(item.platform)}</span><h3>${escapeHtml(item.campaign_name)}</h3><p><strong>目标 / 事件：</strong>${escapeHtml(item.objective)} / ${escapeHtml(item.optimization_event)}<br><strong>市场：</strong>${escapeHtml(item.geo)}<br><strong>出价：</strong>${escapeHtml(item.bidding)}<br><strong>预算：</strong>${escapeHtml(item.budget_note)}</p><ul>${item.ad_group_logic.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></article>`).join("")}</div></section><section class="section"><h2>03 · 素材生产简报</h2><div class="cards">${pack.creative_briefs.map((item) => `<article class="card"><span>${escapeHtml(item.platform)} · ${item.variants} 个版本</span><h3>${escapeHtml(item.angle)}</h3><blockquote>${escapeHtml(item.hook)}</blockquote><p><strong>假设：</strong>${escapeHtml(item.hypothesis)}</p><p><strong>格式：</strong>${escapeHtml(item.format)}<br><strong>单变量：</strong>${escapeHtml(item.test_variable)}<br><strong>成功指标：</strong>${escapeHtml(item.success_metric)}</p></article>`).join("")}</div></section><section class="section"><h2>04 · 监测与归因</h2><article class="card"><h3>${escapeHtml(pack.measurement.source_of_truth)}</h3><p><strong>主要事件：</strong>${escapeHtml(pack.measurement.primary_event)}</p><ul>${[...pack.measurement.supporting_events,...pack.measurement.attribution_rules,...pack.measurement.tracking_checklist].map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul></article></section><section class="section"><h2>05 · 上线检查项</h2><table><thead><tr><th>类别</th><th>检查项</th><th>状态</th><th>负责人</th><th>证据 / 缺口</th></tr></thead><tbody>${gateRows}</tbody></table></section><section class="section"><h2>06 · 首 7 天行动</h2><div class="week">${pack.first_7_days.map((item) => `<article class="card"><strong>${escapeHtml(item.period)}</strong>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<blockquote>${escapeHtml(item.decision_rule)}</blockquote></article>`).join("")}</div></section><section class="section"><h2>07 · 待确认与风险</h2><div class="cards"><article class="card"><h3>内部待确认</h3><ol>${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>无</li>"}</ol></article><article class="card"><h3>风险说明</h3><ul>${pack.risks.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></article></div></section><p class="foot">OpenAdOps v${APP_VERSION} · 本文件为投前工作草案，不会修改真实广告账户；正式上线前由项目负责人和相关合规人员确认。</p></main></body></html>`;
 }
 
 function exportLaunchPackHtml() {

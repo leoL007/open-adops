@@ -21,7 +21,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 
 - **End-to-end loop**: intake → strategy draft → plan → **creative production** → **execution plan** → **experiment ledger** → optimize → report
 - **Chinese-first UI** in the product (English docs keep clear English names)  
-- **Task-aware model routing**: lighter models for questions/fast draft; stronger models for deep review and execution plans; automatic structure retry  
+- **Task-aware model routing**: lighter models for the operator preflight checklist / fast draft; stronger models for deep review and execution plans; automatic structure retry
 - **Optional performance targets**: add or remove Media CPI, AF-CPI, CPA, and ROAS independently; keep a metric observation-only during learning instead of inventing a threshold
 - **Code does the math**: KPI and experiment sizing are deterministic  
 - **Workspace backup**: export current project or full workspace as JSON; import with merge or replace  
@@ -54,7 +54,7 @@ Paid media work is usually scattered across ad UIs, spreadsheets, screenshots, a
 
 OpenAdOps keeps one local project for the full loop:
 
-1. **Intake** — paste client material and media notes; structure a brief and clarification list  
+1. **Intake** — paste client material and media notes; structure a brief and an operator-owned preflight strategy checklist
 2. **Strategy draft** — fast draft or deep review of a working strategy  
 3. **Plan / creative production** — goals, media roles, budgets, then production quantities, specs, owners, deadlines, and delivery status
 4. **Execution plan** — campaign blueprints, production briefs, measurement layers, launch checks, first 7 days  
@@ -107,7 +107,7 @@ Default routing (does not inherit a global ultra-high reasoning setting):
 
 | Task | Default model | Effort |
 | --- | --- | --- |
-| Client questions | `gpt-5.6-terra` | low |
+| Preflight strategy checklist | `gpt-5.6-terra` | low |
 | Fast strategy draft | `gpt-5.6-terra` | medium |
 | Deep strategy review | `gpt-5.6-sol` | high |
 | Strategy / creative diagnosis | `gpt-5.6-terra` | medium |
