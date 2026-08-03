@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildStrategyWorkbook, strategyWorkbookDownload } from "../public/lib/xlsx-export.js";
+import { buildCreativeRequirementsWorkbook, buildStrategyWorkbook, creativeRequirementsWorkbookDownload, strategyWorkbookDownload } from "../public/lib/xlsx-export.js";
 
 function zipEntries(bytes) {
   const entries = new Map();
@@ -72,5 +72,42 @@ test("strategy workbook download uses xlsx metadata and a sanitized file name", 
   const output = strategyWorkbookDownload({ ...project, name: "A/B:策略" }, strategy);
   assert.equal(output.mime, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   assert.equal(output.fileName, "A-B-策略-搭建策略.xlsx");
+  assert.ok(output.bytes.length > 1000);
+});
+
+test("creative requirements workbook contains guidance and confirmed requirements", () => {
+  const production = {
+    mode: "new",
+    notes: "参考竞品口播",
+    analysis: { result: { guidance: [{ status: "required", category: "casting", item: "使用成年演员", reason: "避免年龄风险" }] } },
+    tasks: [{
+      angle: "真人口播＋尾板",
+      assetReference: "ref-01.mp4",
+      productionMethod: "二创",
+      copy: "Start a chat nearby.",
+      modificationNotes: "结尾加品牌尾板",
+      platform: "Meta Ads",
+      market: "US",
+      language: "英语",
+      deliverable: "视频",
+      format: "9:16 · 15 秒",
+      quantity: 5,
+      mustKeep: "品牌尾板",
+      prohibited: "未成年人暗示"
+    }]
+  };
+  const bytes = buildCreativeRequirementsWorkbook({ ...project, name: "LocalSingle", industry: "社交", platforms: ["Meta Ads"], markets: "US" }, production, { appVersion: "0.5.12" });
+  const entries = zipEntries(bytes);
+  const sheet = new TextDecoder().decode(entries.get("xl/worksheets/sheet1.xml"));
+  assert.match(sheet, /AI 必知事项/);
+  assert.match(sheet, /真人口播＋尾板/);
+  assert.match(sheet, /使用成年演员/);
+  assert.match(sheet, /ref-01.mp4/);
+});
+
+test("creative requirements download uses xlsx metadata", () => {
+  const output = creativeRequirementsWorkbookDownload({ ...project, name: "Local/Single" }, { tasks: [{ angle: "A" }] });
+  assert.equal(output.mime, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  assert.equal(output.fileName, "Local-Single-素材需求.xlsx");
   assert.ok(output.bytes.length > 1000);
 });

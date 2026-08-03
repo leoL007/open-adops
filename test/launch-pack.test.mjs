@@ -59,3 +59,35 @@ test("Launch Pack applies a CPA multiple rule only to an explicit threshold", ()
   });
   assert.match(result.first_7_days[2].decision_rule, /CPA 阈值 USD 12 的 3 倍/);
 });
+
+test("Launch Pack consumes confirmed creative requirements without replacing their content", () => {
+  const result = buildMockLaunchPack({
+    name: "LocalSingle",
+    industry: "社交",
+    platforms: ["Meta Ads"],
+    markets: "US",
+    budget: 3000,
+    currency: "USD",
+    goal: "Purchase",
+    creativeProduction: {
+      tasks: [{
+        id: "req-1",
+        angle: "真人口播＋统一尾板",
+        copy: "Start a conversation nearby.",
+        productionMethod: "二创",
+        assetReference: "ref-01.mp4",
+        modificationNotes: "结尾加品牌尾板",
+        platform: "Meta Ads",
+        format: "9:16 · 15 秒",
+        quantity: 5,
+        mustKeep: "品牌尾板",
+        prohibited: "未成年人暗示"
+      }]
+    }
+  });
+  assert.equal(result.creative_briefs.length, 1);
+  assert.equal(result.creative_briefs[0].angle, "真人口播＋统一尾板");
+  assert.equal(result.creative_briefs[0].variants, 5);
+  assert.ok(result.creative_briefs[0].production_notes.some((item) => item.includes("品牌尾板")));
+  assert.ok(result.creative_briefs[0].compliance_notes.some((item) => item.includes("未成年人")));
+});

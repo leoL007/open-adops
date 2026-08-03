@@ -113,7 +113,7 @@ function checklist(project, intakeResult, activePlatforms) {
   const budgetKnown = Number(project.budget) > 0;
   const marketKnown = Boolean(text(project.markets));
   const attributionKnown = Boolean(text(project.attribution));
-  const creativeKnown = confirmedBrief(intakeResult, "creative_supply") || Boolean(project.creativePlan?.length);
+  const creativeKnown = confirmedBrief(intakeResult, "creative_supply") || Boolean(project.creativeProduction?.tasks?.length) || Boolean(project.creativePlan?.length);
   const complianceKnown = confirmedBrief(intakeResult, "compliance");
   const timelineKnown = confirmedBrief(intakeResult, "timeline");
   const items = [
@@ -181,8 +181,9 @@ export function buildMockLaunchPack(project = {}, intakeResult = null) {
     };
   });
 
+  const confirmedRequirements = Array.isArray(project.creativeProduction?.tasks) ? project.creativeProduction.tasks : [];
   const angles = creativeAngles(industry);
-  const creativeBriefs = activePlatforms.flatMap((platform, platformIndex) => {
+  const generatedCreativeBriefs = activePlatforms.flatMap((platform, platformIndex) => {
     const config = platformConfig(platform, project);
     const angle = angles[platformIndex % angles.length];
     return [{
@@ -199,6 +200,21 @@ export function buildMockLaunchPack(project = {}, intakeResult = null) {
       compliance_notes: industry === "金融" ? ["不得承诺保证收益或确定结果", "资质、费用、利率与免责声明必须由客户合规确认", "保存最终审核版本和批准人"] : ["不得使用无授权音乐、人物或素材", "广告承诺必须与商店页和真实产品一致"]
     }];
   });
+  const creativeBriefs = confirmedRequirements.length
+    ? confirmedRequirements.map((item, index) => ({
+        id: `requirement-${item.id || index + 1}`,
+        platform: text(item.platform) || activePlatforms[0] || platforms[0],
+        hypothesis: "按优化师已确认的素材需求制作，并在上线后验证媒体反馈与归因质量。",
+        angle: text(item.angle) || `素材需求 ${index + 1}`,
+        hook: text(item.copy) || text(item.modificationNotes) || "按已确认需求制作，文案由优化师补充。",
+        format: [text(item.deliverable), text(item.format)].filter(Boolean).join(" · ") || "规格待确认",
+        variants: Math.max(1, Number(item.quantity) || 1),
+        test_variable: "本条素材需求中的主要改动",
+        success_metric: "观察审核、消耗与项目已配置主要指标，不预设未确认阈值。",
+        production_notes: [text(item.productionMethod), text(item.assetReference), text(item.modificationNotes), text(item.mustKeep)].filter(Boolean),
+        compliance_notes: [text(item.prohibited)].filter(Boolean)
+      }))
+    : generatedCreativeBriefs;
 
   const launchChecklist = checklist(project, intakeResult, activePlatforms);
   const blockers = launchChecklist.filter((item) => item.status === "blocker").map((item) => item.item);

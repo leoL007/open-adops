@@ -17,6 +17,7 @@ check("Analysis schema", existsSync(path.join(root, "schemas", "analysis.schema.
 check("Intake schema", existsSync(path.join(root, "schemas", "intake.schema.json")), "schemas/intake.schema.json");
 check("Launch Pack schema", existsSync(path.join(root, "schemas", "launch-pack.schema.json")), "schemas/launch-pack.schema.json");
 check("Experiment schema", existsSync(path.join(root, "schemas", "experiment-plan.schema.json")), "schemas/experiment-plan.schema.json");
+check("Creative requirements schema", existsSync(path.join(root, "schemas", "creative-requirements.schema.json")), "schemas/creative-requirements.schema.json");
 
 const grok = spawnSync(process.env.GROK_BIN || process.env.OPENADOPS_GROK_BIN || "grok", ["--version"], { encoding: "utf8", shell: false });
 check(

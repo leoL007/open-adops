@@ -26,6 +26,13 @@ test("AI router uses Terra for lightweight work and Sol for deep work", () => {
   );
   assert.deepEqual(
     {
+      model: resolveAiRoute("creativeRequirements", {}).model,
+      effort: resolveAiRoute("creativeRequirements", {}).effort
+    },
+    { model: "gpt-5.6-terra", effort: "medium" }
+  );
+  assert.deepEqual(
+    {
       model: resolveAiRoute("optimizeAnalysis", {}).model,
       effort: resolveAiRoute("optimizeAnalysis", {}).effort
     },

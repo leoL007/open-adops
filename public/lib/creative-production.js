@@ -6,11 +6,22 @@ export const CREATIVE_TASK_STATUSES = [
   { value: "live", label: "已上线" }
 ];
 
+export const CREATIVE_REQUIREMENT_MODES = [
+  { value: "existing", label: "整理已有素材" },
+  { value: "new", label: "生成新需求" },
+  { value: "skip", label: "本轮跳过" }
+];
+
 const STATUS_VALUES = new Set(CREATIVE_TASK_STATUSES.map((item) => item.value));
+const MODE_VALUES = new Set(CREATIVE_REQUIREMENT_MODES.map((item) => item.value));
 const GENERATED_SOURCES = new Set(["legacy", "analysis", "launch_pack"]);
 
 function text(value) {
   return String(value ?? "").trim();
+}
+
+function own(task, key, fallback) {
+  return Object.prototype.hasOwnProperty.call(task, key) ? task[key] : fallback;
 }
 
 function positiveInteger(value, fallback = 1) {
@@ -64,9 +75,41 @@ export function normalizeCreativeTask(task = {}, options = {}) {
     assetLink: text(task.assetLink),
     productionNotes: joinedNotes(task.productionNotes ?? task.production_notes),
     complianceNotes: joinedNotes(task.complianceNotes ?? task.compliance_notes),
+    productionMethod: text(task.productionMethod ?? task.production_method) || "二创",
+    assetReference: text(own(task, "assetReference", task.asset_reference ?? task.assetLink)),
+    copy: text(own(task, "copy", task.hook)),
+    modificationNotes: joinedNotes(own(task, "modificationNotes", task.modification_notes ?? task.productionNotes ?? task.production_notes)),
+    mustKeep: joinedNotes(own(task, "mustKeep", task.must_keep)),
+    prohibited: joinedNotes(own(task, "prohibited", task.complianceNotes ?? task.compliance_notes)),
+    aiRationale: text(task.aiRationale ?? task.rationale),
     createdAt: text(task.createdAt) || text(options.now),
     updatedAt: text(task.updatedAt) || text(options.now)
   };
+}
+
+export function creativeRequirementFromSuggestion(suggestion = {}, project = {}, options = {}) {
+  return normalizeCreativeTask({
+    source: "analysis",
+    sourceKey: `creative_requirement:${text(suggestion.id)}`,
+    angle: suggestion.title,
+    platform: suggestion.platform,
+    market: suggestion.market,
+    language: suggestion.language,
+    productionMethod: suggestion.production_method,
+    assetReference: suggestion.asset_reference,
+    copy: suggestion.copy,
+    modificationNotes: suggestion.modification_notes,
+    deliverable: suggestion.deliverable,
+    format: suggestion.format,
+    quantity: suggestion.quantity,
+    mustKeep: suggestion.must_keep,
+    prohibited: suggestion.prohibited,
+    aiRationale: suggestion.rationale
+  }, {
+    ...options,
+    defaultPlatform: project.platforms?.[0],
+    defaultMarket: project.markets
+  });
 }
 
 export function tasksFromCreativeTests(tests = [], project = {}, options = {}) {
@@ -128,6 +171,15 @@ export function normalizeCreativeProduction(project = {}, options = {}) {
       : tasksFromCreativeTests(project.creativePlan || [], project, { ...settings, source: "legacy" });
   }
   return {
+    mode: MODE_VALUES.has(project.creativeProduction?.mode)
+      ? project.creativeProduction.mode
+      : tasks.length
+        ? "existing"
+        : "undecided",
+    notes: text(project.creativeProduction?.notes),
+    analysis: project.creativeProduction?.analysis && typeof project.creativeProduction.analysis === "object"
+      ? project.creativeProduction.analysis
+      : null,
     tasks: tasks.map((task) => normalizeCreativeTask(task, settings)),
     updatedAt: text(project.creativeProduction?.updatedAt) || now
   };
@@ -187,18 +239,17 @@ function csvCell(value) {
 }
 
 export function creativeProductionCsv(tasks = []) {
-  const headers = ["媒体", "市场", "语言", "素材类型", "规格", "数量", "负责人", "截止日期", "状态", "素材角度", "Hook", "测试假设", "单一变量", "成功指标", "素材链接", "制作备注", "合规要求"];
-  const statusLabels = new Map(CREATIVE_TASK_STATUSES.map((item) => [item.value, item.label]));
+  const headers = ["素材编号", "需求名称", "素材参考", "制作方式", "文案", "修改要求", "媒体", "市场", "语言", "素材类型", "输出规格", "数量需求", "必须保留", "禁止内容"];
   const rows = tasks.map((task) => {
     const item = normalizeCreativeTask(task);
-    return [item.platform, item.market, item.language, item.deliverable, item.format, item.quantity, item.owner, item.dueDate, statusLabels.get(item.status), item.angle, item.hook, item.hypothesis, item.testVariable, item.successMetric, item.assetLink, item.productionNotes, item.complianceNotes];
+    return [item.id, item.angle, item.assetReference, item.productionMethod, item.copy, item.modificationNotes, item.platform, item.market, item.language, item.deliverable, item.format, item.quantity, item.mustKeep, item.prohibited];
   });
   return `\uFEFF${[headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
 }
 
 export function creativeProductionMarkdown(project = {}, tasks = [], appVersion = "") {
   const lines = [
-    `# ${text(project.name) || "OpenAdOps"} · 素材方向`,
+    `# ${text(project.name) || "OpenAdOps"} · 素材需求`,
     "",
     `- 市场：${text(project.markets) || "待确认"}`,
     `- 媒体：${Array.isArray(project.platforms) ? project.platforms.join(" / ") : "待确认"}`,
@@ -208,78 +259,18 @@ export function creativeProductionMarkdown(project = {}, tasks = [], appVersion 
   tasks.forEach((rawTask, index) => {
     const task = normalizeCreativeTask(rawTask);
     lines.push(
-      `## ${String(index + 1).padStart(2, "0")} · ${task.platform} · ${task.angle || "未命名方向"}`,
+      `## ${String(index + 1).padStart(2, "0")} · ${task.platform} · ${task.angle || "未命名需求"}`,
       "",
       `- 市场 / 语言：${task.market || "待确认"} / ${task.language || "待确认"}`,
-      `- 规格：${task.deliverable} · ${task.format || "规格待确认"} · ${task.quantity} 个版本`,
-      `- Hook：${task.hook || "待补充"}`,
-      `- 测试假设：${task.hypothesis || "待补充"}`,
-      `- 单一变量：${task.testVariable || "待补充"}`,
-      `- 成功指标：${task.successMetric || "观察期，暂无阈值"}`,
-      `- 参考链接：${task.assetLink || "待补充"}`,
-      `- 制作备注：${task.productionNotes || "无"}`,
-      `- 合规 / 不做：${task.complianceNotes || "无"}`,
+      `- 制作方式：${task.productionMethod || "待确认"}`,
+      `- 素材参考：${task.assetReference || "待补充"}`,
+      `- 文案：${task.copy || "待补充"}`,
+      `- 修改要求：${task.modificationNotes || "待补充"}`,
+      `- 规格：${task.deliverable} · ${task.format || "规格待确认"} · ${task.quantity} 个`,
+      `- 必须保留：${task.mustKeep || "无"}`,
+      `- 禁止内容：${task.prohibited || "无"}`,
       ""
     );
   });
-  return lines.join("\n");
-}
-
-/** Feishu-friendly brief: paste into a cloud doc for designers. */
-export function creativeProductionFeishuMarkdown(project = {}, tasks = [], appVersion = "") {
-  const date = new Date().toISOString().slice(0, 10);
-  const lines = [
-    `# ${text(project.name) || "项目"} 素材方向 Brief · ${date}`,
-    "",
-    "## 背景与目标",
-    "",
-    `- 市场：${text(project.markets) || "待确认"}`,
-    `- 媒体：${Array.isArray(project.platforms) ? project.platforms.join(" / ") : "待确认"}`,
-    `- 核心目标：${text(project.goal) || "待确认"}`,
-    `- 说明：以下方向用于设计制作；排期与负责人在飞书/口头同步即可。`,
-    "",
-    "## 本轮测试方向",
-    ""
-  ];
-
-  if (!tasks.length) {
-    lines.push("（暂无方向，请先在工作台补充或生成）", "");
-  } else {
-    lines.push(
-      "| # | 媒体 | 市场 | 角度 | Hook | 规格 | 数量 | 单变量 | 成功指标 |",
-      "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
-    );
-    tasks.forEach((rawTask, index) => {
-      const task = normalizeCreativeTask(rawTask);
-      const cell = (value) => String(value || "—").replaceAll("|", "/").replaceAll("\n", " ");
-      lines.push(
-        `| ${index + 1} | ${cell(task.platform)} | ${cell(task.market)} | ${cell(task.angle)} | ${cell(task.hook)} | ${cell(`${task.deliverable} · ${task.format || "规格待确认"}`)} | ${task.quantity} | ${cell(task.testVariable)} | ${cell(task.successMetric || "观察期")} |`
-      );
-    });
-    lines.push("");
-    tasks.forEach((rawTask, index) => {
-      const task = normalizeCreativeTask(rawTask);
-      lines.push(
-        `### ${index + 1}. ${task.angle || "未命名方向"}（${task.platform}）`,
-        "",
-        `- **假设：** ${task.hypothesis || "待补充"}`,
-        `- **制作备注：** ${task.productionNotes || "无"}`,
-        `- **合规 / 不做：** ${task.complianceNotes || "无"}`,
-        `- **参考：** ${task.assetLink || "待补充"}`,
-        ""
-      );
-    });
-  }
-
-  lines.push(
-    "## 给设计",
-    "",
-    "1. 按上表规格与数量出稿；每条只改「单变量」列中的点。",
-    "2. 有疑问先对齐角度与 Hook，再开做多版本。",
-    "3. 成片/终稿链接回填到飞书本页或工作台「参考链接」。",
-    "",
-    `---`,
-    `由 OpenAdOps v${appVersion || "—"} 生成，可直接粘贴到飞书文档。`
-  );
   return lines.join("\n");
 }

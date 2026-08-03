@@ -41,6 +41,16 @@ const DEFAULT_ROUTES = {
     expectedSeconds: [60, 180],
     structureFallback: true
   },
+  creativeRequirements: {
+    key: "creativeRequirements",
+    label: "生成素材需求建议",
+    modelTier: "terra",
+    model: "gpt-5.6-terra",
+    effort: "medium",
+    timeoutMs: 180000,
+    expectedSeconds: [60, 180],
+    structureFallback: true
+  },
   optimizeAnalysis: {
     key: "optimizeAnalysis",
     label: "投放优化诊断",

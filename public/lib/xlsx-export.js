@@ -256,3 +256,94 @@ export function strategyWorkbookDownload(project, strategy, options = {}) {
     fileName: `${safeFileName(project.name)}-搭建策略.xlsx`
   };
 }
+
+function joined(value) {
+  return Array.isArray(value) ? value.filter(Boolean).join("；") : String(value || "");
+}
+
+export function buildCreativeRequirementsWorkbook(project = {}, production = {}, { appVersion = "" } = {}) {
+  const tasks = Array.isArray(production.tasks) ? production.tasks : [];
+  const analysis = production.analysis?.result || production.analysis || null;
+  const guidance = Array.isArray(analysis?.guidance) ? analysis.guidance : [];
+  const statusLabels = { required: "必须遵守", recommended: "建议采用", confirm: "待人工确认" };
+  const categoryLabels = { casting: "人物", copy: "文案", scene: "场景", culture_policy: "文化与政策", production: "制作", platform: "媒体" };
+  const rows = [];
+  const merges = [];
+  const size = 12;
+  const add = (values, height = 22) => rows.push({ cells: padded(values, size), height });
+  const section = (title) => {
+    const rowNumber = rows.length + 1;
+    add([cell(title, 2)], 24);
+    merges.push(`A${rowNumber}:L${rowNumber}`);
+  };
+
+  add([cell(`${project.name || "未命名项目"} · 素材需求`, 1)], 34);
+  merges.push("A1:L1");
+  add([cell(`OpenAdOps${appVersion ? ` v${appVersion}` : ""} · ${new Date().toISOString().slice(0, 10)} · 本表由优化师确认后交付制作`, 0)], 22);
+  merges.push("A2:L2");
+  section("项目上下文");
+  add([
+    cell("行业", 3), cell(project.industry || "", 8),
+    cell("媒体", 3), cell((project.platforms || []).join(" / "), 8),
+    cell("市场", 3), cell(project.markets || "", 8),
+    cell("目标", 3), cell(project.goal || "", 8),
+    cell("本轮处理", 3), cell(({ existing: "整理已有素材", new: "生成新需求", skip: "本轮跳过" })[production.mode] || "未选择", 8),
+    cell("优化师补充", 3), cell(production.notes || "", 8)
+  ], 38);
+
+  section("AI 必知事项（由优化师复核）");
+  add([cell("级别", 5), cell("维度", 5), cell("事项", 5), cell("原因", 5), ...Array.from({ length: 8 }, () => cell("", 5))], 28);
+  if (guidance.length) {
+    guidance.forEach((item) => add([
+      cell(statusLabels[item.status] || item.status, 8),
+      cell(categoryLabels[item.category] || item.category, 8),
+      cell(item.item || "", 8),
+      cell(item.reason || "", 8)
+    ], 42));
+  } else {
+    add([cell("尚未生成 AI 建议", 8)], 30);
+    merges.push(`A${rows.length}:L${rows.length}`);
+  }
+
+  section("正式素材需求");
+  add(["编号", "需求名称", "素材参考", "制作方式", "文案", "修改要求", "媒体", "市场与语言", "输出规格", "数量", "必须保留", "禁止内容"].map((value) => cell(value, 5)), 30);
+  if (tasks.length) {
+    tasks.forEach((item, index) => add([
+      cell(index + 1, 4),
+      cell(item.angle || "", 8),
+      cell(item.assetReference || item.assetLink || "", 8),
+      cell(item.productionMethod || "", 8),
+      cell(item.copy || "", 8),
+      cell(item.modificationNotes || item.productionNotes || "", 8),
+      cell(item.platform || "", 8),
+      cell([item.market, item.language].filter(Boolean).join(" / "), 8),
+      cell([item.deliverable, item.format].filter(Boolean).join(" · "), 8),
+      cell(Math.max(1, Number(item.quantity) || 1), 4),
+      cell(joined(item.mustKeep), 8),
+      cell(joined(item.prohibited || item.complianceNotes), 8)
+    ], 64));
+  } else {
+    add([cell("尚未确认素材需求", 8)], 30);
+    merges.push(`A${rows.length}:L${rows.length}`);
+  }
+
+  const files = [
+    ["[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/></Types>`],
+    ["_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`],
+    ["docProps/app.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>OpenAdOps</Application></Properties>`],
+    ["docProps/core.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xml(project.name || "未命名项目")} · 素材需求</dc:title><dc:creator>OpenAdOps</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString()}</dcterms:created></cp:coreProperties>`],
+    ["xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="素材需求" sheetId="1" r:id="rId1"/></sheets></workbook>`],
+    ["xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
+    ["xl/styles.xml", stylesXml()],
+    ["xl/worksheets/sheet1.xml", worksheetXml(rows, merges, [8, 22, 26, 15, 28, 34, 15, 18, 20, 9, 24, 24])]
+  ];
+  return zip(files);
+}
+
+export function creativeRequirementsWorkbookDownload(project, production, options = {}) {
+  return {
+    bytes: buildCreativeRequirementsWorkbook(project, production, options),
+    mime: XLSX_MIME,
+    fileName: `${safeFileName(project.name)}-素材需求.xlsx`
+  };
+}

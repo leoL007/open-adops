@@ -18,20 +18,16 @@ import {
 } from "./lib/experiments.js";
 import { isCancelledRequest, requestJson, runtimeVersionWarning } from "./lib/api-client.js";
 import { buildMockAnalysis } from "./lib/mock-analysis.js";
+import { buildMockCreativeRequirements } from "./lib/mock-creative-requirements.js";
 import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
 import { buildMockLaunchPack } from "./lib/mock-launch-pack.js";
 import {
-  CREATIVE_TASK_STATUSES,
-  creativeProductionCsv,
-  creativeProductionFeishuMarkdown,
-  creativeProductionMarkdown,
+  CREATIVE_REQUIREMENT_MODES,
+  creativeRequirementFromSuggestion,
   legacyCreativePlan,
   normalizeCreativeProduction,
-  normalizeCreativeTask,
-  replaceGeneratedCreativeTasks,
-  tasksFromCreativeBriefs,
-  tasksFromCreativeTests
+  normalizeCreativeTask
 } from "./lib/creative-production.js";
 import { modelFullName, modelRouteDetail, modelVariantName } from "./lib/model-labels.js";
 import {
@@ -64,7 +60,7 @@ import {
   ensureBuildStrategy,
   normalizeBuildStrategy
 } from "./lib/build-strategy.js";
-import { strategyWorkbookDownload } from "./lib/xlsx-export.js";
+import { creativeRequirementsWorkbookDownload, strategyWorkbookDownload } from "./lib/xlsx-export.js";
 import {
   dataQualityIssues,
   dataQualityNeedsAttention,
@@ -116,6 +112,7 @@ const DEFAULT_CODEX_ROUTES = {
   intakeStrategy: { label: "快速生成策略初稿", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
   intakeDeep: { label: "深度复核策略初稿", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   analysis: { label: "投放数据诊断", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
+  creativeRequirements: { label: "生成素材需求建议", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
   optimizeAnalysis: { label: "投放优化诊断", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   launchPack: { label: "生成投放执行方案", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   experiments: { label: "生成实验账本", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] }
@@ -227,6 +224,7 @@ function projectOptimizationHistory(project) {
 
 function syncCreativeProduction(project, tasks = null) {
   const now = new Date().toISOString();
+  const current = normalizeCreativeProduction(project, { makeId, now });
   const normalized = tasks
     ? tasks.map((task) => normalizeCreativeTask(task, {
         makeId,
@@ -234,8 +232,16 @@ function syncCreativeProduction(project, tasks = null) {
         defaultPlatform: project.platforms?.[0],
         defaultMarket: project.markets
       }))
-    : normalizeCreativeProduction(project, { makeId, now }).tasks;
-  project.creativeProduction = { tasks: normalized, updatedAt: now };
+    : current.tasks;
+  project.creativeProduction = {
+    ...current,
+    ...(project.creativeProduction || {}),
+    mode: project.creativeProduction?.mode || current.mode,
+    notes: String(project.creativeProduction?.notes || current.notes || ""),
+    analysis: project.creativeProduction?.analysis || current.analysis || null,
+    tasks: normalized,
+    updatedAt: now
+  };
   project.creativePlan = legacyCreativePlan(normalized);
   return project.creativeProduction;
 }
@@ -933,7 +939,7 @@ function renderOverview(project) {
         <div class="stage-flow">
           <button type="button" class="stage-step ${hasIntake ? "complete" : ""}" data-step="00" data-go-route="intake"><h3>需求接收</h3><p>资料、投前清单与策略初稿</p></button>
           <button type="button" class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01" data-go-route="strategy"><h3>搭建策略</h3><p>可选 · Campaign / Ad group / Ad</p></button>
-          <button type="button" class="stage-step ${hasCreative ? "complete" : ""}" data-step="02" data-go-route="creative"><h3>素材方向</h3><p>角度、Hook 与设计 Brief</p></button>
+          <button type="button" class="stage-step ${hasCreative ? "complete" : ""}" data-step="02" data-go-route="creative"><h3>素材需求</h3><p>制作要求、参考与交付规格</p></button>
           <button type="button" class="stage-step ${launchReady ? "complete" : ""}" data-step="03" data-go-route="launch"><h3>执行方案</h3><p>Campaign 与上线检查</p></button>
           <button type="button" class="stage-step ${hasExperiments ? "complete" : ""}" data-step="04" data-go-route="experiments"><h3>实验台</h3><p>样本门槛与学习</p></button>
           <button type="button" class="stage-step ${hasOptimize ? "complete" : ""}" data-step="05" data-go-route="optimize"><h3>投放优化</h3><p>数据诊断与动作</p></button>
@@ -1043,11 +1049,11 @@ function renderStrategy(project) {
     : "";
   if (strategy.enabled !== true) {
     const message = strategy.enabled === false
-      ? "本项目已标记为无需单独搭建策略，可直接进入素材方向或执行方案。"
+      ? "本项目已标记为无需单独搭建策略，可直接进入素材需求或执行方案。"
       : "先判断项目是否需要给客户单独输出 Campaign、Ad group 与 Ad 搭建表。";
     return `${pageHeader("阶段 01 · 搭建策略", "搭建策略", "可选模块", actions)}
       ${buildStrategyModeControl(strategy)}
-      <section class="card build-strategy-empty">${emptyState(strategy.enabled === false ? "无需单独搭建策略" : "尚未选择", message, strategy.enabled === false ? "creative" : "", strategy.enabled === false ? "进入素材方向" : "")}</section>`;
+      <section class="card build-strategy-empty">${emptyState(strategy.enabled === false ? "无需单独搭建策略" : "尚未选择", message, strategy.enabled === false ? "creative" : "", strategy.enabled === false ? "进入素材需求" : "")}</section>`;
   }
 
   return `${pageHeader("阶段 01 · 搭建策略", "搭建策略", "Campaign、Ad group 与 Ad 的可执行搭建表", actions)}
@@ -1097,62 +1103,92 @@ function creativeTaskOptions(values, current) {
 }
 
 function creativeTaskCard(project, task, index) {
-  const sourceLabel = ({ manual: "手工方向", analysis: "AI 方向", launch_pack: "执行方案", legacy: "历史计划" })[task.source] || "方向";
+  const sourceLabel = ({ manual: "人工新建", analysis: "采纳 AI 建议", launch_pack: "历史执行方案", legacy: "历史计划" })[task.source] || "素材需求";
   const platformOptions = creativeTaskOptions(project.platforms || [], task.platform);
   const deliverableOptions = creativeTaskOptions(["视频", "图片", "广告文案", "商店页资产", "其他"], task.deliverable);
+  const productionOptions = creativeTaskOptions(["二创", "新制", "录屏二创", "AI 生成", "剪辑适配", "其他"], task.productionMethod);
   const taskId = attr(task.id);
   const field = (name) => `data-creative-task-id="${taskId}" data-creative-task-field="${name}"`;
-  return `<article class="creative-production-task creative-direction-card">
+  return `<article class="creative-production-task creative-requirement-card">
     <div class="creative-task-header">
-      <div><span class="card-label">#${String(index + 1).padStart(2, "0")} · ${escapeHtml(sourceLabel)}</span><h3>${escapeHtml(task.angle || "未命名素材方向")}</h3><p>${escapeHtml(task.platform)} · ${escapeHtml(task.market || "市场待确认")} · ${task.quantity} 个版本</p></div>
+      <div><span class="card-label">#${String(index + 1).padStart(2, "0")} · ${escapeHtml(sourceLabel)}</span><h3>${escapeHtml(task.angle || "未命名素材需求")}</h3><p>${escapeHtml(task.platform)} · ${escapeHtml(task.market || "市场待确认")} · ${task.quantity} 个</p></div>
       <div class="creative-task-actions"><button type="button" class="button button-ghost button-small" data-remove-creative-task="${taskId}">删除</button></div>
     </div>
     <div class="creative-task-section">
-      <span class="creative-task-section-title">方向与测试</span>
-      <div class="creative-task-brief-grid">
-        <label class="field"><span>素材角度</span><input ${field("angle")} value="${attr(task.angle)}" placeholder="本条素材要证明什么" /></label>
-        <label class="field"><span>单一变量</span><input ${field("testVariable")} value="${attr(task.testVariable)}" placeholder="本轮只改变一个变量" /></label>
-        <label class="field field-wide"><span>Hook</span><textarea ${field("hook")} placeholder="首帧或前 3 秒表达">${escapeHtml(task.hook)}</textarea></label>
-        <label class="field field-wide"><span>测试假设</span><textarea ${field("hypothesis")} placeholder="如果改变 X，预计 Y 会出现可判断变化">${escapeHtml(task.hypothesis)}</textarea></label>
-        <label class="field"><span>成功指标</span><input ${field("successMetric")} value="${attr(task.successMetric)}" placeholder="观察期，暂无阈值" /></label>
-        <label class="field"><span>参考链接 / 文件名</span><input ${field("assetLink")} value="${attr(task.assetLink)}" placeholder="已有物料或竞品参考" /></label>
+      <span class="creative-task-section-title">需求内容</span>
+      <div class="creative-requirement-grid">
+        <label class="field"><span>需求名称</span><input ${field("angle")} value="${attr(task.angle)}" placeholder="例如：真人口播＋统一尾板" /></label>
+        <label class="field"><span>制作方式</span><select ${field("productionMethod")}>${productionOptions}</select></label>
+        <label class="field field-wide"><span>素材参考</span><input ${field("assetReference")} value="${attr(task.assetReference)}" placeholder="粘贴链接、文件名或文字描述；不保存视频和图片" /></label>
+        <label class="field field-wide"><span>文案</span><textarea ${field("copy")} placeholder="可留空，或写口播、字幕与 CTA">${escapeHtml(task.copy)}</textarea></label>
+        <label class="field field-wide"><span>修改要求</span><textarea ${field("modificationNotes")} placeholder="人物、镜头、字幕、尾板、节奏等制作要求">${escapeHtml(task.modificationNotes)}</textarea></label>
       </div>
     </div>
     <div class="creative-task-section">
-      <span class="creative-task-section-title">规格（给设计）</span>
-      <div class="creative-task-operational-grid creative-direction-specs">
+      <span class="creative-task-section-title">交付规格</span>
+      <div class="creative-task-operational-grid">
         <label class="field"><span>媒体</span><select ${field("platform")}>${platformOptions}</select></label>
         <label class="field"><span>市场</span><input ${field("market")} value="${attr(task.market)}" placeholder="例如：JP" /></label>
         <label class="field"><span>语言</span><input ${field("language")} value="${attr(task.language)}" placeholder="例如：日语" /></label>
         <label class="field"><span>素材类型</span><select ${field("deliverable")}>${deliverableOptions}</select></label>
-        <label class="field"><span>规格</span><input ${field("format")} value="${attr(task.format)}" placeholder="例如：9:16 · 15 秒" /></label>
+        <label class="field"><span>输出规格</span><input ${field("format")} value="${attr(task.format)}" placeholder="例如：9:16 · 15 秒" /></label>
         <label class="field"><span>数量</span><input type="number" min="1" max="100" ${field("quantity")} value="${attr(task.quantity)}" /></label>
-        <label class="field field-wide"><span>制作备注</span><textarea ${field("productionNotes")} placeholder="字幕、安全区、镜头、CTA 等">${escapeHtml(task.productionNotes)}</textarea></label>
-        <label class="field field-wide"><span>合规 / 不做</span><textarea ${field("complianceNotes")} placeholder="禁用表达、功能边界、审核要求等">${escapeHtml(task.complianceNotes)}</textarea></label>
+        <label class="field field-wide"><span>必须保留</span><textarea ${field("mustKeep")} placeholder="品牌尾板、真实功能、必要元素">${escapeHtml(task.mustKeep)}</textarea></label>
+        <label class="field field-wide"><span>禁止内容</span><textarea ${field("prohibited")} placeholder="禁用表达、人物、画面或政策边界">${escapeHtml(task.prohibited)}</textarea></label>
       </div>
     </div>
   </article>`;
 }
 
+function creativeGuidance(result) {
+  if (!result?.guidance?.length) return "";
+  const labels = { required: "必须遵守", recommended: "建议采用", confirm: "待人工确认" };
+  return `<section class="creative-guidance"><div class="card-header"><div><h2>制作前必知</h2><p>${escapeHtml(result.executive_summary)}</p></div><span class="badge">${result.guidance.length} 项</span></div>
+    <div class="creative-guidance-grid">${result.guidance.map((item) => `<article class="creative-guidance-item creative-guidance-${attr(item.status)}"><span>${escapeHtml(labels[item.status] || item.status)}</span><strong>${escapeHtml(item.item)}</strong><p>${escapeHtml(item.reason)}</p></article>`).join("")}</div>
+  </section>`;
+}
+
+function creativeSuggestions(project, production) {
+  const suggestions = production.analysis?.result?.suggestions || [];
+  if (!suggestions.length) return "";
+  const adopted = new Set(production.tasks.map((item) => item.sourceKey));
+  return `<section class="creative-suggestions card mb-16">
+    <div class="card-header"><div><h2>候选素材需求</h2><p>先审，再采纳到正式需求表；AI 不会自动覆盖你的内容。</p></div><button type="button" class="button button-secondary button-small" data-adopt-all-creative>采纳全部</button></div>
+    <div class="creative-suggestion-list">${suggestions.map((item) => {
+      const isAdopted = adopted.has(`creative_requirement:${item.id}`);
+      return `<article class="creative-suggestion"><div><span class="card-label">${escapeHtml(item.platform)} · ${escapeHtml(item.format)} · ${item.quantity} 个</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.modification_notes)}</p><small>${escapeHtml(item.rationale)}</small></div><button type="button" class="button ${isAdopted ? "button-ghost" : "button-secondary"} button-small" data-adopt-creative="${attr(item.id)}" ${isAdopted ? "disabled" : ""}>${isAdopted ? "已采纳" : "采纳"}</button></article>`;
+    }).join("")}</div>
+  </section>`;
+}
+
 function renderCreative(project) {
-  const tasks = creativeTasks(project);
-  const actions = [
-    `<button class="button button-primary" data-copy-creative-feishu type="button">复制飞书版 Brief</button>`,
-    `<button class="button button-ghost" data-export-creative-markdown type="button">导出文档</button>`,
-    `<button class="button button-ghost" data-export-creative-csv type="button">导出 CSV</button>`,
-    `<button class="button button-secondary" data-add-creative-task type="button">＋ 新建方向</button>`
-  ].join("");
-  return `${pageHeader("阶段 02 · 素材方向", "素材方向", "", actions)}
-    <section class="card mb-16">
-      <div class="card-header">
-        <div><h2>方向列表</h2></div>
-        <span class="badge" style="color:var(--accent-deep);background:var(--accent-soft)">${tasks.length} 个方向</span>
-      </div>
-      ${tasks.length
-        ? `<div class="creative-production-list">${tasks.map((task, index) => creativeTaskCard(project, task, index)).join("")}</div>`
-        : emptyState("还没有素材方向", "点「新建方向」，或下方用 AI 生成。", "", "")}
+  const production = normalizeCreativeProduction(project, { makeId });
+  const tasks = production.tasks;
+  const context = [
+    ["产品 / 行业", `${project.name || "待确认"} / ${project.industry || "待确认"}`],
+    ["市场", project.markets || briefFieldValue(project.intake?.analysis?.result, "markets") || "待确认"],
+    ["媒体", (project.platforms || []).join(" / ") || "待确认"],
+    ["上游素材信息", briefFieldValue(project.intake?.analysis?.result, "creative_supply") || "暂无"]
+  ];
+  const actions = `<button class="button button-ghost" data-export-creative-xlsx type="button" ${tasks.length ? "" : "disabled"}>导出 Excel</button><button class="button button-secondary" data-add-creative-task type="button">＋ 新增需求</button>`;
+  const modeOptions = CREATIVE_REQUIREMENT_MODES.map((item) => `<button type="button" class="creative-mode-option ${production.mode === item.value ? "active" : ""}" data-creative-mode="${attr(item.value)}">${escapeHtml(item.label)}</button>`).join("");
+  if (production.mode === "skip") {
+    return `${pageHeader("阶段 02 · 素材需求", "素材需求", "", "")}
+      <section class="card"><div class="card-header"><div><h2>本轮处理方式</h2></div></div><div class="creative-mode-switch">${modeOptions}</div>${emptyState("本轮不单独制作素材需求", "已保留现有内容，不会删除历史需求；切换模式后可继续编辑。", "launch", "进入执行方案")}</section>`;
+  }
+  return `${pageHeader("阶段 02 · 素材需求", "素材需求", "", actions)}
+    <section class="card mb-16 creative-source-card">
+      <div class="card-header"><div><h2>本轮输入</h2><p>上游信息自动继承；补充这次真正要做的素材。</p></div></div>
+      <div class="creative-mode-switch">${modeOptions}</div>
+      <div class="creative-context-grid">${context.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>
+      <label class="field field-wide"><span>优化师补充</span><textarea data-creative-workspace-field="notes" placeholder="粘贴已有素材说明、参考链接、客户备注或本轮想法">${escapeHtml(production.notes)}</textarea></label>
+      <div class="creative-runbar"><div><strong>AI 素材建议</strong><span>${escapeHtml(isLiveAiMode() ? routeDetail("creativeRequirements") : "本地演示 · 不耗额度")}</span></div><button class="button button-primary" data-run-creative-requirements type="button" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : "生成需求建议"}</button></div>
     </section>
-    <section class="card">${analysisToolbar("creative")}${aiResult(project, "creative")}</section>`;
+    ${production.analysis?.result ? `<section class="card mb-16">${creativeGuidance(production.analysis.result)}</section>${creativeSuggestions(project, production)}` : ""}
+    <section class="card mb-16">
+      <div class="card-header"><div><h2>正式素材需求</h2><p>这里的内容由你最终确认，并输出给素材团队。</p></div><span class="badge" style="color:var(--accent-deep);background:var(--accent-soft)">${tasks.length} 条</span></div>
+      ${tasks.length ? `<div class="creative-production-list">${tasks.map((task, index) => creativeTaskCard(project, task, index)).join("")}</div>` : emptyState("还没有正式需求", "可新增一条，或先生成 AI 建议后逐条采纳。", "", "")}
+    </section>`;
 }
 
 function launchPackRecord(project) {
@@ -1805,7 +1841,29 @@ function attachPageListeners() {
         syncCreativeProduction(project, production.tasks);
       });
       render();
-      if (saved) showToast("素材方向已更新");
+      if (saved) showToast("素材需求已更新");
+    });
+  });
+  document.querySelectorAll("[data-creative-mode]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const saved = updateProject((project) => {
+        const production = syncCreativeProduction(project);
+        production.mode = button.dataset.creativeMode;
+        project.creativeProduction = production;
+      });
+      render();
+      if (saved) showToast("本轮处理方式已更新");
+    });
+  });
+  document.querySelectorAll("[data-creative-workspace-field]").forEach((input) => {
+    input.addEventListener("change", () => {
+      const saved = updateProject((project) => {
+        const production = syncCreativeProduction(project);
+        production[input.dataset.creativeWorkspaceField] = input.value;
+        project.creativeProduction = production;
+      });
+      render();
+      if (saved) showToast("素材补充已保存");
     });
   });
   document.querySelector("[data-add-creative-task]")?.addEventListener("click", () => {
@@ -1816,8 +1874,8 @@ function attachPageListeners() {
         platform: project.platforms?.[0],
         market: project.markets,
         deliverable: "视频",
+        productionMethod: "二创",
         quantity: 1,
-        owner: "待分配",
         status: "backlog"
       }, {
         makeId,
@@ -1828,22 +1886,23 @@ function attachPageListeners() {
       syncCreativeProduction(project, production.tasks);
     });
     render();
-    if (saved) showToast("已新建素材方向");
+    if (saved) showToast("已新增素材需求");
   });
   document.querySelectorAll("[data-remove-creative-task]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (!window.confirm("删除这条素材方向？此操作会立即保存。")) return;
+      if (!window.confirm("删除这条素材需求？此操作会立即保存。")) return;
       const saved = updateProject((project) => {
         const production = syncCreativeProduction(project);
         syncCreativeProduction(project, production.tasks.filter((task) => task.id !== button.dataset.removeCreativeTask));
       });
       render();
-      if (saved) showToast("素材方向已删除");
+      if (saved) showToast("素材需求已删除");
     });
   });
-  document.querySelector("[data-copy-creative-feishu]")?.addEventListener("click", copyCreativeFeishuBrief);
-  document.querySelector("[data-export-creative-csv]")?.addEventListener("click", exportCreativeProductionCsv);
-  document.querySelector("[data-export-creative-markdown]")?.addEventListener("click", exportCreativeProductionMarkdown);
+  document.querySelector("[data-run-creative-requirements]")?.addEventListener("click", runCreativeRequirements);
+  document.querySelectorAll("[data-adopt-creative]").forEach((button) => button.addEventListener("click", () => adoptCreativeSuggestions([button.dataset.adoptCreative])));
+  document.querySelector("[data-adopt-all-creative]")?.addEventListener("click", () => adoptCreativeSuggestions());
+  document.querySelector("[data-export-creative-xlsx]")?.addEventListener("click", exportCreativeRequirementsXlsx);
   document.querySelectorAll("[data-launch-status]").forEach((select) => {
     select.addEventListener("change", () => {
       const saved = updateProject((project) => {
@@ -2158,6 +2217,68 @@ function completionMessage(label, payload) {
   return `${label} · ${details.join(" · ")}`;
 }
 
+async function runCreativeRequirements() {
+  if (aiBusy) return;
+  const project = activeProject();
+  const projectId = project.id;
+  const production = normalizeCreativeProduction(project, { makeId });
+  if (production.mode === "skip") {
+    showToast("本轮已选择跳过素材需求", "error");
+    return;
+  }
+  aiBusy = true;
+  if (isLiveAiMode()) beginAiJob("creativeRequirements");
+  render();
+  try {
+    let payload;
+    if (state.aiMode === "mock") {
+      payload = { ok: true, source: "mock", model: "browser-local-mock", result: buildMockCreativeRequirements(project, production) };
+    } else {
+      payload = await requestJson("./api/creative-requirements", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ mode: state.aiMode, project, intake: project.intake || createIntake(), workspace: production })
+      });
+    }
+    const saved = updateProjectById(projectId, (target) => {
+      const current = syncCreativeProduction(target);
+      current.analysis = {
+        ...aiRecordMeta(payload),
+        generatedAt: new Date().toISOString(),
+        result: payload.result
+      };
+      target.creativeProduction = current;
+    });
+    if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
+    showToast(completionMessage("素材需求建议已生成，请人工采纳", payload));
+  } catch (error) {
+    handleAiFailure(error);
+  } finally {
+    finishAiJob();
+    aiBusy = false;
+    render();
+  }
+}
+
+function adoptCreativeSuggestions(ids = null) {
+  const saved = updateProject((project) => {
+    const production = syncCreativeProduction(project);
+    const suggestions = production.analysis?.result?.suggestions || [];
+    const selected = ids ? suggestions.filter((item) => ids.includes(item.id)) : suggestions;
+    const existingKeys = new Set(production.tasks.map((item) => item.sourceKey));
+    selected.forEach((suggestion) => {
+      const key = `creative_requirement:${suggestion.id}`;
+      if (existingKeys.has(key)) return;
+      production.tasks.push(creativeRequirementFromSuggestion(suggestion, project, { makeId, now: new Date().toISOString() }));
+      existingKeys.add(key);
+    });
+    production.mode = production.mode === "undecided" ? "new" : production.mode;
+    syncCreativeProduction(project, production.tasks);
+  });
+  render();
+  if (saved) showToast(ids ? "已采纳 1 条素材需求" : "已采纳全部候选需求");
+}
+
 async function runAnalysis(stage) {
   if (aiBusy) return;
   const project = activeProject();
@@ -2196,20 +2317,6 @@ async function runAnalysis(stage) {
           target.data || {},
           { makeId }
         );
-      }
-      if (stage === "creative" && payload.result.creative_tests?.length) {
-        const current = syncCreativeProduction(target).tasks;
-        const generated = tasksFromCreativeTests(payload.result.creative_tests, target, {
-          makeId,
-          now: new Date().toISOString(),
-          source: "analysis"
-        });
-        syncCreativeProduction(target, replaceGeneratedCreativeTasks(current, generated, "analysis", {
-          makeId,
-          now: new Date().toISOString(),
-          defaultPlatform: target.platforms?.[0],
-          defaultMarket: target.markets
-        }));
       }
     });
     if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
@@ -2337,17 +2444,6 @@ async function runLaunchPack() {
         result: payload.result
       };
       target.launch.checklist = Object.fromEntries(payload.result.launch_checklist.map((item) => [item.id, item.status === "ready"]));
-      const current = syncCreativeProduction(target).tasks;
-      const generated = tasksFromCreativeBriefs(payload.result.creative_briefs, target, {
-        makeId,
-        now: new Date().toISOString()
-      });
-      syncCreativeProduction(target, replaceGeneratedCreativeTasks(current, generated, "launch_pack", {
-        makeId,
-        now: new Date().toISOString(),
-        defaultPlatform: target.platforms?.[0],
-        defaultMarket: target.markets
-      }));
     });
     if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
     showToast(completionMessage("投放执行方案已生成", payload));
@@ -2365,8 +2461,8 @@ async function runExperimentPlan() {
   const project = activeProject();
   const projectId = project.id;
   const launchPack = project.launch?.pack?.result || null;
-  if (!launchPack && !project.creativePlan?.length) {
-    showToast("请先生成投放执行方案或至少准备一份素材方向。", "error");
+  if (!launchPack) {
+    showToast("请先生成投放执行方案；实验账本会从执行方案中建立测试口径。", "error");
     return;
   }
   aiBusy = true;
@@ -2755,46 +2851,16 @@ function exportBuildStrategyXlsx() {
   showToast("搭建策略 Excel 已导出");
 }
 
-async function copyCreativeFeishuBrief() {
+function exportCreativeRequirementsXlsx() {
   const project = activeProject();
-  const tasks = creativeTasks(project);
-  if (!tasks.length) {
-    showToast("还没有素材方向可复制", "error");
+  const production = normalizeCreativeProduction(project, { makeId });
+  if (!production.tasks.length) {
+    showToast("没有可导出的素材需求", "error");
     return;
   }
-  const content = creativeProductionFeishuMarkdown(project, tasks, APP_VERSION);
-  try {
-    await navigator.clipboard.writeText(content);
-    showToast(`已复制 ${tasks.length} 条方向的飞书版 Brief，可粘贴到飞书文档`);
-  } catch {
-    showToast("浏览器不允许复制，请改用「导出文档」。", "error");
-  }
-}
-
-function exportCreativeProductionCsv() {
-  const project = activeProject();
-  const tasks = creativeTasks(project);
-  if (!tasks.length) {
-    showToast("没有可导出的素材方向", "error");
-    return;
-  }
-  downloadText(creativeProductionCsv(tasks), safeProjectFileName(project, "Creative-Directions.csv"), "text/csv;charset=utf-8");
-  showToast(`已导出 ${tasks.length} 条素材方向`);
-}
-
-function exportCreativeProductionMarkdown() {
-  const project = activeProject();
-  const tasks = creativeTasks(project);
-  if (!tasks.length) {
-    showToast("没有可导出的素材方向", "error");
-    return;
-  }
-  downloadText(
-    creativeProductionMarkdown(project, tasks, APP_VERSION),
-    safeProjectFileName(project, "Creative-Directions.md"),
-    "text/markdown;charset=utf-8"
-  );
-  showToast(`已导出 ${tasks.length} 条素材方向`);
+  const output = creativeRequirementsWorkbookDownload(project, production, { appVersion: APP_VERSION });
+  downloadBinary(output.bytes, output.fileName, output.mime);
+  showToast(`已导出 ${production.tasks.length} 条素材需求`);
 }
 
 function isRecord(value) {
@@ -3190,7 +3256,7 @@ projectForm.addEventListener("submit", (event) => {
       notes: ""
     },
     creativePlan: [],
-    creativeProduction: { tasks: [], updatedAt: new Date().toISOString() },
+    creativeProduction: { mode: "undecided", notes: "", analysis: null, tasks: [], updatedAt: new Date().toISOString() },
     launch: createLaunch(),
     experiments: createExperiments(),
     intake: createIntake(),

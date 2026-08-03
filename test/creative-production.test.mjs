@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   creativeProductionCsv,
-  creativeProductionFeishuMarkdown,
   creativeProductionMarkdown,
   creativeProductionSummary,
+  creativeRequirementFromSuggestion,
   legacyCreativePlan,
   normalizeCreativeProduction,
   normalizeCreativeTask,
@@ -76,7 +76,7 @@ test("regeneration preserves manual tasks and operational edits for matching gen
   assert.equal(result[1].status, "in_progress");
 });
 
-test("launch briefs replace prior generated tasks but keep manual additions", () => {
+test("legacy launch brief helpers still migrate old projects without affecting the new adoption flow", () => {
   const makeId = ids();
   const manual = normalizeCreativeTask({ source: "manual", angle: "人工任务" }, { makeId });
   const analysis = normalizeCreativeTask({ source: "analysis", angle: "旧 AI 任务" }, { makeId });
@@ -92,14 +92,34 @@ test("production summary, legacy projection, CSV and Markdown stay deterministic
   ];
   assert.deepEqual(creativeProductionSummary(tasks, "2026-07-20"), { tasks: 2, versions: 5, review: 1, completed: 1, overdue: 1 });
   assert.equal(legacyCreativePlan(tasks)[0].variable, "首帧");
-  assert.match(creativeProductionCsv(tasks), /^\uFEFF媒体,市场/);
-  assert.match(creativeProductionCsv(tasks), /Meta Ads,US/);
-  assert.match(creativeProductionMarkdown({ name: "Demo", markets: "US", platforms: ["Meta Ads"] }, tasks, "0.4.7"), /Demo · 素材方向/);
-  const feishu = creativeProductionFeishuMarkdown({ name: "Demo", markets: "US", platforms: ["Meta Ads"], goal: "拉新" }, tasks, "0.5.12");
-  assert.match(feishu, /Demo 素材方向 Brief/);
-  assert.match(feishu, /本轮测试方向/);
-  assert.match(feishu, /给设计/);
-  assert.match(feishu, /\| 1 \| Meta Ads \| US \| 结果 \|/);
-  assert.doesNotMatch(feishu, /待排期|制作中|已交付|截止日期/);
-  assert.doesNotMatch(feishu, /\| 负责人 \|/);
+  const csv = creativeProductionCsv(tasks);
+  assert.match(csv, /^\uFEFF素材编号,需求名称,素材参考,制作方式/);
+  assert.match(csv, /Meta Ads,US/);
+  assert.doesNotMatch(csv, /负责人|截止日期|状态/);
+  assert.match(creativeProductionMarkdown({ name: "Demo", markets: "US", platforms: ["Meta Ads"] }, tasks, "0.4.7"), /Demo · 素材需求/);
+});
+
+test("AI suggestions become requirements only through explicit adoption", () => {
+  const requirement = creativeRequirementFromSuggestion({
+    id: "s1",
+    title: "真人口播",
+    platform: "Meta Ads",
+    market: "US",
+    language: "英语",
+    production_method: "二创",
+    asset_reference: "reference-01.mp4",
+    copy: "Start a conversation nearby.",
+    modification_notes: "统一加品牌尾板",
+    deliverable: "视频",
+    format: "9:16 · 15 秒",
+    quantity: 3,
+    must_keep: ["品牌尾板"],
+    prohibited: ["未成年人暗示"],
+    rationale: "适合首轮测试"
+  }, { platforms: ["Meta Ads"], markets: "US" }, { makeId: ids() });
+  assert.equal(requirement.source, "analysis");
+  assert.equal(requirement.sourceKey, "creative_requirement:s1");
+  assert.equal(requirement.productionMethod, "二创");
+  assert.equal(requirement.mustKeep, "品牌尾板");
+  assert.equal(requirement.prohibited, "未成年人暗示");
 });

@@ -19,7 +19,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 
 ## Current release (v0.5.12)
 
-- **End-to-end loop**: intake → strategy draft → optional build strategy → **creative directions** → **execution plan** → **experiment ledger** → optimize → report
+- **End-to-end loop**: intake → strategy draft → optional build strategy → **creative requirements** → **execution plan** → **experiment ledger** → optimize → report
 - **Chinese-first UI** in the product (English docs keep clear English names)  
 - **Task-aware model routing**: lighter models for the operator preflight checklist / fast draft; stronger models for deep review and execution plans; automatic structure retry
 - **Optional performance targets**: add or remove Media CPI, AF-CPI, CPA, and ROAS independently; keep a metric observation-only during learning instead of inventing a threshold
@@ -28,7 +28,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 - **Workspace backup**: export current project or full workspace as JSON; import with merge or replace  
 - **Consistent model identity**: all generation surfaces show the actual Terra / Sol variant and reasoning effort
 - **Sol for optimization diagnosis**: optimization uses Sol high while strategy and creative judgments stay on Terra medium
-- **Handoff-ready creative production**: market, format, quantity, owner, deadline, status, test variable, and export live in one task
+- **Operator-owned creative requirements**: AI flags production risks and proposes candidates; only explicitly adopted requirements enter the Excel handoff
 - **Reusable mapping profiles**: save common media / AppsFlyer mappings at workspace level, auto-apply exact header matches, and carry them in full-workspace backups
 - **Traceable period comparison**: compare two non-overlapping ranges with deterministic changes for spend, installs, CPI, CPA, and ROAS
 - **Optimization decision history**: preserve every diagnosis with its data range, aggregate evidence, model metadata, operator review state, and report trail
@@ -58,7 +58,7 @@ OpenAdOps keeps one local project for the full loop:
 1. **Intake** — paste client material and media notes; structure a brief and an operator-owned preflight strategy checklist
 2. **Strategy draft** — fast draft or deep review of a working strategy  
 3. **Build strategy (optional)** — Campaign, Ad group, events, bids, placements, exclusions, asset counts, review rules, and Excel export
-4. **Creative directions** — angles, hooks, hypotheses, specs, and quantities for design handoff
+4. **Creative requirements** — references, copy, modifications, production boundaries, specs, and quantities for design handoff
 5. **Execution plan** — campaign blueprints, production briefs, measurement layers, launch checks, first 7 days
 6. **Experiment ledger** — now / next / later queue with thresholds, evidence, and learnings
 7. **Optimize** — CSV metrics by code, evidence-backed diagnosis, and operator adoption / execution / validation notes
@@ -112,7 +112,8 @@ Default routing (does not inherit a global ultra-high reasoning setting):
 | Preflight strategy checklist | `gpt-5.6-terra` | low |
 | Fast strategy draft | `gpt-5.6-terra` | medium |
 | Deep strategy review | `gpt-5.6-sol` | high |
-| Strategy / creative diagnosis | `gpt-5.6-terra` | medium |
+| Strategy diagnosis | `gpt-5.6-terra` | medium |
+| Creative requirement suggestions | `gpt-5.6-terra` | medium |
 | Optimization diagnosis | `gpt-5.6-sol` | high |
 | Execution plan | `gpt-5.6-sol` | high |
 | Experiment ledger | `gpt-5.6-terra` | medium |
@@ -127,16 +128,16 @@ Legacy overrides: `OPENADOPS_MODEL`, `OPENADOPS_REASONING_EFFORT`, `OPENADOPS_TI
 
 Optional Ads skills (e.g. [Claude Ads](https://github.com/AgriciDaniel/claude-ads)) can deepen analysis; mock mode works without them.
 
-## Creative production plan
+## Creative requirements
 
-The Creative Production page turns AI directions or execution-plan briefs into handoff-ready tasks:
+The Creative Requirements page keeps the operator as the final editor:
 
-- Platform, market, language, deliverable type, format, and version count
-- Owner, deadline, and backlog / in progress / review / delivered / live status
-- Angle, Hook, hypothesis, single variable, and success metric
-- Asset link, production notes, and compliance requirements
-- Manual tasks survive later AI refreshes; legacy creative plans migrate automatically
-- UTF-8 CSV and Markdown export for creative and media teams
+- Inherit product, market, media, strategy, and prior intake context
+- Paste current references, client notes, or production thoughts
+- Generate required / recommended / human-confirmation guidance plus candidate requirements
+- Adopt candidates explicitly; AI never overwrites the confirmed requirement table
+- Capture reference links or file names, copy, modifications, platform, market, language, format, quantity, must-keep, and prohibited content
+- Export a real Excel workbook; image and video files are not stored in browser storage
 
 ## Execution plan
 
@@ -183,7 +184,7 @@ Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
 npm run check
 ```
 
-**115** automated tests cover intake, creative-production migration and export, execution plans, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
+**135** automated tests cover intake, creative-requirement validation and Excel export, execution plans, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
 
 ## Current scope
 
