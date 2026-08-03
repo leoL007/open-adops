@@ -57,6 +57,7 @@ import {
   normalizePerformanceTargets,
   targetHint
 } from "./lib/project-targets.js";
+import { PROJECT_STAGES, normalizeProjectStage } from "./lib/project-stage.js";
 import {
   dataQualityIssues,
   dataQualityNeedsAttention,
@@ -336,7 +337,7 @@ function normalizeStoredState(stored) {
   const projects = stored.projects.map((project) => {
     const normalizedProject = {
       ...project,
-      stage: "测试期",
+      stage: normalizeProjectStage(project.stage),
       performanceTargets: normalizePerformanceTargets(project),
       targetReview: String(project.targetReview || ""),
       intake: createIntake(project.intake || {}),
@@ -976,7 +977,7 @@ function renderStrategy(project) {
         <div class="card-header"><div><h2>项目输入</h2><p>这些信息会随聚合指标一起发送给本机模型</p></div></div>
         <div class="form-grid two-columns">
           <label class="field"><span>目标市场</span><input data-project-field="markets" value="${attr(project.markets)}" /></label>
-          <label class="field"><span>项目阶段</span><select data-project-field="stage"><option selected>测试期</option></select></label>
+          <label class="field"><span>项目阶段</span><select data-project-field="stage">${PROJECT_STAGES.map((value) => `<option ${project.stage === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
           <label class="field"><span>主要目标</span><select data-project-field="goal">${[["Install", "安装"], ["Registration", "注册"], ["Purchase", "付费"], ["ROAS", "ROAS"]].map(([value, label]) => `<option value="${value}" ${project.goal === value ? "selected" : ""}>${label}</option>`).join("")}</select></label>
           <label class="field"><span>归因来源</span><select data-project-field="attribution">${["AppsFlyer", "Adjust", "媒体后台", "GA4"].map((value) => `<option ${project.attribution === value ? "selected" : ""}>${value}</option>`).join("")}</select></label>
           <label class="field"><span>月预算</span><input type="number" step="1" data-project-field="budget" value="${attr(project.budget)}" /></label>
@@ -2633,7 +2634,7 @@ function isRecord(value) {
 function normalizeImportedProject(project) {
   const normalized = {
     ...project,
-    stage: "测试期",
+    stage: normalizeProjectStage(project.stage),
     id: project.id || makeId(),
     name: project.name || "导入项目",
     platforms: Array.isArray(project.platforms) && project.platforms.length ? project.platforms : ["Google Ads"],
