@@ -312,11 +312,11 @@ function creativeRequirementsTableRows(production = {}) {
 
 export function creativeRequirementsFeishuTable(production = {}) {
   const rows = creativeRequirementsTableRows(production);
-  const tableCellStyle = "border:1px solid #d9dce1;padding:8px 10px;text-align:left;vertical-align:top;white-space:pre-wrap";
-  const header = FEISHU_TABLE_HEADERS.map((item) => `<th style="${tableCellStyle};background:#f5f6f8;font-weight:600">${htmlEscape(item)}</th>`).join("");
+  const tableCellStyle = "text-align:center;vertical-align:middle";
+  const header = FEISHU_TABLE_HEADERS.map((item) => `<th style="${tableCellStyle};font-weight:normal">${htmlEscape(item)}</th>`).join("");
   const body = rows.map((row) => `<tr>${row.map((item) => `<td style="${tableCellStyle}">${richCell(item)}</td>`).join("")}</tr>`).join("");
   return {
-    html: `<table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`,
+    html: `<table><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`,
     text: [FEISHU_TABLE_HEADERS, ...rows].map((row) => row.map(plainCell).join("\t")).join("\r\n")
   };
 }

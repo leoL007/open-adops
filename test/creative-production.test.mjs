@@ -120,6 +120,8 @@ test("Feishu clipboard output is a five-column rich table instead of a long docu
   assert.match(output.html, /<a href="https:\/\/example\.com\/ref\?a=1&amp;b=2">/);
   assert.match(output.html, /Line one<br>Line two/);
   assert.match(output.html, /统一要求/);
+  assert.match(output.html, /text-align:center;vertical-align:middle/);
+  assert.doesNotMatch(output.html, /background|border-collapse|padding|width:100%|font-weight:600/);
   assert.doesNotMatch(output.html, /<h1|OpenAdOps|导出版本/);
   const lines = output.text.split("\r\n");
   assert.equal(lines.length, 3);
