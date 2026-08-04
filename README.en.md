@@ -137,7 +137,7 @@ The Creative Requirements page mirrors the compact sheet an operator actually gi
 - Use project-level media and market context instead of repeating it on every row
 - Keep each row to reference, copy, modification notes, and one combined delivery-requirement column
 - References are operator-owned. AI does not search for videos or assets, so adopted AI suggestions always leave this field blank
-- Put shared production boundaries in one collapsed design-requirements field
+- Keep shared production boundaries in the collapsed design-requirements field as workspace notes; they do not become a row in the copied Feishu table
 - Open **AI creative suggestions** only when needed to set an internal focus, review risks, and adopt optional rows
 - Adopt candidates explicitly; AI never overwrites the confirmed requirement table
 - Click **Copy Feishu table** and paste a five-column rich table directly into Feishu Docs; no long Markdown document is generated

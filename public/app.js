@@ -1160,7 +1160,7 @@ function renderCreative(project) {
   return `${pageHeader("阶段 02 · 素材需求", "素材需求", "", actions)}
     <section class="card mb-16">
       <div class="card-header"><div><h2>素材需求单</h2><p>${escapeHtml(project.name || "未命名项目")} · ${escapeHtml(platform)} · ${escapeHtml(market)}</p></div><span class="badge" style="color:var(--accent-deep);background:var(--accent-soft)">${tasks.length} 条</span></div>
-      <details class="creative-global-details" ${production.commonRequirements ? "open" : ""}><summary><span>给设计的统一要求（可选）</span><em>会复制到飞书表格</em></summary><label class="field field-wide creative-common-requirements"><span>适用于本表全部素材</span><textarea data-creative-workspace-field="commonRequirements" placeholder="例如：使用目标市场成年人物、统一品牌尾板、避免敏感表达；没有可留空">${escapeHtml(production.commonRequirements)}</textarea></label></details>
+      <details class="creative-global-details" ${production.commonRequirements ? "open" : ""}><summary><span>给设计的统一要求（可选）</span><em>仅作全局备注</em></summary><label class="field field-wide creative-common-requirements"><span>适用于本表全部素材，不会作为素材行复制</span><textarea data-creative-workspace-field="commonRequirements" placeholder="例如：使用目标市场成年人物、统一品牌尾板、避免敏感表达；没有可留空">${escapeHtml(production.commonRequirements)}</textarea></label></details>
       ${tasks.length ? `<div class="creative-demand-table"><div class="creative-demand-head"><span>素材编号</span><span>素材参考</span><span>文案</span><span>修改备注</span><span>数量需求</span></div>${tasks.map((task, index) => creativeTaskRow(task, index)).join("")}</div>` : emptyState("还没有素材需求", "手动新增，或让 AI 生成可采纳的需求建议。", "", "")}
     </section>
     ${creativeAiDrawer(production)}`;

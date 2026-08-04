@@ -293,10 +293,6 @@ function creativeDeliveryRequirement(task) {
 
 function creativeRequirementsTableRows(production = {}) {
   const rows = [];
-  const commonRequirements = text(production.commonRequirements);
-  if (commonRequirements) {
-    rows.push(["统一要求", "", "", commonRequirements, "适用于全部素材"]);
-  }
   (Array.isArray(production.tasks) ? production.tasks : []).forEach((task, index) => {
     const item = normalizeCreativeTask(task);
     rows.push([

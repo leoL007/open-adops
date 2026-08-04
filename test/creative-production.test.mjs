@@ -119,15 +119,15 @@ test("Feishu clipboard output is a five-column rich table instead of a long docu
   assert.match(output.html, /<th[^>]*>素材编号<\/th>/);
   assert.match(output.html, /<a href="https:\/\/example\.com\/ref\?a=1&amp;b=2">/);
   assert.match(output.html, /Line one<br>Line two/);
-  assert.match(output.html, /统一要求/);
+  assert.doesNotMatch(output.html, /统一要求|适用于全部素材/);
   assert.match(output.html, /text-align:center;vertical-align:middle/);
   assert.doesNotMatch(output.html, /background|border-collapse|padding|width:100%|font-weight:600/);
   assert.doesNotMatch(output.html, /<h1|OpenAdOps|导出版本/);
   const lines = output.text.split("\r\n");
-  assert.equal(lines.length, 3);
+  assert.equal(lines.length, 2);
   assert.equal(lines[0].split("\t").length, 5);
-  assert.equal(lines[2].split("\t").length, 5);
-  assert.match(lines[2], /9:16 · 15 秒 \/ 5 个/);
+  assert.equal(lines[1].split("\t").length, 5);
+  assert.match(lines[1], /9:16 · 15 秒 \/ 5 个/);
 });
 
 test("AI suggestions become requirements only through explicit adoption", () => {
