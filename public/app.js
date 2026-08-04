@@ -23,7 +23,7 @@ import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
 import { buildMockLaunchPack } from "./lib/mock-launch-pack.js";
 import {
-  CREATIVE_REQUIREMENT_MODES,
+  creativeRequirementInstructions,
   creativeRequirementFromSuggestion,
   legacyCreativePlan,
   normalizeCreativeProduction,
@@ -238,6 +238,7 @@ function syncCreativeProduction(project, tasks = null) {
     ...(project.creativeProduction || {}),
     mode: project.creativeProduction?.mode || current.mode,
     notes: String(project.creativeProduction?.notes || current.notes || ""),
+    commonRequirements: String(project.creativeProduction?.commonRequirements || current.commonRequirements || ""),
     analysis: project.creativeProduction?.analysis || current.analysis || null,
     tasks: normalized,
     updatedAt: now
@@ -1098,53 +1099,24 @@ function renderStrategy(project) {
     </section>`;
 }
 
-function creativeTaskOptions(values, current) {
-  return [...new Set([...values, current].filter(Boolean))].map((value) => `<option value="${attr(value)}" ${value === current ? "selected" : ""}>${escapeHtml(value)}</option>`).join("");
-}
-
-function creativeTaskCard(project, task, index) {
-  const sourceLabel = ({ manual: "人工新建", analysis: "采纳 AI 建议", launch_pack: "历史执行方案", legacy: "历史计划" })[task.source] || "素材需求";
-  const platformOptions = creativeTaskOptions(project.platforms || [], task.platform);
-  const deliverableOptions = creativeTaskOptions(["视频", "图片", "广告文案", "商店页资产", "其他"], task.deliverable);
-  const productionOptions = creativeTaskOptions(["二创", "新制", "录屏二创", "AI 生成", "剪辑适配", "其他"], task.productionMethod);
+function creativeTaskRow(task, index) {
   const taskId = attr(task.id);
   const field = (name) => `data-creative-task-id="${taskId}" data-creative-task-field="${name}"`;
-  return `<article class="creative-production-task creative-requirement-card">
-    <div class="creative-task-header">
-      <div><span class="card-label">#${String(index + 1).padStart(2, "0")} · ${escapeHtml(sourceLabel)}</span><h3>${escapeHtml(task.angle || "未命名素材需求")}</h3><p>${escapeHtml(task.platform)} · ${escapeHtml(task.market || "市场待确认")} · ${task.quantity} 个</p></div>
-      <div class="creative-task-actions"><button type="button" class="button button-ghost button-small" data-remove-creative-task="${taskId}">删除</button></div>
-    </div>
-    <div class="creative-task-section">
-      <span class="creative-task-section-title">需求内容</span>
-      <div class="creative-requirement-grid">
-        <label class="field"><span>需求名称</span><input ${field("angle")} value="${attr(task.angle)}" placeholder="例如：真人口播＋统一尾板" /></label>
-        <label class="field"><span>制作方式</span><select ${field("productionMethod")}>${productionOptions}</select></label>
-        <label class="field field-wide"><span>素材参考</span><input ${field("assetReference")} value="${attr(task.assetReference)}" placeholder="粘贴链接、文件名或文字描述；不保存视频和图片" /></label>
-        <label class="field field-wide"><span>文案</span><textarea ${field("copy")} placeholder="可留空，或写口播、字幕与 CTA">${escapeHtml(task.copy)}</textarea></label>
-        <label class="field field-wide"><span>修改要求</span><textarea ${field("modificationNotes")} placeholder="人物、镜头、字幕、尾板、节奏等制作要求">${escapeHtml(task.modificationNotes)}</textarea></label>
-      </div>
-    </div>
-    <div class="creative-task-section">
-      <span class="creative-task-section-title">交付规格</span>
-      <div class="creative-task-operational-grid">
-        <label class="field"><span>媒体</span><select ${field("platform")}>${platformOptions}</select></label>
-        <label class="field"><span>市场</span><input ${field("market")} value="${attr(task.market)}" placeholder="例如：JP" /></label>
-        <label class="field"><span>语言</span><input ${field("language")} value="${attr(task.language)}" placeholder="例如：日语" /></label>
-        <label class="field"><span>素材类型</span><select ${field("deliverable")}>${deliverableOptions}</select></label>
-        <label class="field"><span>输出规格</span><input ${field("format")} value="${attr(task.format)}" placeholder="例如：9:16 · 15 秒" /></label>
-        <label class="field"><span>数量</span><input type="number" min="1" max="100" ${field("quantity")} value="${attr(task.quantity)}" /></label>
-        <label class="field field-wide"><span>必须保留</span><textarea ${field("mustKeep")} placeholder="品牌尾板、真实功能、必要元素">${escapeHtml(task.mustKeep)}</textarea></label>
-        <label class="field field-wide"><span>禁止内容</span><textarea ${field("prohibited")} placeholder="禁用表达、人物、画面或政策边界">${escapeHtml(task.prohibited)}</textarea></label>
-      </div>
-    </div>
+  return `<article class="creative-demand-row">
+    <div class="creative-demand-index"><strong>${String(index + 1).padStart(2, "0")}</strong><button type="button" class="creative-demand-remove" data-remove-creative-task="${taskId}" aria-label="删除素材 ${String(index + 1).padStart(2, "0")}">×</button></div>
+    <label class="field"><span>素材参考</span><textarea ${field("assetReference")} placeholder="链接、文件名或参考说明">${escapeHtml(task.assetReference)}</textarea></label>
+    <label class="field"><span>文案</span><textarea ${field("copy")} placeholder="口播、字幕或 CTA；没有可留空">${escapeHtml(task.copy)}</textarea></label>
+    <label class="field"><span>修改要求</span><textarea ${field("modificationNotes")} placeholder="人物、镜头、字幕、尾板、节奏等">${escapeHtml(creativeRequirementInstructions(task))}</textarea></label>
+    <label class="field"><span>规格</span><input ${field("format")} value="${attr(task.format)}" placeholder="9:16 · 15 秒" /></label>
+    <label class="field"><span>数量</span><input type="number" min="1" max="100" ${field("quantity")} value="${attr(task.quantity ?? "")}" placeholder="待定" /></label>
   </article>`;
 }
 
 function creativeGuidance(result) {
   if (!result?.guidance?.length) return "";
   const labels = { required: "必须遵守", recommended: "建议采用", confirm: "待人工确认" };
-  return `<section class="creative-guidance"><div class="card-header"><div><h2>制作前必知</h2><p>${escapeHtml(result.executive_summary)}</p></div><span class="badge">${result.guidance.length} 项</span></div>
-    <div class="creative-guidance-grid">${result.guidance.map((item) => `<article class="creative-guidance-item creative-guidance-${attr(item.status)}"><span>${escapeHtml(labels[item.status] || item.status)}</span><strong>${escapeHtml(item.item)}</strong><p>${escapeHtml(item.reason)}</p></article>`).join("")}</div>
+  return `<section class="creative-guidance"><div class="card-header"><div><h2>AI 检查结果</h2><p>${escapeHtml(result.executive_summary)}</p></div><span class="badge">${result.guidance.length} 项</span></div>
+    <div class="creative-guidance-list">${result.guidance.map((item) => `<article class="creative-guidance-item creative-guidance-${attr(item.status)}"><span>${escapeHtml(labels[item.status] || item.status)}</span><strong>${escapeHtml(item.item)}</strong><p>${escapeHtml(item.reason)}</p></article>`).join("")}</div>
   </section>`;
 }
 
@@ -1153,10 +1125,10 @@ function creativeSuggestions(project, production) {
   if (!suggestions.length) return "";
   const adopted = new Set(production.tasks.map((item) => item.sourceKey));
   return `<section class="creative-suggestions card mb-16">
-    <div class="card-header"><div><h2>候选素材需求</h2><p>先审，再采纳到正式需求表；AI 不会自动覆盖你的内容。</p></div><button type="button" class="button button-secondary button-small" data-adopt-all-creative>采纳全部</button></div>
-    <div class="creative-suggestion-list">${suggestions.map((item) => {
+    <div class="card-header"><div><h2>AI 补充建议</h2><p>只采纳有用的行，不会自动覆盖正式需求。</p></div><button type="button" class="button button-secondary button-small" data-adopt-all-creative>采纳全部</button></div>
+    <div class="creative-suggestion-table"><div class="creative-suggestion-head"><span>素材参考</span><span>文案</span><span>修改要求</span><span>规格 / 数量</span><span></span></div>${suggestions.map((item) => {
       const isAdopted = adopted.has(`creative_requirement:${item.id}`);
-      return `<article class="creative-suggestion"><div><span class="card-label">${escapeHtml(item.platform)} · ${escapeHtml(item.format)} · ${item.quantity} 个</span><h3>${escapeHtml(item.title)}</h3><p>${escapeHtml(item.modification_notes)}</p><small>${escapeHtml(item.rationale)}</small></div><button type="button" class="button ${isAdopted ? "button-ghost" : "button-secondary"} button-small" data-adopt-creative="${attr(item.id)}" ${isAdopted ? "disabled" : ""}>${isAdopted ? "已采纳" : "采纳"}</button></article>`;
+      return `<article class="creative-suggestion-row"><p>${escapeHtml(item.asset_reference || "待补充")}</p><p>${escapeHtml(item.copy || "—")}</p><p>${escapeHtml(item.modification_notes)}</p><p>${escapeHtml(item.format || "规格待定")} · ${item.quantity ?? "数量待定"}</p><button type="button" class="button ${isAdopted ? "button-ghost" : "button-secondary"} button-small" data-adopt-creative="${attr(item.id)}" ${isAdopted ? "disabled" : ""}>${isAdopted ? "已采纳" : "采纳"}</button></article>`;
     }).join("")}</div>
   </section>`;
 }
@@ -1164,31 +1136,22 @@ function creativeSuggestions(project, production) {
 function renderCreative(project) {
   const production = normalizeCreativeProduction(project, { makeId });
   const tasks = production.tasks;
-  const context = [
-    ["产品 / 行业", `${project.name || "待确认"} / ${project.industry || "待确认"}`],
-    ["市场", project.markets || briefFieldValue(project.intake?.analysis?.result, "markets") || "待确认"],
-    ["媒体", (project.platforms || []).join(" / ") || "待确认"],
-    ["上游素材信息", briefFieldValue(project.intake?.analysis?.result, "creative_supply") || "暂无"]
-  ];
-  const actions = `<button class="button button-ghost" data-export-creative-xlsx type="button" ${tasks.length ? "" : "disabled"}>导出 Excel</button><button class="button button-secondary" data-add-creative-task type="button">＋ 新增需求</button>`;
-  const modeOptions = CREATIVE_REQUIREMENT_MODES.map((item) => `<button type="button" class="creative-mode-option ${production.mode === item.value ? "active" : ""}" data-creative-mode="${attr(item.value)}">${escapeHtml(item.label)}</button>`).join("");
-  if (production.mode === "skip") {
-    return `${pageHeader("阶段 02 · 素材需求", "素材需求", "", "")}
-      <section class="card"><div class="card-header"><div><h2>本轮处理方式</h2></div></div><div class="creative-mode-switch">${modeOptions}</div>${emptyState("本轮不单独制作素材需求", "已保留现有内容，不会删除历史需求；切换模式后可继续编辑。", "launch", "进入执行方案")}</section>`;
-  }
+  const market = project.markets || briefFieldValue(project.intake?.analysis?.result, "markets") || "待确认";
+  const platform = (project.platforms || []).join(" / ") || "待确认";
+  const actions = `<button class="button button-ghost" data-export-creative-xlsx type="button" ${tasks.length ? "" : "disabled"}>导出 Excel</button><button class="button button-primary" data-add-creative-task type="button">＋ 新增一行</button>`;
   return `${pageHeader("阶段 02 · 素材需求", "素材需求", "", actions)}
-    <section class="card mb-16 creative-source-card">
-      <div class="card-header"><div><h2>本轮输入</h2><p>上游信息自动继承；补充这次真正要做的素材。</p></div></div>
-      <div class="creative-mode-switch">${modeOptions}</div>
-      <div class="creative-context-grid">${context.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>
-      <label class="field field-wide"><span>优化师补充</span><textarea data-creative-workspace-field="notes" placeholder="粘贴已有素材说明、参考链接、客户备注或本轮想法">${escapeHtml(production.notes)}</textarea></label>
-      <div class="creative-runbar"><div><strong>AI 素材建议</strong><span>${escapeHtml(isLiveAiMode() ? routeDetail("creativeRequirements") : "本地演示 · 不耗额度")}</span></div><button class="button button-primary" data-run-creative-requirements type="button" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : "生成需求建议"}</button></div>
-    </section>
-    ${production.analysis?.result ? `<section class="card mb-16">${creativeGuidance(production.analysis.result)}</section>${creativeSuggestions(project, production)}` : ""}
     <section class="card mb-16">
-      <div class="card-header"><div><h2>正式素材需求</h2><p>这里的内容由你最终确认，并输出给素材团队。</p></div><span class="badge" style="color:var(--accent-deep);background:var(--accent-soft)">${tasks.length} 条</span></div>
-      ${tasks.length ? `<div class="creative-production-list">${tasks.map((task, index) => creativeTaskCard(project, task, index)).join("")}</div>` : emptyState("还没有正式需求", "可新增一条，或先生成 AI 建议后逐条采纳。", "", "")}
-    </section>`;
+      <div class="card-header"><div><h2>素材需求单</h2><p>${escapeHtml(project.name || "未命名项目")} · ${escapeHtml(platform)} · ${escapeHtml(market)}</p></div><span class="badge" style="color:var(--accent-deep);background:var(--accent-soft)">${tasks.length} 条</span></div>
+      <label class="field field-wide creative-common-requirements"><span>统一制作要求</span><textarea data-creative-workspace-field="commonRequirements" placeholder="例如：使用目标市场成年人物、统一品牌尾板、避免敏感表达；没有可留空">${escapeHtml(production.commonRequirements)}</textarea></label>
+      ${tasks.length ? `<div class="creative-demand-table"><div class="creative-demand-head"><span>编号</span><span>素材参考</span><span>文案</span><span>修改要求</span><span>规格</span><span>数量</span></div>${tasks.map((task, index) => creativeTaskRow(task, index)).join("")}</div>` : emptyState("还没有素材需求", "新增一行后，按参考、文案、修改要求、规格和数量填写。", "", "")}
+    </section>
+    <section class="card mb-16 creative-ai-assist">
+      <div class="card-header"><div><h2>AI 检查与补充</h2><p>检查缺项和风险，并给出可选择采纳的补充行。</p></div><span class="card-label">辅助功能</span></div>
+      <label class="field field-wide"><span>给 AI 的补充（可选）</span><textarea data-creative-workspace-field="notes" placeholder="粘贴参考说明、客户备注或这次想让 AI 关注的事项">${escapeHtml(production.notes)}</textarea></label>
+      <div class="creative-runbar"><span>${escapeHtml(isLiveAiMode() ? routeDetail("creativeRequirements") : "本地演示 · 不耗额度")}</span><button class="button button-secondary" data-run-creative-requirements type="button" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在检查…" : "AI 检查与补充"}</button></div>
+      ${production.analysis?.result ? creativeGuidance(production.analysis.result) : ""}
+    </section>
+    ${production.analysis?.result ? creativeSuggestions(project, production) : ""}`;
 }
 
 function launchPackRecord(project) {
@@ -1836,23 +1799,18 @@ function attachPageListeners() {
         const task = production.tasks.find((item) => item.id === input.dataset.creativeTaskId);
         if (!task) return;
         const field = input.dataset.creativeTaskField;
-        task[field] = field === "quantity" ? Math.max(1, Number(input.value) || 1) : input.value;
+        task[field] = field === "quantity" ? (input.value === "" ? null : Math.max(1, Number(input.value) || 1)) : input.value;
+        if (field === "modificationNotes") {
+          task.mustKeep = "";
+          task.prohibited = "";
+          task.productionNotes = "";
+          task.complianceNotes = "";
+        }
         task.updatedAt = new Date().toISOString();
         syncCreativeProduction(project, production.tasks);
       });
       render();
       if (saved) showToast("素材需求已更新");
-    });
-  });
-  document.querySelectorAll("[data-creative-mode]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const saved = updateProject((project) => {
-        const production = syncCreativeProduction(project);
-        production.mode = button.dataset.creativeMode;
-        project.creativeProduction = production;
-      });
-      render();
-      if (saved) showToast("本轮处理方式已更新");
     });
   });
   document.querySelectorAll("[data-creative-workspace-field]").forEach((input) => {
@@ -1873,9 +1831,6 @@ function attachPageListeners() {
         source: "manual",
         platform: project.platforms?.[0],
         market: project.markets,
-        deliverable: "视频",
-        productionMethod: "二创",
-        quantity: 1,
         status: "backlog"
       }, {
         makeId,
@@ -2222,10 +2177,6 @@ async function runCreativeRequirements() {
   const project = activeProject();
   const projectId = project.id;
   const production = normalizeCreativeProduction(project, { makeId });
-  if (production.mode === "skip") {
-    showToast("本轮已选择跳过素材需求", "error");
-    return;
-  }
   aiBusy = true;
   if (isLiveAiMode()) beginAiJob("creativeRequirements");
   render();
@@ -2272,7 +2223,6 @@ function adoptCreativeSuggestions(ids = null) {
       production.tasks.push(creativeRequirementFromSuggestion(suggestion, project, { makeId, now: new Date().toISOString() }));
       existingKeys.add(key);
     });
-    production.mode = production.mode === "undecided" ? "new" : production.mode;
     syncCreativeProduction(project, production.tasks);
   });
   render();
@@ -3256,7 +3206,7 @@ projectForm.addEventListener("submit", (event) => {
       notes: ""
     },
     creativePlan: [],
-    creativeProduction: { mode: "undecided", notes: "", analysis: null, tasks: [], updatedAt: new Date().toISOString() },
+    creativeProduction: { mode: "undecided", notes: "", commonRequirements: "", analysis: null, tasks: [], updatedAt: new Date().toISOString() },
     launch: createLaunch(),
     experiments: createExperiments(),
     intake: createIntake(),

@@ -24,9 +24,10 @@ function own(task, key, fallback) {
   return Object.prototype.hasOwnProperty.call(task, key) ? task[key] : fallback;
 }
 
-function positiveInteger(value, fallback = 1) {
+function optionalPositiveInteger(value) {
+  if (value === "" || value === null || value === undefined) return null;
   const number = Number(value);
-  return Number.isInteger(number) && number > 0 ? number : fallback;
+  return Number.isInteger(number) && number > 0 ? number : null;
 }
 
 function dateValue(value) {
@@ -36,6 +37,23 @@ function dateValue(value) {
 
 function joinedNotes(values) {
   return Array.isArray(values) ? values.map(text).filter(Boolean).join("\n") : text(values);
+}
+
+function appendUniqueLine(lines, label, value) {
+  const content = joinedNotes(value);
+  if (!content) return;
+  const line = label ? `${label}：${content}` : content;
+  if (!lines.some((item) => item === line || item.includes(content))) lines.push(line);
+}
+
+export function creativeRequirementInstructions(task = {}) {
+  const lines = [];
+  appendUniqueLine(lines, "", task.modificationNotes ?? task.modification_notes ?? task.productionNotes ?? task.production_notes);
+  const productionMethod = text(task.productionMethod ?? task.production_method);
+  if (productionMethod && productionMethod !== "二创") appendUniqueLine(lines, "制作方式", productionMethod);
+  appendUniqueLine(lines, "必须保留", task.mustKeep ?? task.must_keep);
+  appendUniqueLine(lines, "禁止内容", task.prohibited ?? task.complianceNotes ?? task.compliance_notes);
+  return lines.join("\n");
 }
 
 function inferredDeliverable(format) {
@@ -63,7 +81,7 @@ export function normalizeCreativeTask(task = {}, options = {}) {
     language: text(task.language),
     deliverable: text(task.deliverable) || inferredDeliverable(format),
     format,
-    quantity: positiveInteger(task.quantity ?? task.variants),
+    quantity: optionalPositiveInteger(task.quantity ?? task.variants),
     owner: text(task.owner) || "待分配",
     dueDate: dateValue(task.dueDate),
     status: STATUS_VALUES.has(task.status) ? task.status : "backlog",
@@ -91,19 +109,14 @@ export function creativeRequirementFromSuggestion(suggestion = {}, project = {},
   return normalizeCreativeTask({
     source: "analysis",
     sourceKey: `creative_requirement:${text(suggestion.id)}`,
-    angle: suggestion.title,
-    platform: suggestion.platform,
-    market: suggestion.market,
-    language: suggestion.language,
-    productionMethod: suggestion.production_method,
+    angle: suggestion.title || suggestion.asset_reference || suggestion.modification_notes,
+    platform: suggestion.platform || project.platforms?.[0],
+    market: suggestion.market || project.markets,
     assetReference: suggestion.asset_reference,
     copy: suggestion.copy,
-    modificationNotes: suggestion.modification_notes,
-    deliverable: suggestion.deliverable,
+    modificationNotes: creativeRequirementInstructions(suggestion),
     format: suggestion.format,
     quantity: suggestion.quantity,
-    mustKeep: suggestion.must_keep,
-    prohibited: suggestion.prohibited,
     aiRationale: suggestion.rationale
   }, {
     ...options,
@@ -177,6 +190,7 @@ export function normalizeCreativeProduction(project = {}, options = {}) {
         ? "existing"
         : "undecided",
     notes: text(project.creativeProduction?.notes),
+    commonRequirements: text(project.creativeProduction?.commonRequirements),
     analysis: project.creativeProduction?.analysis && typeof project.creativeProduction.analysis === "object"
       ? project.creativeProduction.analysis
       : null,
@@ -226,7 +240,7 @@ export function creativeProductionSummary(tasks = [], today = new Date().toISOSt
   const completed = new Set(["delivered", "live"]);
   return {
     tasks: normalized.length,
-    versions: normalized.reduce((sum, task) => sum + task.quantity, 0),
+    versions: normalized.reduce((sum, task) => sum + (Number(task.quantity) || 0), 0),
     review: normalized.filter((task) => task.status === "review").length,
     completed: normalized.filter((task) => completed.has(task.status)).length,
     overdue: normalized.filter((task) => task.dueDate && task.dueDate < today && !completed.has(task.status)).length
@@ -239,10 +253,10 @@ function csvCell(value) {
 }
 
 export function creativeProductionCsv(tasks = []) {
-  const headers = ["素材编号", "需求名称", "素材参考", "制作方式", "文案", "修改要求", "媒体", "市场", "语言", "素材类型", "输出规格", "数量需求", "必须保留", "禁止内容"];
+  const headers = ["素材编号", "素材参考", "文案", "修改要求", "输出规格", "数量需求"];
   const rows = tasks.map((task) => {
     const item = normalizeCreativeTask(task);
-    return [item.id, item.angle, item.assetReference, item.productionMethod, item.copy, item.modificationNotes, item.platform, item.market, item.language, item.deliverable, item.format, item.quantity, item.mustKeep, item.prohibited];
+    return [item.id, item.assetReference, item.copy, creativeRequirementInstructions(item), item.format, item.quantity ?? ""];
   });
   return `\uFEFF${[headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
 }
@@ -261,14 +275,10 @@ export function creativeProductionMarkdown(project = {}, tasks = [], appVersion 
     lines.push(
       `## ${String(index + 1).padStart(2, "0")} · ${task.platform} · ${task.angle || "未命名需求"}`,
       "",
-      `- 市场 / 语言：${task.market || "待确认"} / ${task.language || "待确认"}`,
-      `- 制作方式：${task.productionMethod || "待确认"}`,
       `- 素材参考：${task.assetReference || "待补充"}`,
       `- 文案：${task.copy || "待补充"}`,
-      `- 修改要求：${task.modificationNotes || "待补充"}`,
-      `- 规格：${task.deliverable} · ${task.format || "规格待确认"} · ${task.quantity} 个`,
-      `- 必须保留：${task.mustKeep || "无"}`,
-      `- 禁止内容：${task.prohibited || "无"}`,
+      `- 修改要求：${creativeRequirementInstructions(task) || "待补充"}`,
+      `- 规格 / 数量：${task.format || "规格待确认"} / ${task.quantity ?? "数量待确认"}`,
       ""
     );
   });

@@ -77,8 +77,7 @@ test("strategy workbook download uses xlsx metadata and a sanitized file name", 
 
 test("creative requirements workbook contains guidance and confirmed requirements", () => {
   const production = {
-    mode: "new",
-    notes: "参考竞品口播",
+    commonRequirements: "统一品牌尾板；人物需明确成年",
     analysis: { result: { guidance: [{ status: "required", category: "casting", item: "使用成年演员", reason: "避免年龄风险" }] } },
     tasks: [{
       angle: "真人口播＋尾板",
@@ -99,10 +98,11 @@ test("creative requirements workbook contains guidance and confirmed requirement
   const bytes = buildCreativeRequirementsWorkbook({ ...project, name: "LocalSingle", industry: "社交", platforms: ["Meta Ads"], markets: "US" }, production, { appVersion: "0.5.12" });
   const entries = zipEntries(bytes);
   const sheet = new TextDecoder().decode(entries.get("xl/worksheets/sheet1.xml"));
-  assert.match(sheet, /AI 必知事项/);
-  assert.match(sheet, /真人口播＋尾板/);
-  assert.match(sheet, /使用成年演员/);
+  assert.match(sheet, /素材需求单/);
+  assert.match(sheet, /统一品牌尾板；人物需明确成年/);
   assert.match(sheet, /ref-01.mp4/);
+  assert.match(sheet, /结尾加品牌尾板/);
+  assert.doesNotMatch(sheet, /<t xml:space="preserve">(?:AI 必知事项|需求名称|制作方式|必须保留|禁止内容)<\/t>/);
 });
 
 test("creative requirements download uses xlsx metadata", () => {

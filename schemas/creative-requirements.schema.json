@@ -5,12 +5,12 @@
   "additionalProperties": false,
   "required": ["schema_version", "executive_summary", "guidance", "suggestions"],
   "properties": {
-    "schema_version": { "type": "string", "const": "1.0" },
+    "schema_version": { "type": "string", "const": "2.0" },
     "executive_summary": { "type": "string", "minLength": 2 },
     "guidance": {
       "type": "array",
-      "minItems": 3,
-      "maxItems": 12,
+      "minItems": 1,
+      "maxItems": 8,
       "items": {
         "type": "object",
         "additionalProperties": false,
@@ -26,27 +26,19 @@
     },
     "suggestions": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 0,
       "maxItems": 6,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "title", "platform", "market", "language", "production_method", "asset_reference", "copy", "modification_notes", "deliverable", "format", "quantity", "must_keep", "prohibited", "rationale"],
+        "required": ["id", "asset_reference", "copy", "modification_notes", "format", "quantity", "rationale"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
-          "title": { "type": "string", "minLength": 2 },
-          "platform": { "type": "string", "minLength": 2 },
-          "market": { "type": "string", "minLength": 1 },
-          "language": { "type": "string" },
-          "production_method": { "type": "string", "minLength": 1 },
           "asset_reference": { "type": "string" },
           "copy": { "type": "string" },
           "modification_notes": { "type": "string", "minLength": 2 },
-          "deliverable": { "type": "string", "minLength": 1 },
-          "format": { "type": "string", "minLength": 1 },
-          "quantity": { "type": "integer", "minimum": 1, "maximum": 20 },
-          "must_keep": { "type": "array", "items": { "type": "string", "minLength": 1 }, "maxItems": 8 },
-          "prohibited": { "type": "array", "items": { "type": "string", "minLength": 1 }, "maxItems": 8 },
+          "format": { "type": "string" },
+          "quantity": { "type": ["integer", "null"], "minimum": 1, "maximum": 20 },
           "rationale": { "type": "string", "minLength": 2 }
         }
       }

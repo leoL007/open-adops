@@ -201,21 +201,14 @@ function buildCreativeRequirementsPrompt({ project, intake, workspace }) {
       structuredResult: intake?.analysis?.result || null
     },
     workspace: {
-      mode: workspace?.mode,
       notes: clipText(workspace?.notes),
+      commonRequirements: clipText(workspace?.commonRequirements),
       currentRequirements: Array.isArray(workspace?.tasks) ? workspace.tasks.map((item) => ({
-        title: item?.angle,
-        platform: item?.platform,
-        market: item?.market,
-        productionMethod: item?.productionMethod,
         assetReference: item?.assetReference,
         copy: item?.copy,
         modificationNotes: item?.modificationNotes,
-        deliverable: item?.deliverable,
         format: item?.format,
-        quantity: item?.quantity,
-        mustKeep: item?.mustKeep,
-        prohibited: item?.prohibited
+        quantity: item?.quantity
       })) : []
     }
   };
@@ -227,12 +220,12 @@ function buildCreativeRequirementsPrompt({ project, intake, workspace }) {
 输出规则：
 1. 严格输出给定 JSON Schema，不输出 Markdown。
 2. guidance 按 required（必须遵守）、recommended（建议采用）、confirm（待人工确认）分类。AI 不得把需要法务、平台审核或成片判断的事项写成最终合规结论。
-3. suggestions 是候选需求，不会自动写入正式表。每条必须能直接交给素材人员继续完善，明确制作方式、参考、修改要求、规格、数量、必须保留和禁止内容。
+3. suggestions 是候选需求，不会自动写入正式表。每条只输出素材参考、文案、修改要求、规格和数量；不要拆出制作方式、素材类型、媒体、市场、语言、必须保留或禁止内容等重复字段。
 4. 不强制写测试假设、单变量或成功指标；这些属于实验账本，不属于素材需求表。
-5. 不得编造花费、CTR、CPI、CPA、ROAS、提升比例、行业基准或素材效果结论。输入没有文案和参考时，相关字段可为空字符串。
+5. 不得编造花费、CTR、CPI、CPA、ROAS、提升比例、行业基准或素材效果结论。输入没有文案、参考或规格时，对应字段输出空字符串；数量未知时输出 null。
 6. 社交、约会或暧昧类产品必须提示成年人物、肖像/声音授权、尺度、文化与平台政策风险；不得使用种族排除等歧视性措辞，改写为与目标市场匹配且多元的成年演员要求。
 7. 金融或受监管产品必须提示资质、费用、免责声明、结果性承诺、金额画面和市场准入的人工复核边界。
-8. 参考素材只写链接、文件名或文字描述，不要求把图片或视频写入本地工作区。
+8. 参考素材只写输入中真实存在的链接、文件名或文字描述；没有参考时必须留空，不得虚构竞品、文件名或历史素材。
 9. 已存在的素材需求只作为上下文；不要声称已覆盖、替换或修改它们。
 
 输入：
@@ -255,20 +248,14 @@ function buildLaunchPackPrompt({ project, intake }) {
       sellingPoints: project?.sellingPoints,
       notes: project?.notes,
       strategy: project?.strategy,
+      creativeCommonRequirements: project?.creativeProduction?.commonRequirements,
       creativeRequirements: Array.isArray(project?.creativeProduction?.tasks)
         ? project.creativeProduction.tasks.map((item) => ({
-            title: item?.angle,
-            platform: item?.platform,
-            market: item?.market,
-            productionMethod: item?.productionMethod,
             assetReference: item?.assetReference,
             copy: item?.copy,
             modificationNotes: item?.modificationNotes,
-            deliverable: item?.deliverable,
             format: item?.format,
-            quantity: item?.quantity,
-            mustKeep: item?.mustKeep,
-            prohibited: item?.prohibited
+            quantity: item?.quantity
           }))
         : []
     },
@@ -291,7 +278,7 @@ function buildLaunchPackPrompt({ project, intake }) {
 3. 有预算时，allocation_percent 合计必须为 100，budget_amount 与总预算一致；预算不足时优先 1–2 个媒体，不平均分散学习量。
 4. Campaign 必须包含可直接搭建的命名、目标、优化事件、市场、出价、预算说明、Ad Group / Ad Set 逻辑和受众说明。
 5. 不假设尚未发生的表现数据。performanceTargets.status=missing 时必须按学习期处理；仅观察指标不得补目标值。Smart Bidding、tCPA、Cost Cap 等建议必须写明事件量或学习期前置条件。
-6. creativeRequirements 是优化师确认的素材需求，素材 Brief 必须优先按其内容适配执行，不得声称覆盖或反向修改素材需求。Schema 要求的假设、单一变量和成功指标仅用于后续投放验证；未配置阈值时必须写观察口径，不得编造数值。
+6. creativeRequirements 是优化师确认的精简素材需求，素材 Brief 必须优先按参考、文案、修改要求、规格和数量适配执行，不得声称覆盖或反向修改；缺失数量或规格时标记待确认，不得自行补值。Schema 要求的假设、单一变量和成功指标仅用于后续投放验证；未配置阈值时必须写观察口径，不得编造数值。
 7. measurement 必须区分媒体实时反馈、MMP / 分析归因和业务后台最终口径；不得把多平台归因结果直接相加。
 8. launch_checklist 的每项必须有状态、负责人和证据。status=blocker 时必须同步出现在 readiness.blockers；存在 blocker 时 readiness.status 不得为 ready。
 9. 金融或受监管业务必须把牌照、当地政策、免责声明、平台特殊广告类别和书面合规批准作为上线前置条件，AI 不得代替法务结论。

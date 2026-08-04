@@ -1,3 +1,5 @@
+import { creativeRequirementInstructions } from "./creative-production.js";
+
 const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const encoder = new TextEncoder();
 
@@ -257,74 +259,43 @@ export function strategyWorkbookDownload(project, strategy, options = {}) {
   };
 }
 
-function joined(value) {
-  return Array.isArray(value) ? value.filter(Boolean).join("；") : String(value || "");
-}
-
 export function buildCreativeRequirementsWorkbook(project = {}, production = {}, { appVersion = "" } = {}) {
   const tasks = Array.isArray(production.tasks) ? production.tasks : [];
-  const analysis = production.analysis?.result || production.analysis || null;
-  const guidance = Array.isArray(analysis?.guidance) ? analysis.guidance : [];
-  const statusLabels = { required: "必须遵守", recommended: "建议采用", confirm: "待人工确认" };
-  const categoryLabels = { casting: "人物", copy: "文案", scene: "场景", culture_policy: "文化与政策", production: "制作", platform: "媒体" };
   const rows = [];
   const merges = [];
-  const size = 12;
+  const size = 6;
   const add = (values, height = 22) => rows.push({ cells: padded(values, size), height });
   const section = (title) => {
     const rowNumber = rows.length + 1;
     add([cell(title, 2)], 24);
-    merges.push(`A${rowNumber}:L${rowNumber}`);
+    merges.push(`A${rowNumber}:F${rowNumber}`);
   };
 
   add([cell(`${project.name || "未命名项目"} · 素材需求`, 1)], 34);
-  merges.push("A1:L1");
+  merges.push("A1:F1");
   add([cell(`OpenAdOps${appVersion ? ` v${appVersion}` : ""} · ${new Date().toISOString().slice(0, 10)} · 本表由优化师确认后交付制作`, 0)], 22);
-  merges.push("A2:L2");
-  section("项目上下文");
+  merges.push("A2:F2");
+  section("统一信息");
   add([
-    cell("行业", 3), cell(project.industry || "", 8),
     cell("媒体", 3), cell((project.platforms || []).join(" / "), 8),
     cell("市场", 3), cell(project.markets || "", 8),
-    cell("目标", 3), cell(project.goal || "", 8),
-    cell("本轮处理", 3), cell(({ existing: "整理已有素材", new: "生成新需求", skip: "本轮跳过" })[production.mode] || "未选择", 8),
-    cell("优化师补充", 3), cell(production.notes || "", 8)
-  ], 38);
+    cell("统一制作要求", 3), cell(production.commonRequirements || "", 8)
+  ], 46);
 
-  section("AI 必知事项（由优化师复核）");
-  add([cell("级别", 5), cell("维度", 5), cell("事项", 5), cell("原因", 5), ...Array.from({ length: 8 }, () => cell("", 5))], 28);
-  if (guidance.length) {
-    guidance.forEach((item) => add([
-      cell(statusLabels[item.status] || item.status, 8),
-      cell(categoryLabels[item.category] || item.category, 8),
-      cell(item.item || "", 8),
-      cell(item.reason || "", 8)
-    ], 42));
-  } else {
-    add([cell("尚未生成 AI 建议", 8)], 30);
-    merges.push(`A${rows.length}:L${rows.length}`);
-  }
-
-  section("正式素材需求");
-  add(["编号", "需求名称", "素材参考", "制作方式", "文案", "修改要求", "媒体", "市场与语言", "输出规格", "数量", "必须保留", "禁止内容"].map((value) => cell(value, 5)), 30);
+  section("素材需求单");
+  add(["编号", "素材参考", "文案", "修改要求", "规格", "数量"].map((value) => cell(value, 5)), 30);
   if (tasks.length) {
     tasks.forEach((item, index) => add([
       cell(index + 1, 4),
-      cell(item.angle || "", 8),
       cell(item.assetReference || item.assetLink || "", 8),
-      cell(item.productionMethod || "", 8),
       cell(item.copy || "", 8),
-      cell(item.modificationNotes || item.productionNotes || "", 8),
-      cell(item.platform || "", 8),
-      cell([item.market, item.language].filter(Boolean).join(" / "), 8),
-      cell([item.deliverable, item.format].filter(Boolean).join(" · "), 8),
-      cell(Math.max(1, Number(item.quantity) || 1), 4),
-      cell(joined(item.mustKeep), 8),
-      cell(joined(item.prohibited || item.complianceNotes), 8)
-    ], 64));
+      cell(creativeRequirementInstructions(item), 8),
+      cell(item.format || "", 8),
+      cell(Number(item.quantity) > 0 ? Number(item.quantity) : "", 4)
+    ], 76));
   } else {
     add([cell("尚未确认素材需求", 8)], 30);
-    merges.push(`A${rows.length}:L${rows.length}`);
+    merges.push(`A${rows.length}:F${rows.length}`);
   }
 
   const files = [
@@ -335,7 +306,7 @@ export function buildCreativeRequirementsWorkbook(project = {}, production = {},
     ["xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="素材需求" sheetId="1" r:id="rId1"/></sheets></workbook>`],
     ["xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
     ["xl/styles.xml", stylesXml()],
-    ["xl/worksheets/sheet1.xml", worksheetXml(rows, merges, [8, 22, 26, 15, 28, 34, 15, 18, 20, 9, 24, 24])]
+    ["xl/worksheets/sheet1.xml", worksheetXml(rows, merges, [8, 30, 38, 48, 20, 10])]
   ];
   return zip(files);
 }

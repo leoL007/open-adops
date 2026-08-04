@@ -167,6 +167,7 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Rebuild creative directions as operator-confirmed creative requirements.
 - [x] Generate required / recommended / human-confirmation guidance and adopt candidates explicitly.
 - [x] Export confirmed creative requirements as Excel without storing image or video files.
+- [x] Match the design handoff with a compact reference / copy / modification / spec / quantity table.
 - [x] Keep execution plans downstream so they cannot overwrite creative requirements.
 
 ## v0.7 — Evidence and collaboration

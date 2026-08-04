@@ -10,7 +10,8 @@ function sourceText(project = {}, workspace = {}) {
     project.intake?.rawOffer,
     project.intake?.clientStrategy,
     project.intake?.operatorNotes,
-    workspace.notes
+    workspace.notes,
+    workspace.commonRequirements
   ].map(text).join(" ").toLowerCase();
 }
 
@@ -39,49 +40,39 @@ function guidanceFor(project, workspace) {
 }
 
 export function buildMockCreativeRequirements(project = {}, workspace = {}) {
-  const platform = project.platforms?.[0] || "Meta Ads";
-  const market = text(project.markets) || "待定市场";
   const source = sourceText(project, workspace);
   const social = /社交|交友|dating|single|约会|chat|擦边/.test(source);
   const finance = /金融|finance|loan|credit|invest|入金|kyc|交易|借贷/.test(source);
   const base = social
     ? [
-        ["真人口播＋统一尾板", "二创", "参考同类真人口播素材", "用目标市场成年演员正对镜头表达真实使用场景；结尾统一加产品尾板。", "9:16 · 约 15 秒", 3],
-        ["生活场景＋字幕", "二创", "参考目标市场本地生活场景", "保留原场景节奏，替换为地道本地语言字幕与品牌尾板。", "9:16 · 30–60 秒", 3],
-        ["AI 人物原生短片", "新制", "无现成参考时按需求生成", "人物外观、口型和声音需人工复核；禁止暗示必然匹配或线下见面。", "9:16 · 15–30 秒", 3]
+        ["参考同类真人口播素材", "", "用目标市场成年演员正对镜头表达真实使用场景；结尾统一加产品尾板。", "9:16 · 约 15 秒", 3, "补充一条可直接制作的真人口播需求。"],
+        ["参考目标市场本地生活场景", "", "保留原场景节奏，替换为地道本地语言字幕与品牌尾板。", "9:16 · 30–60 秒", 3, "补充本地生活场景方向。"],
+        ["", "", "人物外观、口型和声音需人工复核；禁止暗示必然匹配或线下见面。", "9:16 · 15–30 秒", null, "无现成参考时仅提供制作建议，数量待优化师确认。"]
       ]
     : finance
       ? [
-          ["真实流程演示", "录屏二创", "使用已确认的产品真实流程", "展示真实步骤，不出现虚构余额、收益或通过结果。", "9:16 · 15–30 秒", 3],
-          ["功能解释口播", "新制", "参考已批准的产品说明", "只解释功能和适用场景；所有费用、时效和资格表达交由人工确认。", "9:16 · 约 20 秒", 3],
-          ["信任信息卡", "新制", "使用已批准的品牌与合规资料", "将牌照、免责声明和费用信息留出清晰可读区域。", "1:1 / 4:5", 3]
+          ["使用已确认的产品真实流程", "", "展示真实步骤，不出现虚构余额、收益或通过结果。", "9:16 · 15–30 秒", 3, "补充真实流程演示需求。"],
+          ["参考已批准的产品说明", "", "只解释功能和适用场景；所有费用、时效和资格表达交由人工确认。", "9:16 · 约 20 秒", 3, "补充功能解释需求。"],
+          ["使用已批准的品牌与合规资料", "", "将牌照、免责声明和费用信息留出清晰可读区域。", "1:1 / 4:5", 3, "补充合规信息卡需求。"]
         ]
       : [
-          ["真实功能演示", "录屏二创", "使用已确认的产品界面", "首屏展示核心操作，再补充品牌尾板。", "9:16 · 15–30 秒", 3],
-          ["痛点场景口播", "新制", "参考目标市场常见使用场景", "用地道表达描述问题和解决步骤，不夸大结果。", "9:16 · 约 20 秒", 3],
-          ["静态信息卡", "新制", "使用已确认功能截图", "一张图只表达一个重点，尺寸按目标媒体适配。", "1:1 / 4:5", 3]
+          ["使用已确认的产品界面", "", "首屏展示核心操作，再补充品牌尾板。", "9:16 · 15–30 秒", 3, "补充真实功能演示需求。"],
+          ["参考目标市场常见使用场景", "", "用地道表达描述问题和解决步骤，不夸大结果。", "9:16 · 约 20 秒", 3, "补充痛点场景口播需求。"],
+          ["使用已确认功能截图", "", "一张图只表达一个重点，尺寸按目标媒体适配。", "1:1 / 4:5", 3, "补充静态信息卡需求。"]
         ];
 
   return {
-    schema_version: "1.0",
-    executive_summary: "【演示】已基于项目、上游策略和优化师补充生成素材风险提示与候选需求。候选项不会自动写入正式需求表。",
+    schema_version: "2.0",
+    executive_summary: "【演示】已检查素材需求缺项和风险；建议仅在优化师采纳后进入正式表。",
     guidance: guidanceFor(project, workspace),
-    suggestions: base.map(([title, productionMethod, assetReference, notes, format, quantity], index) => ({
+    suggestions: base.map(([assetReference, copy, notes, format, quantity, rationale], index) => ({
       id: `suggestion-${index + 1}`,
-      title,
-      platform,
-      market,
-      language: "",
-      production_method: productionMethod,
       asset_reference: assetReference,
-      copy: "",
+      copy,
       modification_notes: notes,
-      deliverable: title.includes("信息卡") ? "图片" : "视频",
       format,
       quantity,
-      must_keep: ["真实产品信息", "品牌尾板或明确 CTA"],
-      prohibited: social ? ["未成年人暗示", "保证匹配或见面"] : finance ? ["保证收益", "虚构金额或结果"] : ["未经确认的功能", "无授权素材"],
-      rationale: `用于把${title}整理成可直接交付制作的首轮需求，具体参考和文案由优化师确认。`
+      rationale
     }))
   };
 }

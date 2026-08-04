@@ -29,7 +29,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 - **Workspace backup**: export current project or full workspace as JSON; import with merge or replace  
 - **Consistent model identity**: all generation surfaces show the actual Terra / Sol variant and reasoning effort
 - **Sol for optimization diagnosis**: optimization uses Sol high while strategy and creative judgments stay on Terra medium
-- **Operator-owned creative requirements**: AI flags production risks and proposes candidates; only explicitly adopted requirements enter the Excel handoff
+- **Operator-owned creative requirements**: the handoff mirrors a real design request sheet; AI only checks gaps and proposes optional additions
 - **Reusable mapping profiles**: save common media / AppsFlyer mappings at workspace level, auto-apply exact header matches, and carry them in full-workspace backups
 - **Traceable period comparison**: compare two non-overlapping ranges with deterministic changes for spend, installs, CPI, CPA, and ROAS
 - **Optimization decision history**: preserve every diagnosis with its data range, aggregate evidence, model metadata, operator review state, and report trail
@@ -132,14 +132,14 @@ Optional Ads skills (e.g. [Claude Ads](https://github.com/AgriciDaniel/claude-ad
 
 ## Creative requirements
 
-The Creative Requirements page keeps the operator as the final editor:
+The Creative Requirements page mirrors the compact sheet an operator actually gives the design team:
 
-- Inherit product, market, media, strategy, and prior intake context
-- Paste current references, client notes, or production thoughts
-- Generate required / recommended / human-confirmation guidance plus candidate requirements
+- Use project-level media and market context instead of repeating it on every row
+- Keep each row to reference, copy, modification notes, spec, and quantity
+- Put shared production boundaries in one common-requirements field
+- Use AI to check missing information and risks, then propose optional rows
 - Adopt candidates explicitly; AI never overwrites the confirmed requirement table
-- Capture reference links or file names, copy, modifications, platform, market, language, format, quantity, must-keep, and prohibited content
-- Export a real Excel workbook; image and video files are not stored in browser storage
+- Export the same compact columns to Excel; image and video files are not stored in browser storage
 
 ## Execution plan
 

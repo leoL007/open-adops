@@ -4,6 +4,7 @@ import {
   creativeProductionCsv,
   creativeProductionMarkdown,
   creativeProductionSummary,
+  creativeRequirementInstructions,
   creativeRequirementFromSuggestion,
   legacyCreativePlan,
   normalizeCreativeProduction,
@@ -87,39 +88,42 @@ test("legacy launch brief helpers still migrate old projects without affecting t
 
 test("production summary, legacy projection, CSV and Markdown stay deterministic", () => {
   const tasks = [
-    normalizeCreativeTask({ id: "a", platform: "Meta Ads", market: "US", deliverable: "视频", quantity: 3, owner: "A", dueDate: "2026-07-19", status: "review", angle: "结果", hook: "先看结果", testVariable: "首帧", successMetric: "CTR" }),
+    normalizeCreativeTask({ id: "a", platform: "Meta Ads", market: "US", assetReference: "ref-a.mp4", deliverable: "视频", quantity: 3, owner: "A", dueDate: "2026-07-19", status: "review", angle: "结果", hook: "先看结果", testVariable: "首帧", successMetric: "CTR" }),
     normalizeCreativeTask({ id: "b", platform: "TikTok Ads", quantity: 2, status: "live", angle: "演示" })
   ];
   assert.deepEqual(creativeProductionSummary(tasks, "2026-07-20"), { tasks: 2, versions: 5, review: 1, completed: 1, overdue: 1 });
   assert.equal(legacyCreativePlan(tasks)[0].variable, "首帧");
   const csv = creativeProductionCsv(tasks);
-  assert.match(csv, /^\uFEFF素材编号,需求名称,素材参考,制作方式/);
-  assert.match(csv, /Meta Ads,US/);
-  assert.doesNotMatch(csv, /负责人|截止日期|状态/);
+  assert.match(csv, /^\uFEFF素材编号,素材参考,文案,修改要求,输出规格,数量需求/);
+  assert.match(csv, /ref-a\.mp4/);
+  assert.doesNotMatch(csv, /媒体|市场|负责人|截止日期|状态/);
   assert.match(creativeProductionMarkdown({ name: "Demo", markets: "US", platforms: ["Meta Ads"] }, tasks, "0.4.7"), /Demo · 素材需求/);
 });
 
 test("AI suggestions become requirements only through explicit adoption", () => {
   const requirement = creativeRequirementFromSuggestion({
     id: "s1",
-    title: "真人口播",
-    platform: "Meta Ads",
-    market: "US",
-    language: "英语",
-    production_method: "二创",
     asset_reference: "reference-01.mp4",
     copy: "Start a conversation nearby.",
     modification_notes: "统一加品牌尾板",
-    deliverable: "视频",
     format: "9:16 · 15 秒",
     quantity: 3,
-    must_keep: ["品牌尾板"],
-    prohibited: ["未成年人暗示"],
     rationale: "适合首轮测试"
   }, { platforms: ["Meta Ads"], markets: "US" }, { makeId: ids() });
   assert.equal(requirement.source, "analysis");
   assert.equal(requirement.sourceKey, "creative_requirement:s1");
-  assert.equal(requirement.productionMethod, "二创");
-  assert.equal(requirement.mustKeep, "品牌尾板");
-  assert.equal(requirement.prohibited, "未成年人暗示");
+  assert.equal(requirement.assetReference, "reference-01.mp4");
+  assert.equal(requirement.modificationNotes, "统一加品牌尾板");
+  assert.equal(requirement.quantity, 3);
+});
+
+test("legacy production and compliance fields collapse into one designer instruction", () => {
+  const instructions = creativeRequirementInstructions({
+    modificationNotes: "结尾加品牌尾板",
+    productionMethod: "AI 生成",
+    mustKeep: "产品 Logo",
+    prohibited: "未成年人暗示"
+  });
+  assert.equal(instructions, "结尾加品牌尾板\n制作方式：AI 生成\n必须保留：产品 Logo\n禁止内容：未成年人暗示");
+  assert.equal(normalizeCreativeTask({ quantity: "" }).quantity, null);
 });

@@ -23,10 +23,10 @@ export function validateCreativeRequirements(result) {
   if (!result || typeof result !== "object" || Array.isArray(result)) {
     return { valid: false, errors: ["结果必须是 JSON 对象"] };
   }
-  if (result.schema_version !== "1.0") errors.push("schema_version 必须为 1.0");
+  if (result.schema_version !== "2.0") errors.push("schema_version 必须为 2.0");
   if (!meaningful(result.executive_summary)) errors.push("executive_summary 必须是完整文本");
-  if (!Array.isArray(result.guidance) || result.guidance.length < 3) errors.push("guidance 至少需要 3 项");
-  if (!Array.isArray(result.suggestions) || result.suggestions.length < 1) errors.push("suggestions 至少需要 1 项");
+  if (!Array.isArray(result.guidance) || result.guidance.length < 1) errors.push("guidance 至少需要 1 项");
+  if (!Array.isArray(result.suggestions)) errors.push("suggestions 必须是数组");
 
   if (Array.isArray(result.guidance)) {
     uniqueIds(result.guidance, "guidance", errors);
@@ -41,16 +41,13 @@ export function validateCreativeRequirements(result) {
   if (Array.isArray(result.suggestions)) {
     uniqueIds(result.suggestions, "suggestions", errors);
     result.suggestions.forEach((item, index) => {
-      for (const field of ["title", "platform", "market", "production_method", "modification_notes", "deliverable", "format", "rationale"]) {
+      for (const field of ["modification_notes", "rationale"]) {
         if (!meaningful(item?.[field])) errors.push(`suggestions[${index}].${field} 必须是完整文本`);
       }
-      for (const field of ["language", "asset_reference", "copy"]) {
+      for (const field of ["asset_reference", "copy", "format"]) {
         if (!meaningful(item?.[field], { allowEmpty: true })) errors.push(`suggestions[${index}].${field} 不合法`);
       }
-      if (!Number.isInteger(item?.quantity) || item.quantity < 1 || item.quantity > 20) errors.push(`suggestions[${index}].quantity 必须为 1–20 的整数`);
-      for (const field of ["must_keep", "prohibited"]) {
-        if (!Array.isArray(item?.[field]) || item[field].some((value) => !meaningful(value))) errors.push(`suggestions[${index}].${field} 必须是文本数组`);
-      }
+      if (item?.quantity !== null && (!Number.isInteger(item?.quantity) || item.quantity < 1 || item.quantity > 20)) errors.push(`suggestions[${index}].quantity 必须为 null 或 1–20 的整数`);
     });
   }
   return { valid: errors.length === 0, errors };
