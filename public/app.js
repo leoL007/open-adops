@@ -23,6 +23,7 @@ import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
 import { buildMockIntake, INTAKE_BRIEF_FIELDS } from "./lib/mock-intake.js";
 import { buildMockLaunchPack } from "./lib/mock-launch-pack.js";
 import {
+  creativeRequirementsFeishuTable,
   creativeRequirementInstructions,
   creativeRequirementFromSuggestion,
   legacyCreativePlan,
@@ -60,7 +61,7 @@ import {
   ensureBuildStrategy,
   normalizeBuildStrategy
 } from "./lib/build-strategy.js";
-import { creativeRequirementsWorkbookDownload, strategyWorkbookDownload } from "./lib/xlsx-export.js";
+import { strategyWorkbookDownload } from "./lib/xlsx-export.js";
 import {
   dataQualityIssues,
   dataQualityNeedsAttention,
@@ -1108,15 +1109,17 @@ function creativeTaskRow(task, index) {
     <label class="field"><span>素材参考</span><textarea ${field("assetReference")} placeholder="链接、文件名或参考说明">${escapeHtml(task.assetReference)}</textarea></label>
     <label class="field"><span>文案</span><textarea ${field("copy")} placeholder="口播、字幕或 CTA；没有可留空">${escapeHtml(task.copy)}</textarea></label>
     <label class="field"><span>修改要求</span><textarea ${field("modificationNotes")} placeholder="人物、镜头、字幕、尾板、节奏等">${escapeHtml(creativeRequirementInstructions(task))}</textarea></label>
-    <label class="field"><span>规格</span><input ${field("format")} value="${attr(task.format)}" placeholder="9:16 · 15 秒" /></label>
-    <label class="field"><span>数量</span><input type="number" min="1" max="100" ${field("quantity")} value="${attr(task.quantity ?? "")}" placeholder="待定" /></label>
+    <div class="creative-demand-delivery">
+      <label class="field"><span>规格</span><input ${field("format")} value="${attr(task.format)}" placeholder="9:16 · 15 秒" /></label>
+      <label class="field"><span>数量</span><input type="number" min="1" max="100" ${field("quantity")} value="${attr(task.quantity ?? "")}" placeholder="数量待定" /></label>
+    </div>
   </article>`;
 }
 
 function creativeGuidance(result) {
   if (!result?.guidance?.length) return "";
   const labels = { required: "必须遵守", recommended: "建议采用", confirm: "待人工确认" };
-  return `<section class="creative-guidance"><div class="card-header"><div><h2>AI 检查结果</h2><p>${escapeHtml(result.executive_summary)}</p></div><span class="badge">${result.guidance.length} 项</span></div>
+  return `<section class="creative-guidance"><div class="card-header"><div><h2>素材需求分析</h2><p>${escapeHtml(result.executive_summary)}</p></div><span class="badge">${result.guidance.length} 项</span></div>
     <div class="creative-guidance-list">${result.guidance.map((item) => `<article class="creative-guidance-item creative-guidance-${attr(item.status)}"><span>${escapeHtml(labels[item.status] || item.status)}</span><strong>${escapeHtml(item.item)}</strong><p>${escapeHtml(item.reason)}</p></article>`).join("")}</div>
   </section>`;
 }
@@ -1126,7 +1129,7 @@ function creativeSuggestions(project, production) {
   if (!suggestions.length) return "";
   const adopted = new Set(production.tasks.map((item) => item.sourceKey));
   return `<section class="creative-suggestions">
-    <div class="card-header"><div><h2>AI 补充建议</h2><p>只采纳有用的行，不会自动覆盖正式需求。</p></div><button type="button" class="button button-secondary button-small" data-adopt-all-creative>采纳全部</button></div>
+    <div class="card-header"><div><h2>可采纳需求</h2><p>只采纳有用的行，不会自动覆盖正式需求。</p></div><button type="button" class="button button-secondary button-small" data-adopt-all-creative>采纳全部</button></div>
     <div class="creative-suggestion-table"><div class="creative-suggestion-head"><span>素材参考</span><span>文案</span><span>修改要求</span><span>规格 / 数量</span><span></span></div>${suggestions.map((item) => {
       const isAdopted = adopted.has(`creative_requirement:${item.id}`);
       return `<article class="creative-suggestion-row"><p>${escapeHtml(item.asset_reference || "待补充")}</p><p>${escapeHtml(item.copy || "—")}</p><p>${escapeHtml(item.modification_notes)}</p><p>${escapeHtml(item.format || "规格待定")} · ${item.quantity ?? "数量待定"}</p><button type="button" class="button ${isAdopted ? "button-ghost" : "button-secondary"} button-small" data-adopt-creative="${attr(item.id)}" ${isAdopted ? "disabled" : ""}>${isAdopted ? "已采纳" : "采纳"}</button></article>`;
@@ -1137,12 +1140,12 @@ function creativeSuggestions(project, production) {
 function creativeAiDrawer(production) {
   if (!creativeAiPanelOpen) return "";
   return `<div class="creative-ai-backdrop" data-close-creative-ai></div>
-    <aside class="creative-ai-drawer" role="dialog" aria-modal="true" aria-label="AI 检查与补充">
-      <header class="creative-ai-drawer-header"><div><span class="card-label">辅助功能</span><h2>AI 检查与补充</h2><p>检查缺项和风险，并给出可选择采纳的补充行。</p></div><button type="button" class="creative-ai-close" data-close-creative-ai aria-label="关闭 AI 检查">×</button></header>
+    <aside class="creative-ai-drawer" role="dialog" aria-modal="true" aria-label="AI 素材建议">
+      <header class="creative-ai-drawer-header"><div><span class="card-label">AI 辅助</span><h2>AI 素材建议</h2><p>分析上游信息，提示制作边界并补充可执行需求。</p></div><button type="button" class="creative-ai-close" data-close-creative-ai aria-label="关闭 AI 素材建议">×</button></header>
       <div class="creative-ai-drawer-body">
-        <label class="field field-wide"><span>AI 分析重点（仅内部，不导出）</span><textarea data-creative-workspace-field="notes" placeholder="例如：重点检查 Meta 软情色素材边界，并补充 3 条可执行需求">${escapeHtml(production.notes)}</textarea></label>
-        <div class="creative-runbar"><span>${escapeHtml(isLiveAiMode() ? routeDetail("creativeRequirements") : "本地演示 · 不耗额度")}</span><button class="button button-primary" data-run-creative-requirements type="button" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在检查…" : "开始 AI 检查"}</button></div>
-        ${production.analysis?.result ? creativeGuidance(production.analysis.result) : `<div class="creative-ai-empty"><strong>尚未检查</strong><p>AI 会读取上游项目、给设计的统一要求和这里的分析重点。</p></div>`}
+        <label class="field field-wide"><span>补充要求（仅供 AI 分析）</span><textarea data-creative-workspace-field="notes" placeholder="例如：重点检查 Meta 软情色素材边界，并补充 3 条可执行需求">${escapeHtml(production.notes)}</textarea></label>
+        <div class="creative-runbar"><span>${escapeHtml(isLiveAiMode() ? routeDetail("creativeRequirements") : "本地演示 · 不耗额度")}</span><button class="button button-primary" data-run-creative-requirements type="button" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : "生成素材建议"}</button></div>
+        ${production.analysis?.result ? creativeGuidance(production.analysis.result) : `<div class="creative-ai-empty"><strong>还没有建议</strong><p>AI 会读取上游项目、统一要求和这里的补充重点。</p></div>`}
         ${production.analysis?.result ? creativeSuggestions(null, production) : ""}
       </div>
     </aside>`;
@@ -1153,12 +1156,12 @@ function renderCreative(project) {
   const tasks = production.tasks;
   const market = project.markets || briefFieldValue(project.intake?.analysis?.result, "markets") || "待确认";
   const platform = (project.platforms || []).join(" / ") || "待确认";
-  const actions = `<button class="button button-ghost" data-export-creative-xlsx type="button" ${tasks.length ? "" : "disabled"}>导出 Excel</button><button class="button button-secondary" data-open-creative-ai type="button">${aiBusy ? "正在检查…" : "AI 检查"}</button><button class="button button-primary" data-add-creative-task type="button">＋ 新增一行</button>`;
+  const actions = `<button class="button button-ghost" data-copy-creative-feishu type="button" ${tasks.length ? "" : "disabled"}>复制飞书表格</button><button class="button button-secondary" data-add-creative-task type="button">＋ 手动新增</button><button class="button button-primary" data-open-creative-ai type="button">${aiBusy ? "正在生成…" : "AI 生成素材建议"}</button>`;
   return `${pageHeader("阶段 02 · 素材需求", "素材需求", "", actions)}
     <section class="card mb-16">
       <div class="card-header"><div><h2>素材需求单</h2><p>${escapeHtml(project.name || "未命名项目")} · ${escapeHtml(platform)} · ${escapeHtml(market)}</p></div><span class="badge" style="color:var(--accent-deep);background:var(--accent-soft)">${tasks.length} 条</span></div>
-      <details class="creative-global-details" ${production.commonRequirements ? "open" : ""}><summary><span>给设计的统一要求（可选）</span><em>会导出 Excel</em></summary><label class="field field-wide creative-common-requirements"><span>适用于本表全部素材</span><textarea data-creative-workspace-field="commonRequirements" placeholder="例如：使用目标市场成年人物、统一品牌尾板、避免敏感表达；没有可留空">${escapeHtml(production.commonRequirements)}</textarea></label></details>
-      ${tasks.length ? `<div class="creative-demand-table"><div class="creative-demand-head"><span>编号</span><span>素材参考</span><span>文案</span><span>修改要求</span><span>规格</span><span>数量</span></div>${tasks.map((task, index) => creativeTaskRow(task, index)).join("")}</div>` : emptyState("还没有素材需求", "新增一行后，按参考、文案、修改要求、规格和数量填写。", "", "")}
+      <details class="creative-global-details" ${production.commonRequirements ? "open" : ""}><summary><span>给设计的统一要求（可选）</span><em>会复制到飞书表格</em></summary><label class="field field-wide creative-common-requirements"><span>适用于本表全部素材</span><textarea data-creative-workspace-field="commonRequirements" placeholder="例如：使用目标市场成年人物、统一品牌尾板、避免敏感表达；没有可留空">${escapeHtml(production.commonRequirements)}</textarea></label></details>
+      ${tasks.length ? `<div class="creative-demand-table"><div class="creative-demand-head"><span>素材编号</span><span>素材参考</span><span>文案</span><span>修改备注</span><span>数量需求</span></div>${tasks.map((task, index) => creativeTaskRow(task, index)).join("")}</div>` : emptyState("还没有素材需求", "手动新增，或让 AI 生成可采纳的需求建议。", "", "")}
     </section>
     ${creativeAiDrawer(production)}`;
 }
@@ -1876,7 +1879,7 @@ function attachPageListeners() {
   document.querySelector("[data-run-creative-requirements]")?.addEventListener("click", runCreativeRequirements);
   document.querySelectorAll("[data-adopt-creative]").forEach((button) => button.addEventListener("click", () => adoptCreativeSuggestions([button.dataset.adoptCreative])));
   document.querySelector("[data-adopt-all-creative]")?.addEventListener("click", () => adoptCreativeSuggestions());
-  document.querySelector("[data-export-creative-xlsx]")?.addEventListener("click", exportCreativeRequirementsXlsx);
+  document.querySelector("[data-copy-creative-feishu]")?.addEventListener("click", copyCreativeRequirementsToFeishu);
   document.querySelectorAll("[data-launch-status]").forEach((select) => {
     select.addEventListener("change", () => {
       const saved = updateProject((project) => {
@@ -2820,16 +2823,28 @@ function exportBuildStrategyXlsx() {
   showToast("搭建策略 Excel 已导出");
 }
 
-function exportCreativeRequirementsXlsx() {
+async function copyCreativeRequirementsToFeishu() {
   const project = activeProject();
   const production = normalizeCreativeProduction(project, { makeId });
   if (!production.tasks.length) {
-    showToast("没有可导出的素材需求", "error");
+    showToast("没有可复制的素材需求", "error");
     return;
   }
-  const output = creativeRequirementsWorkbookDownload(project, production, { appVersion: APP_VERSION });
-  downloadBinary(output.bytes, output.fileName, output.mime);
-  showToast(`已导出 ${production.tasks.length} 条素材需求`);
+  const output = creativeRequirementsFeishuTable(production);
+  try {
+    if (navigator.clipboard?.write && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([output.html], { type: "text/html" }),
+        "text/plain": new Blob([output.text], { type: "text/plain" })
+      })]);
+      showToast("已复制，直接粘贴到飞书云文档即可");
+      return;
+    }
+    await navigator.clipboard.writeText(output.text);
+    showToast("已复制表格文本，可粘贴到飞书云文档");
+  } catch (error) {
+    showToast(`复制失败：${error?.message || "请检查浏览器剪贴板权限"}`, "error");
+  }
 }
 
 function isRecord(value) {

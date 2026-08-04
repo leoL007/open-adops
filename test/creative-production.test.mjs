@@ -4,6 +4,7 @@ import {
   creativeProductionCsv,
   creativeProductionMarkdown,
   creativeProductionSummary,
+  creativeRequirementsFeishuTable,
   creativeRequirementInstructions,
   creativeRequirementFromSuggestion,
   legacyCreativePlan,
@@ -97,7 +98,34 @@ test("production summary, legacy projection, CSV and Markdown stay deterministic
   assert.match(csv, /^\uFEFF素材编号,素材参考,文案,修改要求,输出规格,数量需求/);
   assert.match(csv, /ref-a\.mp4/);
   assert.doesNotMatch(csv, /媒体|市场|负责人|截止日期|状态/);
-  assert.match(creativeProductionMarkdown({ name: "Demo", markets: "US", platforms: ["Meta Ads"] }, tasks, "0.4.7"), /Demo · 素材需求/);
+  const markdown = creativeProductionMarkdown({ name: "Demo", markets: "US", platforms: ["Meta Ads"] }, tasks, "0.4.7");
+  assert.match(markdown, /^\| 素材编号 \| 素材参考 \| 文案 \| 修改备注 \| 数量需求 \|/);
+  assert.doesNotMatch(markdown, /Demo|OpenAdOps|导出版本/);
+});
+
+test("Feishu clipboard output is a five-column rich table instead of a long document", () => {
+  const production = {
+    commonRequirements: "使用成年演员\n统一品牌尾板",
+    tasks: [normalizeCreativeTask({
+      assetReference: "https://example.com/ref?a=1&b=2",
+      copy: "Line one\nLine two",
+      modificationNotes: "替换人物",
+      format: "9:16 · 15 秒",
+      quantity: 5
+    })]
+  };
+  const output = creativeRequirementsFeishuTable(production);
+  assert.match(output.html, /^<table/);
+  assert.match(output.html, /<th[^>]*>素材编号<\/th>/);
+  assert.match(output.html, /<a href="https:\/\/example\.com\/ref\?a=1&amp;b=2">/);
+  assert.match(output.html, /Line one<br>Line two/);
+  assert.match(output.html, /统一要求/);
+  assert.doesNotMatch(output.html, /<h1|OpenAdOps|导出版本/);
+  const lines = output.text.split("\r\n");
+  assert.equal(lines.length, 3);
+  assert.equal(lines[0].split("\t").length, 5);
+  assert.equal(lines[2].split("\t").length, 5);
+  assert.match(lines[2], /9:16 · 15 秒 \/ 5 个/);
 });
 
 test("AI suggestions become requirements only through explicit adoption", () => {

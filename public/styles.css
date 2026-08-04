@@ -896,7 +896,7 @@ select {
 .creative-demand-head,
 .creative-demand-row {
   display: grid;
-  grid-template-columns: 58px minmax(150px, 1fr) minmax(190px, 1.2fr) minmax(230px, 1.45fr) 140px 74px;
+  grid-template-columns: 76px minmax(170px, 1fr) minmax(220px, 1.2fr) minmax(260px, 1.45fr) minmax(160px, 0.8fr);
   min-width: 880px;
 }
 
@@ -944,6 +944,12 @@ select {
 .creative-demand-row .field textarea:focus {
   border-color: var(--line-strong);
   background: #fff;
+}
+
+.creative-demand-delivery {
+  display: grid;
+  align-content: start;
+  gap: 8px;
 }
 
 .creative-demand-index {

@@ -261,26 +261,70 @@ export function creativeProductionCsv(tasks = []) {
   return `\uFEFF${[headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
 }
 
-export function creativeProductionMarkdown(project = {}, tasks = [], appVersion = "") {
-  const lines = [
-    `# ${text(project.name) || "OpenAdOps"} · 素材需求`,
-    "",
-    `- 市场：${text(project.markets) || "待确认"}`,
-    `- 媒体：${Array.isArray(project.platforms) ? project.platforms.join(" / ") : "待确认"}`,
-    `- 导出版本：OpenAdOps v${appVersion || "—"}`,
-    ""
-  ];
-  tasks.forEach((rawTask, index) => {
-    const task = normalizeCreativeTask(rawTask);
-    lines.push(
-      `## ${String(index + 1).padStart(2, "0")} · ${task.platform} · ${task.angle || "未命名需求"}`,
-      "",
-      `- 素材参考：${task.assetReference || "待补充"}`,
-      `- 文案：${task.copy || "待补充"}`,
-      `- 修改要求：${creativeRequirementInstructions(task) || "待补充"}`,
-      `- 规格 / 数量：${task.format || "规格待确认"} / ${task.quantity ?? "数量待确认"}`,
-      ""
-    );
+const FEISHU_TABLE_HEADERS = ["素材编号", "素材参考", "文案", "修改备注", "数量需求"];
+
+function htmlEscape(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function richCell(value) {
+  return String(value ?? "")
+    .split(/(https?:\/\/[^\s]+)/g)
+    .map((part) => /^https?:\/\//i.test(part)
+      ? `<a href="${htmlEscape(part)}">${htmlEscape(part)}</a>`
+      : htmlEscape(part))
+    .join("")
+    .replace(/\r?\n/g, "<br>");
+}
+
+function plainCell(value) {
+  return String(value ?? "").replace(/[\t\r\n]+/g, " / ").trim();
+}
+
+function creativeDeliveryRequirement(task) {
+  const item = normalizeCreativeTask(task);
+  return [item.format, item.quantity === null ? "" : `${item.quantity} 个`].filter(Boolean).join("\n");
+}
+
+function creativeRequirementsTableRows(production = {}) {
+  const rows = [];
+  const commonRequirements = text(production.commonRequirements);
+  if (commonRequirements) {
+    rows.push(["统一要求", "", "", commonRequirements, "适用于全部素材"]);
+  }
+  (Array.isArray(production.tasks) ? production.tasks : []).forEach((task, index) => {
+    const item = normalizeCreativeTask(task);
+    rows.push([
+      `${index + 1}.`,
+      item.assetReference,
+      item.copy,
+      creativeRequirementInstructions(item),
+      creativeDeliveryRequirement(item)
+    ]);
   });
-  return lines.join("\n");
+  return rows;
+}
+
+export function creativeRequirementsFeishuTable(production = {}) {
+  const rows = creativeRequirementsTableRows(production);
+  const tableCellStyle = "border:1px solid #d9dce1;padding:8px 10px;text-align:left;vertical-align:top;white-space:pre-wrap";
+  const header = FEISHU_TABLE_HEADERS.map((item) => `<th style="${tableCellStyle};background:#f5f6f8;font-weight:600">${htmlEscape(item)}</th>`).join("");
+  const body = rows.map((row) => `<tr>${row.map((item) => `<td style="${tableCellStyle}">${richCell(item)}</td>`).join("")}</tr>`).join("");
+  return {
+    html: `<table border="1" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%"><thead><tr>${header}</tr></thead><tbody>${body}</tbody></table>`,
+    text: [FEISHU_TABLE_HEADERS, ...rows].map((row) => row.map(plainCell).join("\t")).join("\r\n")
+  };
+}
+
+export function creativeProductionMarkdown(project = {}, tasks = [], appVersion = "") {
+  void project;
+  void appVersion;
+  const rows = creativeRequirementsTableRows({ tasks });
+  const line = (row) => `| ${row.map((item) => plainCell(item).replaceAll("|", "\\|")).join(" | ")} |`;
+  return [line(FEISHU_TABLE_HEADERS), line(FEISHU_TABLE_HEADERS.map(() => "---")), ...rows.map(line)].join("\n");
 }
