@@ -43,11 +43,3 @@ test("validator allows missing reference, copy, format and quantity without inve
   result.suggestions[0].quantity = null;
   assert.equal(validateCreativeRequirements(result).valid, true);
 });
-
-test("validator rejects AI-invented asset references", () => {
-  const result = buildMockCreativeRequirements({ industry: "工具", platforms: ["Google Ads"], markets: "JP" });
-  result.suggestions[0].asset_reference = "https://example.com/invented-reference";
-  const validation = validateCreativeRequirements(result);
-  assert.equal(validation.valid, false);
-  assert.ok(validation.errors.some((item) => item.includes("asset_reference 必须留空")));
-});

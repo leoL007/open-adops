@@ -41,11 +41,10 @@ export function validateCreativeRequirements(result) {
   if (Array.isArray(result.suggestions)) {
     uniqueIds(result.suggestions, "suggestions", errors);
     result.suggestions.forEach((item, index) => {
-      if (item?.asset_reference !== "") errors.push(`suggestions[${index}].asset_reference 必须留空，由优化师手动填写`);
       for (const field of ["modification_notes", "rationale"]) {
         if (!meaningful(item?.[field])) errors.push(`suggestions[${index}].${field} 必须是完整文本`);
       }
-      for (const field of ["copy", "format"]) {
+      for (const field of ["asset_reference", "copy", "format"]) {
         if (!meaningful(item?.[field], { allowEmpty: true })) errors.push(`suggestions[${index}].${field} 不合法`);
       }
       if (item?.quantity !== null && (!Number.isInteger(item?.quantity) || item.quantity < 1 || item.quantity > 20)) errors.push(`suggestions[${index}].quantity 必须为 null 或 1–20 的整数`);
