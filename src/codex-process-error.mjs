@@ -14,9 +14,29 @@ function clip(value, maxLength) {
   return `${value.slice(0, maxLength).trimEnd()}…`;
 }
 
+function jsonErrorMessages(diagnostic) {
+  const messages = [...diagnostic.matchAll(/"message"\s*:\s*("(?:\\.|[^"\\])*")/g)]
+    .map((match) => {
+      try {
+        return JSON.parse(match[1]);
+      } catch {
+        return "";
+      }
+    })
+    .filter(Boolean);
+  const codes = [...diagnostic.matchAll(/"code"\s*:\s*"([^"\n]+)"/g)].map((match) => match[1]);
+  const uniqueMessages = [...new Set(messages)];
+  if (!uniqueMessages.length) return "";
+  const uniqueCodes = [...new Set(codes)];
+  return `${uniqueMessages.join("\n")}${uniqueCodes.length ? `（${uniqueCodes.join(" / ")}）` : ""}`;
+}
+
 export function summarizeCodexDiagnostics({ stderr = "", stdout = "", maxLength = 1200 } = {}) {
   const diagnostic = clean(stderr) || clean(stdout);
   if (!diagnostic) return "无可用诊断信息";
+
+  const apiError = jsonErrorMessages(diagnostic);
+  if (apiError) return clip(apiError, maxLength);
 
   const strongErrors = diagnostic
     .split("\n")

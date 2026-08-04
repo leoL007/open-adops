@@ -184,7 +184,7 @@ Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
 npm run check
 ```
 
-**135** automated tests cover intake, creative-requirement validation and Excel export, execution plans, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
+**136** automated tests cover intake, creative-requirement validation and Excel export, execution plans, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
 
 ## Current scope
 

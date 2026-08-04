@@ -14,6 +14,7 @@ All notable changes to OpenAdOps are documented here.
 
 - 生成投放执行方案不再覆盖已确认的素材需求；执行方案改为消费素材需求上下文。
 - 素材页不再强制填写测试假设、单变量和成功指标，这些字段保留在实验账本。
+- 素材需求 Schema 补齐 Codex 结构化输出要求的字段类型；多行 API 错误会显示实际 message 与错误码，不再只显示 `ERROR: {`。
 
 ## [0.5.12] - 2026-07-24
 

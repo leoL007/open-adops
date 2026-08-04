@@ -5,7 +5,7 @@
   "additionalProperties": false,
   "required": ["schema_version", "executive_summary", "guidance", "suggestions"],
   "properties": {
-    "schema_version": { "const": "1.0" },
+    "schema_version": { "type": "string", "const": "1.0" },
     "executive_summary": { "type": "string", "minLength": 2 },
     "guidance": {
       "type": "array",
@@ -17,8 +17,8 @@
         "required": ["id", "category", "status", "item", "reason"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
-          "category": { "enum": ["casting", "copy", "scene", "culture_policy", "production", "platform"] },
-          "status": { "enum": ["required", "recommended", "confirm"] },
+          "category": { "type": "string", "enum": ["casting", "copy", "scene", "culture_policy", "production", "platform"] },
+          "status": { "type": "string", "enum": ["required", "recommended", "confirm"] },
           "item": { "type": "string", "minLength": 2 },
           "reason": { "type": "string", "minLength": 2 }
         }

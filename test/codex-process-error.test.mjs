@@ -37,6 +37,22 @@ test("numeric exit codes keep concise runtime diagnostics", () => {
   assert.match(message, /connection reset/);
 });
 
+test("multi-line API JSON errors keep the actionable message and code", () => {
+  const detail = summarizeCodexDiagnostics({
+    stderr: `ERROR: {
+  "error": {
+    "message": "Invalid schema for response_format: schema_version must have a type key.",
+    "type": "invalid_request_error",
+    "code": "invalid_json_schema"
+  }
+}`
+  });
+
+  assert.match(detail, /schema_version must have a type key/);
+  assert.match(detail, /invalid_json_schema/);
+  assert.doesNotMatch(detail, /^ERROR: \{$/);
+});
+
 test("large skill documentation is not exposed as the user-facing error", () => {
   const skillOutput = `---\nname: ads\ndescription: paid advertising skill\n## Reference Files\n${"documentation line\n".repeat(500)}GOOGLE_API_KEY`;
   const detail = summarizeCodexDiagnostics({ stderr: skillOutput });
