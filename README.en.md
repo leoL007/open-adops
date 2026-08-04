@@ -136,8 +136,8 @@ The Creative Requirements page mirrors the compact sheet an operator actually gi
 
 - Use project-level media and market context instead of repeating it on every row
 - Keep each row to reference, copy, modification notes, spec, and quantity
-- Put shared production boundaries in one common-requirements field
-- Use AI to check missing information and risks, then propose optional rows
+- Put shared production boundaries in one collapsed design-requirements field
+- Open the AI drawer only when needed to set an internal focus, review risks, and adopt optional rows
 - Adopt candidates explicitly; AI never overwrites the confirmed requirement table
 - Export the same compact columns to Excel; image and video files are not stored in browser storage
 

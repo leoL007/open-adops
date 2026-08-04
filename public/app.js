@@ -104,6 +104,7 @@ const aiErrorMessage = document.querySelector("#aiErrorMessage");
 const aiErrorDismiss = document.querySelector("#aiErrorDismiss");
 let importSession = null;
 let aiBusy = false;
+let creativeAiPanelOpen = false;
 let currentAiJob = null;
 let aiJobTimer = null;
 let aiJobTicks = 0;
@@ -1124,7 +1125,7 @@ function creativeSuggestions(project, production) {
   const suggestions = production.analysis?.result?.suggestions || [];
   if (!suggestions.length) return "";
   const adopted = new Set(production.tasks.map((item) => item.sourceKey));
-  return `<section class="creative-suggestions card mb-16">
+  return `<section class="creative-suggestions">
     <div class="card-header"><div><h2>AI 补充建议</h2><p>只采纳有用的行，不会自动覆盖正式需求。</p></div><button type="button" class="button button-secondary button-small" data-adopt-all-creative>采纳全部</button></div>
     <div class="creative-suggestion-table"><div class="creative-suggestion-head"><span>素材参考</span><span>文案</span><span>修改要求</span><span>规格 / 数量</span><span></span></div>${suggestions.map((item) => {
       const isAdopted = adopted.has(`creative_requirement:${item.id}`);
@@ -1133,25 +1134,33 @@ function creativeSuggestions(project, production) {
   </section>`;
 }
 
+function creativeAiDrawer(production) {
+  if (!creativeAiPanelOpen) return "";
+  return `<div class="creative-ai-backdrop" data-close-creative-ai></div>
+    <aside class="creative-ai-drawer" role="dialog" aria-modal="true" aria-label="AI 检查与补充">
+      <header class="creative-ai-drawer-header"><div><span class="card-label">辅助功能</span><h2>AI 检查与补充</h2><p>检查缺项和风险，并给出可选择采纳的补充行。</p></div><button type="button" class="creative-ai-close" data-close-creative-ai aria-label="关闭 AI 检查">×</button></header>
+      <div class="creative-ai-drawer-body">
+        <label class="field field-wide"><span>AI 分析重点（仅内部，不导出）</span><textarea data-creative-workspace-field="notes" placeholder="例如：重点检查 Meta 软情色素材边界，并补充 3 条可执行需求">${escapeHtml(production.notes)}</textarea></label>
+        <div class="creative-runbar"><span>${escapeHtml(isLiveAiMode() ? routeDetail("creativeRequirements") : "本地演示 · 不耗额度")}</span><button class="button button-primary" data-run-creative-requirements type="button" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在检查…" : "开始 AI 检查"}</button></div>
+        ${production.analysis?.result ? creativeGuidance(production.analysis.result) : `<div class="creative-ai-empty"><strong>尚未检查</strong><p>AI 会读取上游项目、给设计的统一要求和这里的分析重点。</p></div>`}
+        ${production.analysis?.result ? creativeSuggestions(null, production) : ""}
+      </div>
+    </aside>`;
+}
+
 function renderCreative(project) {
   const production = normalizeCreativeProduction(project, { makeId });
   const tasks = production.tasks;
   const market = project.markets || briefFieldValue(project.intake?.analysis?.result, "markets") || "待确认";
   const platform = (project.platforms || []).join(" / ") || "待确认";
-  const actions = `<button class="button button-ghost" data-export-creative-xlsx type="button" ${tasks.length ? "" : "disabled"}>导出 Excel</button><button class="button button-primary" data-add-creative-task type="button">＋ 新增一行</button>`;
+  const actions = `<button class="button button-ghost" data-export-creative-xlsx type="button" ${tasks.length ? "" : "disabled"}>导出 Excel</button><button class="button button-secondary" data-open-creative-ai type="button">${aiBusy ? "正在检查…" : "AI 检查"}</button><button class="button button-primary" data-add-creative-task type="button">＋ 新增一行</button>`;
   return `${pageHeader("阶段 02 · 素材需求", "素材需求", "", actions)}
     <section class="card mb-16">
       <div class="card-header"><div><h2>素材需求单</h2><p>${escapeHtml(project.name || "未命名项目")} · ${escapeHtml(platform)} · ${escapeHtml(market)}</p></div><span class="badge" style="color:var(--accent-deep);background:var(--accent-soft)">${tasks.length} 条</span></div>
-      <label class="field field-wide creative-common-requirements"><span>统一制作要求</span><textarea data-creative-workspace-field="commonRequirements" placeholder="例如：使用目标市场成年人物、统一品牌尾板、避免敏感表达；没有可留空">${escapeHtml(production.commonRequirements)}</textarea></label>
+      <details class="creative-global-details" ${production.commonRequirements ? "open" : ""}><summary><span>给设计的统一要求（可选）</span><em>会导出 Excel</em></summary><label class="field field-wide creative-common-requirements"><span>适用于本表全部素材</span><textarea data-creative-workspace-field="commonRequirements" placeholder="例如：使用目标市场成年人物、统一品牌尾板、避免敏感表达；没有可留空">${escapeHtml(production.commonRequirements)}</textarea></label></details>
       ${tasks.length ? `<div class="creative-demand-table"><div class="creative-demand-head"><span>编号</span><span>素材参考</span><span>文案</span><span>修改要求</span><span>规格</span><span>数量</span></div>${tasks.map((task, index) => creativeTaskRow(task, index)).join("")}</div>` : emptyState("还没有素材需求", "新增一行后，按参考、文案、修改要求、规格和数量填写。", "", "")}
     </section>
-    <section class="card mb-16 creative-ai-assist">
-      <div class="card-header"><div><h2>AI 检查与补充</h2><p>检查缺项和风险，并给出可选择采纳的补充行。</p></div><span class="card-label">辅助功能</span></div>
-      <label class="field field-wide"><span>给 AI 的补充（可选）</span><textarea data-creative-workspace-field="notes" placeholder="粘贴参考说明、客户备注或这次想让 AI 关注的事项">${escapeHtml(production.notes)}</textarea></label>
-      <div class="creative-runbar"><span>${escapeHtml(isLiveAiMode() ? routeDetail("creativeRequirements") : "本地演示 · 不耗额度")}</span><button class="button button-secondary" data-run-creative-requirements type="button" ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在检查…" : "AI 检查与补充"}</button></div>
-      ${production.analysis?.result ? creativeGuidance(production.analysis.result) : ""}
-    </section>
-    ${production.analysis?.result ? creativeSuggestions(project, production) : ""}`;
+    ${creativeAiDrawer(production)}`;
 }
 
 function launchPackRecord(project) {
@@ -1822,6 +1831,16 @@ function attachPageListeners() {
       });
       render();
       if (saved) showToast("素材补充已保存");
+    });
+  });
+  document.querySelector("[data-open-creative-ai]")?.addEventListener("click", () => {
+    creativeAiPanelOpen = true;
+    render();
+  });
+  document.querySelectorAll("[data-close-creative-ai]").forEach((button) => {
+    button.addEventListener("click", () => {
+      creativeAiPanelOpen = false;
+      render();
     });
   });
   document.querySelector("[data-add-creative-task]")?.addEventListener("click", () => {
@@ -3226,7 +3245,10 @@ projectForm.addEventListener("submit", (event) => {
   showToast("项目已创建");
 });
 
-window.addEventListener("hashchange", render);
+window.addEventListener("hashchange", () => {
+  creativeAiPanelOpen = false;
+  render();
+});
 if (!location.hash) location.hash = "overview";
 render();
 const initialStorageWarning = workspaceLoadWarning(stateLoadResult);
