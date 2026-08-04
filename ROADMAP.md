@@ -159,9 +159,19 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Distinguish checked, unchecked, and unmapped quality states.
 - [x] Keep generated platform budget shares deterministic and equal to 100%.
 
-## v0.6 — Evidence and collaboration
+## v0.6 — Operator-owned creative workflow
 
-- [ ] Reusable strategy and creative-test templates by industry.
+- [x] Add local demo, Grok 4.5, and GPT 5.6 modes with explicit model labels.
+- [x] Replace client questions with an operator-owned preflight strategy checklist.
+- [x] Make build strategy optional and export Campaign / Ad group structure as Excel.
+- [x] Rebuild creative directions as operator-confirmed creative requirements.
+- [x] Generate required / recommended / human-confirmation guidance and adopt candidates explicitly.
+- [x] Export confirmed creative requirements as Excel without storing image or video files.
+- [x] Keep execution plans downstream so they cannot overwrite creative requirements.
+
+## v0.7 — Evidence and collaboration
+
+- [ ] Reusable strategy and creative-requirement templates by industry.
 - [x] Versioned optimization runs and decision history. *(shipped in v0.5.1)*
 - [ ] Shareable read-only report bundle.
 - [ ] Optional local database persistence.

@@ -9,7 +9,7 @@ OpenAdOps 是面向海外广告优化师的**本地优先** AI 投放工作台�
 [![Live Demo](https://img.shields.io/badge/Live_Demo-在线演示-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.5.12-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Release](https://img.shields.io/badge/Release-v0.6.0-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
 [简体中文](./README.md) · [English](./README.en.md) · [产品定义](./PRODUCT.md) · [路线图](./ROADMAP.md) · [参与贡献](./CONTRIBUTING.md)
 
@@ -17,9 +17,10 @@ OpenAdOps 是面向海外广告优化师的**本地优先** AI 投放工作台�
 
 ![OpenAdOps 项目总览](./assets/openadops-overview.jpg)
 
-## 当前版本（v0.5.12）
+## 当前版本（v0.6.0）
 
 - **完整主链路**：需求接收 → 策略初稿 → 可选搭建策略 → **素材需求** → **投放执行方案** → **实验账本** → 投放优化 → 报告输出
+- **三档 AI 模式**：本地演示、Grok 4.5 与 GPT 5.6；本机 Bridge 按任务路由并校验结构化结果
 - **中文界面优先**：按钮、状态、生成提示与产品模块名统一中文；行业词保留英文（如 Google Ads、CPI、ROAS、CSV）
 - **任务级智能路由**：投放前策略清单与快速策略用轻量模型；深度复核与执行方案用更强模型；结构校验失败可自动复核
 - **目标按需配置**：媒体 CPI、AF-CPI、CPA、ROAS 可独立添加或删除，并区分「仅观察 / 测试阈值 / 正式目标」；学习期无需填写假 KPI
@@ -107,7 +108,8 @@ npm run check
 | 界面名称 | 要求 | 作用 |
 | --- | --- | --- |
 | **本地演示** | 无 | 确定性演示结果，不耗模型额度 |
-| **GPT-5.6 · 智能路由**（底层为本机 Codex CLI） | 本机已登录 Codex CLI | 经本地 Node Bridge 调用 `codex exec`，按任务自动选模型与推理档 |
+| **Grok 4.5** | 本机已安装并登录 Grok CLI | 经本地 Node Bridge 调用 `grok`，统一使用 Grok 4.5 高推理 |
+| **GPT 5.6** | 本机已登录 Codex CLI | 经本地 Node Bridge 调用 `codex exec`，按任务选择 Terra / Sol 与推理档 |
 
 任务级默认路由（不会继承全局 Codex 的超高推理配置）：
 

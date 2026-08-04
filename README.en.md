@@ -9,7 +9,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.5.12-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Release](https://img.shields.io/badge/Release-v0.6.0-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
 [简体中文](./README.md) · [English](./README.en.md) · [Product](./PRODUCT.md) · [Roadmap](./ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
 
@@ -17,9 +17,10 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 
 ![OpenAdOps overview](./assets/openadops-overview.jpg)
 
-## Current release (v0.5.12)
+## Current release (v0.6.0)
 
 - **End-to-end loop**: intake → strategy draft → optional build strategy → **creative requirements** → **execution plan** → **experiment ledger** → optimize → report
+- **Three AI modes**: local demo, Grok 4.5, and GPT 5.6 with task-aware local routing and schema validation
 - **Chinese-first UI** in the product (English docs keep clear English names)  
 - **Task-aware model routing**: lighter models for the operator preflight checklist / fast draft; stronger models for deep review and execution plans; automatic structure retry
 - **Optional performance targets**: add or remove Media CPI, AF-CPI, CPA, and ROAS independently; keep a metric observation-only during learning instead of inventing a threshold
@@ -103,7 +104,8 @@ npm run check
 | UI label | Requirements | Behavior |
 | --- | --- | --- |
 | **Local demo** | None | Deterministic mock output; no model usage |
-| **GPT-5.6 · smart routing** (backed by local Codex CLI) | Signed-in Codex CLI | Local Node bridge → `codex exec` with task-aware models |
+| **Grok 4.5** | Installed and signed-in Grok CLI | Local Node bridge → `grok` with Grok 4.5 high reasoning |
+| **GPT 5.6** | Signed-in Codex CLI | Local Node bridge → `codex exec` with task-aware Terra / Sol routing |
 
 Default routing (does not inherit a global ultra-high reasoning setting):
 
