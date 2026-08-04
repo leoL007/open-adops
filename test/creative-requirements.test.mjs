@@ -15,6 +15,7 @@ test("social creative requirements include adult, rights and manual policy check
   assert.ok(result.guidance.some((item) => item.status === "confirm"));
   assert.ok(result.suggestions.some((item) => item.quantity > 0));
   assert.ok(result.suggestions.some((item) => item.quantity === null));
+  assert.ok(result.suggestions.every((item) => item.asset_reference === ""));
 });
 
 test("finance creative requirements avoid invented performance thresholds", () => {
@@ -41,4 +42,12 @@ test("validator allows missing reference, copy, format and quantity without inve
   result.suggestions[0].format = "";
   result.suggestions[0].quantity = null;
   assert.equal(validateCreativeRequirements(result).valid, true);
+});
+
+test("validator rejects AI-invented asset references", () => {
+  const result = buildMockCreativeRequirements({ industry: "工具", platforms: ["Google Ads"], markets: "JP" });
+  result.suggestions[0].asset_reference = "https://example.com/invented-reference";
+  const validation = validateCreativeRequirements(result);
+  assert.equal(validation.valid, false);
+  assert.ok(validation.errors.some((item) => item.includes("asset_reference 必须留空")));
 });

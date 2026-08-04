@@ -1106,7 +1106,7 @@ function creativeTaskRow(task, index) {
   const field = (name) => `data-creative-task-id="${taskId}" data-creative-task-field="${name}"`;
   return `<article class="creative-demand-row">
     <div class="creative-demand-index"><strong>${String(index + 1).padStart(2, "0")}</strong><button type="button" class="creative-demand-remove" data-remove-creative-task="${taskId}" aria-label="删除素材 ${String(index + 1).padStart(2, "0")}">×</button></div>
-    <label class="field"><span>素材参考</span><textarea ${field("assetReference")} placeholder="链接、文件名或参考说明">${escapeHtml(task.assetReference)}</textarea></label>
+    <label class="field"><span>素材参考</span><textarea ${field("assetReference")} placeholder="由优化师填写链接、文件名或说明；AI 留空">${escapeHtml(task.assetReference)}</textarea></label>
     <label class="field"><span>文案</span><textarea ${field("copy")} placeholder="口播、字幕或 CTA；没有可留空">${escapeHtml(task.copy)}</textarea></label>
     <label class="field"><span>修改要求</span><textarea ${field("modificationNotes")} placeholder="人物、镜头、字幕、尾板、节奏等">${escapeHtml(creativeRequirementInstructions(task))}</textarea></label>
     <div class="creative-demand-delivery">
@@ -1130,9 +1130,9 @@ function creativeSuggestions(project, production) {
   const adopted = new Set(production.tasks.map((item) => item.sourceKey));
   return `<section class="creative-suggestions">
     <div class="card-header"><div><h2>可采纳需求</h2><p>只采纳有用的行，不会自动覆盖正式需求。</p></div><button type="button" class="button button-secondary button-small" data-adopt-all-creative>采纳全部</button></div>
-    <div class="creative-suggestion-table"><div class="creative-suggestion-head"><span>素材参考</span><span>文案</span><span>修改要求</span><span>规格 / 数量</span><span></span></div>${suggestions.map((item) => {
+    <div class="creative-suggestion-table"><div class="creative-suggestion-head"><span>文案</span><span>修改要求</span><span>规格 / 数量</span><span></span></div>${suggestions.map((item) => {
       const isAdopted = adopted.has(`creative_requirement:${item.id}`);
-      return `<article class="creative-suggestion-row"><p>${escapeHtml(item.asset_reference || "待补充")}</p><p>${escapeHtml(item.copy || "—")}</p><p>${escapeHtml(item.modification_notes)}</p><p>${escapeHtml(item.format || "规格待定")} · ${item.quantity ?? "数量待定"}</p><button type="button" class="button ${isAdopted ? "button-ghost" : "button-secondary"} button-small" data-adopt-creative="${attr(item.id)}" ${isAdopted ? "disabled" : ""}>${isAdopted ? "已采纳" : "采纳"}</button></article>`;
+      return `<article class="creative-suggestion-row"><p>${escapeHtml(item.copy || "—")}</p><p>${escapeHtml(item.modification_notes)}</p><p>${escapeHtml(item.format || "规格待定")} · ${item.quantity ?? "数量待定"}</p><button type="button" class="button ${isAdopted ? "button-ghost" : "button-secondary"} button-small" data-adopt-creative="${attr(item.id)}" ${isAdopted ? "disabled" : ""}>${isAdopted ? "已采纳" : "采纳"}</button></article>`;
     }).join("")}</div>
   </section>`;
 }

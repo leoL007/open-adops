@@ -136,6 +136,7 @@ The Creative Requirements page mirrors the compact sheet an operator actually gi
 
 - Use project-level media and market context instead of repeating it on every row
 - Keep each row to reference, copy, modification notes, and one combined delivery-requirement column
+- References are operator-owned. AI does not search for videos or assets, so adopted AI suggestions always leave this field blank
 - Put shared production boundaries in one collapsed design-requirements field
 - Open **AI creative suggestions** only when needed to set an internal focus, review risks, and adopt optional rows
 - Adopt candidates explicitly; AI never overwrites the confirmed requirement table
@@ -187,7 +188,7 @@ Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
 npm run check
 ```
 
-**139** automated tests cover intake, creative-requirement validation and Feishu table copying, execution plans, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
+**140** automated tests cover intake, creative-requirement validation and Feishu table copying, execution plans, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
 
 ## Current scope
 

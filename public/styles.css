@@ -1059,7 +1059,7 @@ select {
 .creative-suggestion-head,
 .creative-suggestion-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(170px, 1.1fr) minmax(220px, 1.35fr) 120px 76px;
+  grid-template-columns: minmax(170px, 1fr) minmax(260px, 1.5fr) 130px 76px;
   min-width: 760px;
   align-items: center;
 }

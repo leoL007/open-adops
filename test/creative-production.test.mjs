@@ -140,7 +140,7 @@ test("AI suggestions become requirements only through explicit adoption", () => 
   }, { platforms: ["Meta Ads"], markets: "US" }, { makeId: ids() });
   assert.equal(requirement.source, "analysis");
   assert.equal(requirement.sourceKey, "creative_requirement:s1");
-  assert.equal(requirement.assetReference, "reference-01.mp4");
+  assert.equal(requirement.assetReference, "");
   assert.equal(requirement.modificationNotes, "统一加品牌尾板");
   assert.equal(requirement.quantity, 3);
 });

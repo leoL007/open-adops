@@ -34,7 +34,7 @@
         "required": ["id", "asset_reference", "copy", "modification_notes", "format", "quantity", "rationale"],
         "properties": {
           "id": { "type": "string", "minLength": 1 },
-          "asset_reference": { "type": "string" },
+          "asset_reference": { "type": "string", "const": "" },
           "copy": { "type": "string" },
           "modification_notes": { "type": "string", "minLength": 2 },
           "format": { "type": "string" },
