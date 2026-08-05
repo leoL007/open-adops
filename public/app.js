@@ -32,12 +32,18 @@ import {
 } from "./lib/creative-production.js";
 import { modelFullName, modelRouteDetail, modelVariantName } from "./lib/model-labels.js";
 import {
-  OPTIMIZATION_RUN_STATUSES,
   appendOptimizationRun,
   buildOptimizationRun,
   normalizeOptimizationHistory,
-  updateOptimizationRun
+  updateOptimizationRun,
+  updateOptimizationRunAction
 } from "./lib/optimization-history.js";
+import {
+  OPTIMIZATION_ACTION_CATEGORIES,
+  OPTIMIZATION_ACTION_STATUSES,
+  actionMetricChange,
+  optimizationReviewFeishuTable
+} from "./lib/optimization-actions.js";
 import {
   applyMappingProfile,
   mappingProfileCompatibility,
@@ -1527,8 +1533,98 @@ const OPTIMIZATION_STATUS_LABELS = {
   rejected: "不采纳"
 };
 
+const OPTIMIZATION_ACTION_CATEGORY_LABELS = {
+  creative: "素材",
+  tracking: "归因 / 回传",
+  experiment: "实验",
+  budget: "预算",
+  bidding: "出价",
+  structure: "结构",
+  other: "其他"
+};
+
+const OPTIMIZATION_ACTION_METRIC_TYPES = {
+  spend: "currency",
+  installs: "number",
+  af_installs: "number",
+  cpi: "currency",
+  afCpi: "currency",
+  conversions: "number",
+  cpa: "currency",
+  roas: "ratio",
+  d1Retention: "percent",
+  revenue: "currency"
+};
+
 function optimizationStatusText(status) {
   return OPTIMIZATION_STATUS_LABELS[status] || "待复核";
+}
+
+function optimizationActionCategoryText(category) {
+  return OPTIMIZATION_ACTION_CATEGORY_LABELS[category] || "其他";
+}
+
+function optimizationActionTransferLabel(category) {
+  return ({
+    creative: "转为素材需求",
+    tracking: "加入上线检查",
+    experiment: "转为实验候选"
+  })[category] || "";
+}
+
+function optimizationActionEvidence(project, run, action) {
+  const currentData = project.data || {};
+  const hasNewImport = Boolean(
+    currentData.importedAt
+      && run.dataContext?.importedAt
+      && currentData.importedAt !== run.dataContext.importedAt
+  );
+  if (!hasNewImport) return `<span class="action-evidence-waiting">等待下一周期数据</span>`;
+  const change = actionMetricChange(action, run.dataContext?.summary, currentData.metrics?.summary);
+  if (!change.available) return `<span class="action-evidence-waiting">${escapeHtml(change.reason)}</span>`;
+  const type = OPTIMIZATION_ACTION_METRIC_TYPES[change.metric.key] || "number";
+  const movement = change.relativeChange === null
+    ? "基期为 0"
+    : change.relativeChange === 0
+      ? "持平"
+      : `${change.relativeChange > 0 ? "+" : ""}${change.relativeChange.toFixed(2)}%`;
+  return `<div class="action-evidence-change"><span>${escapeHtml(change.metric.label)}</span><strong>${formatMetric(change.baseline, type, project.currency)} → ${formatMetric(change.current, type, project.currency)}</strong><em class="${attr(change.trend)}">${escapeHtml(movement)}</em></div>`;
+}
+
+function optimizationActionEntries(project) {
+  const runs = projectOptimizationHistory(project);
+  const latestRunId = runs[0]?.id;
+  return runs.flatMap((run) => (run.actions || []).map((action) => ({ run, action })))
+    .filter(({ run, action }) => run.id === latestRunId || ["accepted", "executing"].includes(action.status))
+    .slice(0, 12);
+}
+
+function optimizationActionCard(project, run, action) {
+  const categoryOptions = OPTIMIZATION_ACTION_CATEGORIES.map((category) => `<option value="${category}" ${action.category === category ? "selected" : ""}>${escapeHtml(optimizationActionCategoryText(category))}</option>`).join("");
+  const statusOptions = OPTIMIZATION_ACTION_STATUSES.map((status) => `<option value="${status}" ${action.status === status ? "selected" : ""}>${escapeHtml(optimizationStatusText(status))}</option>`).join("");
+  const transferLabel = optimizationActionTransferLabel(action.category);
+  return `<article class="optimization-action-card" data-optimization-action-review="${attr(action.id)}" data-optimization-run-id="${attr(run.id)}">
+    <header><div><span>${escapeHtml(optimizationActionCategoryText(action.category))} · ${escapeHtml(optimizationPeriodText(run))}</span><h3>${escapeHtml(action.title)}</h3></div><em class="optimization-status ${attr(action.status)}">${escapeHtml(optimizationStatusText(action.status))}</em></header>
+    <div class="optimization-action-context"><div><span>数据证据</span><p>${escapeHtml(action.evidence)}</p></div><div><span>前后变化</span>${optimizationActionEvidence(project, run, action)}</div></div>
+    <label class="optimization-action-main"><span>优化动作</span><textarea data-optimization-action-field="action">${escapeHtml(action.action)}</textarea></label>
+    <div class="optimization-action-controls">
+      <label><span>分类</span><select data-optimization-action-field="category">${categoryOptions}</select></label>
+      <label><span>状态</span><select data-optimization-action-field="status">${statusOptions}</select></label>
+      <label><span>验证口径</span><input data-optimization-action-field="successMetric" value="${attr(action.successMetric)}" /></label>
+      <label class="optimization-action-result"><span>验证结论</span><textarea data-optimization-action-field="resultNote" placeholder="执行结果、是否有效及原因">${escapeHtml(action.resultNote)}</textarea></label>
+    </div>
+    <footer><span>${action.transferredTo ? `已流转至${escapeHtml(({ creative: "素材需求", launch: "上线执行", experiments: "实验台" })[action.transferredTo] || action.transferredTo)}` : "AI 提建议，优化师决定是否执行"}</span><div>${transferLabel ? `<button class="button button-ghost button-small" type="button" data-transfer-optimization-action="${attr(action.id)}" data-transfer-run-id="${attr(run.id)}">${escapeHtml(transferLabel)}</button>` : ""}<button class="button button-secondary button-small" type="button" data-save-optimization-action="${attr(action.id)}" data-save-action-run-id="${attr(run.id)}">保存动作</button></div></footer>
+  </article>`;
+}
+
+function optimizationActionsPanel(project) {
+  const entries = optimizationActionEntries(project);
+  if (!entries.length) return `<section class="card optimization-actions-card mb-16"><div class="card-header"><div><h2>优化动作</h2><p>运行诊断后，将建议逐条确认、执行和验证。</p></div></div><p class="muted">还没有可执行的优化动作。</p></section>`;
+  const openCount = entries.filter(({ action }) => !["validated", "rejected"].includes(action.status)).length;
+  return `<section class="card optimization-actions-card mb-16">
+    <div class="card-header"><div><h2>优化动作</h2><p>逐条确认、流转和验证；系统只计算变化，不替你宣布结论。</p></div><div class="inline-actions"><span class="card-label">${openCount} 项待处理</span><button class="button button-ghost button-small" type="button" data-copy-optimization-feishu>复制飞书复盘</button></div></div>
+    <div class="optimization-action-list">${entries.map(({ run, action }) => optimizationActionCard(project, run, action)).join("")}</div>
+  </section>`;
 }
 
 function optimizationPeriodText(run) {
@@ -1564,8 +1660,8 @@ function optimizationHistoryPanel(project) {
       <div class="optimization-run-body">
         <div class="optimization-run-meta"><span>${escapeHtml(runRecordLabel(run))}</span><span>${escapeHtml(optimizationPeriodText(run))}</span>${dataQualityIssues(run.dataContext).length ? `<span>${escapeHtml(dataQualityIssues(run.dataContext).join("；"))}</span>` : ""}</div>
         ${optimizationSnapshot(run, project.currency || "USD")}
-        <div class="optimization-review-grid" data-optimization-review="${attr(run.id)}"><label><span>人工状态</span><select data-optimization-run-status>${OPTIMIZATION_RUN_STATUSES.map((status) => `<option value="${status}" ${run.status === status ? "selected" : ""}>${escapeHtml(optimizationStatusText(status))}</option>`).join("")}</select></label><label><span>人工结论</span><textarea data-optimization-run-note placeholder="记录采纳或不采纳原因、执行结果与后续验证。">${escapeHtml(run.note)}</textarea></label><button class="button button-secondary button-small" type="button" data-save-optimization-review="${attr(run.id)}">保存人工复核</button></div>
-        <div class="optimization-run-content"><div><h3>诊断摘要</h3><p>${escapeHtml(run.result?.executive_summary || "无")}</p></div><div><h3>建议动作</h3><ol>${(run.result?.next_actions || []).map((action) => `<li><strong>${escapeHtml(action.action)}</strong><span>${escapeHtml(action.owner)} · ${escapeHtml(action.timing)} · ${escapeHtml(action.success_metric)}</span></li>`).join("") || "<li>无结构化动作</li>"}</ol></div></div>
+        <div class="optimization-review-grid" data-optimization-review="${attr(run.id)}"><label><span>整次复盘备注</span><textarea data-optimization-run-note placeholder="补充本次诊断的整体背景或结论。">${escapeHtml(run.note)}</textarea></label><button class="button button-secondary button-small" type="button" data-save-optimization-review="${attr(run.id)}">保存备注</button></div>
+        <div class="optimization-run-content"><div><h3>诊断摘要</h3><p>${escapeHtml(run.result?.executive_summary || "无")}</p></div><div><h3>动作状态</h3><ol>${(run.actions || []).map((action) => `<li><strong>${escapeHtml(action.title)}</strong><span>${escapeHtml(optimizationActionCategoryText(action.category))} · ${escapeHtml(optimizationStatusText(action.status))}${action.resultNote ? ` · ${escapeHtml(action.resultNote)}` : ""}</span></li>`).join("") || "<li>无结构化动作</li>"}</ol></div></div>
       </div>
     </details>`).join("")}</div>` : `<p class="muted">运行一次投放优化诊断后，记录会自动出现在这里。</p>`}
   </section>`;
@@ -1589,6 +1685,7 @@ function renderOptimize(project) {
     ${periodComparison(project)}
     <div class="grid grid-2 mb-16"><section class="card"><div class="card-header"><div><h2>媒体对比</h2></div></div>${platformTable(project)}</section><section class="card"><div class="card-header"><div><h2>国家效率</h2><p>横条为花费，右侧优先显示 AF-CPI；缺失时显示媒体 CPI</p></div></div>${spendBars(project)}</section></div>
     <section class="card mb-16">${analysisToolbar("optimize")}${aiResult(project, "optimize")}</section>
+    ${optimizationActionsPanel(project)}
     ${optimizationHistoryPanel(project)}`;
 }
 
@@ -1602,9 +1699,10 @@ function experimentLearningTable(project) {
   return `<div class="table-wrap"><table><thead><tr><th>实验</th><th>状态</th><th>可行性</th><th>结果</th><th>学习 / 下一步</th></tr></thead><tbody>${experiments.map((item) => `<tr><td class="cell-wrap"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.platform)} · ${escapeHtml(item.design.single_variable)}</small></td><td>${escapeHtml(experimentStatusText(item.status))}</td><td>${escapeHtml(feasibilityText(item.feasibility.status))}${item.feasibility.estimated_duration_days ? `<small>${item.feasibility.estimated_duration_days} 天</small>` : ""}</td><td>${escapeHtml(experimentOutcomeText(item.result.outcome))}${item.result.relative_change_percent === null ? "" : `<small>${item.result.relative_change_percent}%</small>`}</td><td class="cell-wrap">${escapeHtml(item.result.learning || item.result.next_action || "等待实验结果")}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
-function actionTable(result) {
-  if (!result?.next_actions?.length) return `<p class="muted">运行分析后生成下一步动作。</p>`;
-  return `<div class="table-wrap"><table><thead><tr><th>动作</th><th>负责人</th><th>时间</th><th>成功指标</th></tr></thead><tbody>${result.next_actions.map((item) => `<tr><td class="cell-wrap"><strong>${escapeHtml(item.action)}</strong></td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.timing)}</td><td class="cell-wrap">${escapeHtml(item.success_metric)}</td></tr>`).join("")}</tbody></table></div>`;
+function optimizationActionTable(project) {
+  const actions = projectOptimizationHistory(project)[0]?.actions || [];
+  if (!actions.length) return `<p class="muted">运行投放优化诊断后生成下一步动作。</p>`;
+  return `<div class="table-wrap"><table><thead><tr><th>问题</th><th>动作</th><th>验证口径</th><th>状态</th><th>验证结论</th></tr></thead><tbody>${actions.map((item) => `<tr><td class="cell-wrap"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.evidence)}</small></td><td class="cell-wrap">${escapeHtml(item.action)}</td><td class="cell-wrap">${escapeHtml(item.successMetric)}</td><td><span class="optimization-status ${attr(item.status)}">${escapeHtml(optimizationStatusText(item.status))}</span></td><td class="cell-wrap">${escapeHtml(item.resultNote || "待验证")}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function renderReport(project) {
@@ -1619,7 +1717,7 @@ function renderReport(project) {
       <section class="report-section"><h3>02 · 管理层摘要</h3><div class="summary-callout">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。建议先在“投放优化”导入数据并运行分析。")}</div></section>
       <section class="report-section"><h3>03 · 关键判断</h3>${result ? result.findings.map((item) => `<article class="finding-card"><div class="finding-top"><h3>${escapeHtml(item.title)}</h3><span class="priority-badge ${attr(item.priority)}">${priorityText(item.priority)}</span></div><div class="finding-body"><div class="evidence-box"><span>证据</span><p>${escapeHtml(item.evidence)}</p></div><div class="action-box"><span>动作</span><p>${escapeHtml(item.action)}</p></div></div><p class="finding-diagnosis">${escapeHtml(item.diagnosis)} · 验证：${escapeHtml(item.validation)}</p></article>`).join("") : emptyState("还没有关键判断", "生成失败时不会写入假结果；请在其他阶段重新运行。", "optimize", "去优化页")}</section>
       <section class="report-section"><h3>04 · 实验与学习</h3>${experimentLearningTable(project)}</section>
-      <section class="report-section"><h3>05 · 下一步动作</h3>${actionTable(result)}</section>
+      <section class="report-section"><h3>05 · 下一步动作</h3>${optimizationActionTable(project)}</section>
       <section class="report-section"><h3>06 · 优化决策记录</h3>${optimizationDecisionTable(project)}</section>
       <section class="report-section"><h3>07 · 口径说明</h3><div class="project-facts"><div class="fact-row"><span>数据来源</span><strong>${escapeHtml(project.data?.fileName || "未导入")}</strong></div><div class="fact-row"><span>数据质量</span><strong>${escapeHtml(dataQualityText(project.data))}</strong></div><div class="fact-row"><span>归因口径</span><strong>${escapeHtml(project.attribution)}</strong></div><div class="fact-row"><span>分析来源</span><strong>${record ? escapeHtml(runRecordLabel(record)) : "未运行"}</strong></div><div class="fact-row"><span>项目备注</span><strong>${escapeHtml(project.notes || "无")}</strong></div></div></section>
     </article>`;
@@ -1961,11 +2059,35 @@ function attachPageListeners() {
       const review = button.closest("[data-optimization-review]");
       if (!review) return;
       saveOptimizationReview(button.dataset.saveOptimizationReview, {
-        status: review.querySelector("[data-optimization-run-status]")?.value,
         note: review.querySelector("[data-optimization-run-note]")?.value || ""
       });
     });
   });
+  document.querySelectorAll("[data-save-optimization-action]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const card = button.closest("[data-optimization-action-review]");
+      if (!card) return;
+      const field = (name) => card.querySelector(`[data-optimization-action-field="${name}"]`)?.value || "";
+      saveOptimizationAction(
+        button.dataset.saveActionRunId,
+        button.dataset.saveOptimizationAction,
+        {
+          action: field("action"),
+          category: field("category"),
+          status: field("status"),
+          successMetric: field("successMetric"),
+          resultNote: field("resultNote")
+        }
+      );
+    });
+  });
+  document.querySelectorAll("[data-transfer-optimization-action]").forEach((button) => {
+    button.addEventListener("click", () => transferOptimizationAction(
+      button.dataset.transferRunId,
+      button.dataset.transferOptimizationAction
+    ));
+  });
+  document.querySelector("[data-copy-optimization-feishu]")?.addEventListener("click", copyOptimizationReviewToFeishu);
   document.querySelectorAll("[data-go-route]").forEach((button) => button.addEventListener("click", () => { location.hash = button.dataset.goRoute; }));
   document.querySelectorAll("[data-scroll-experiment]").forEach((button) => button.addEventListener("click", () => {
     const target = document.querySelector(`#experiment-${CSS.escape(button.dataset.scrollExperiment)}`);
@@ -2325,6 +2447,222 @@ function saveOptimizationReview(runId, patch) {
     if (saved) showToast("人工复核已保存");
   } catch (error) {
     showToast(`更新失败：${error.message}`, "error");
+  }
+}
+
+function saveOptimizationAction(runId, actionId, patch) {
+  try {
+    const saved = updateProject((project) => {
+      project.optimizationHistory = updateOptimizationRunAction(
+        projectOptimizationHistory(project),
+        runId,
+        actionId,
+        patch
+      );
+    });
+    render();
+    if (saved) showToast("优化动作已保存");
+  } catch (error) {
+    showToast(`更新失败：${error.message}`, "error");
+  }
+}
+
+function optimizationActionPlatform(project, action) {
+  const content = `${action.title || ""} ${action.action || ""} ${action.evidence || ""}`.toLowerCase();
+  return project.platforms?.find((platform) => content.includes(platform.toLowerCase())) || project.platforms?.[0] || "Google Ads";
+}
+
+function optimizationExperimentCandidate(project, action) {
+  const metric = String(action.successMetric || "待确认主指标").trim() || "待确认主指标";
+  const costMetric = /cpi|cpa|af.?cpi|成本|花费/i.test(metric);
+  return {
+    id: `optimization-${action.id}`,
+    name: action.title,
+    platform: optimizationActionPlatform(project, action),
+    source: "analysis",
+    priority: "now",
+    status: "draft",
+    category: action.category === "tracking" ? "measurement" : action.category === "structure" ? "campaign_structure" : action.category === "bidding" || action.category === "budget" ? "bidding" : "creative",
+    hypothesis: {
+      change: action.action,
+      metric,
+      direction: costMetric ? "decrease" : "increase",
+      expected_lift_percent: null,
+      because: action.evidence
+    },
+    design: {
+      test_type: "平台原生实验或人工单变量拆分",
+      control: "当前已批准设置",
+      variant: action.action,
+      single_variable: "待优化师确认唯一变量",
+      primary_metric: metric,
+      metric_type: costMetric ? "cost" : "composite",
+      guardrail_metrics: ["花费与审核状态", "安装后质量或业务事件"],
+      control_percent: 50,
+      variant_percent: 50,
+      baseline_rate_percent: null,
+      mde_percent: null,
+      daily_eligible_units: null,
+      confidence_percent: 95,
+      power_percent: 80,
+      minimum_days: 7,
+      maximum_days: 28
+    },
+    feasibility: {
+      required_sample_per_variant: null,
+      estimated_duration_days: null,
+      status: "not_calculable",
+      rationale: "等待确定性计算。"
+    },
+    setup_steps: ["确认唯一变量、对照组、实验组和流量分配。", "补充主指标口径、护栏指标与停止条件后再上线。"],
+    stop_conditions: ["追踪、审核、市场或合规异常时立即停止。", "达到最短周期或样本门槛前不提前宣布胜负。"],
+    decision_rules: {
+      win: "达到预设判定门槛，主指标改善且护栏指标没有不可接受的恶化。",
+      lose: "达到判定门槛后主指标劣于对照组，或触发预设止损条件。",
+      inconclusive: "周期结束仍未达到样本门槛或结果不足以判断时，记录为无结论。"
+    },
+    owner: action.owner || "优化师",
+    result: {
+      outcome: "pending",
+      control_value: null,
+      variant_value: null,
+      relative_change_percent: null,
+      confidence_percent: null,
+      started_at: "",
+      ended_at: "",
+      learning: "",
+      next_action: "",
+      evidence: ""
+    }
+  };
+}
+
+function transferOptimizationAction(runId, actionId) {
+  const project = activeProject();
+  const run = projectOptimizationHistory(project).find((item) => item.id === runId);
+  const action = run?.actions?.find((item) => item.id === actionId);
+  if (!action) {
+    showToast("找不到需要流转的优化动作", "error");
+    return;
+  }
+  const destination = ({ creative: "creative", tracking: "launch", experiment: "experiments" })[action.category];
+  if (!destination) {
+    showToast("预算、出价和结构调整保留在动作清单中人工执行。", "error");
+    return;
+  }
+  if (destination === "launch" && !project.launch?.pack?.result) {
+    showToast("请先在“上线执行”生成检查清单，再加入归因检查项。", "error");
+    return;
+  }
+  if (destination === "experiments" && (project.experiments?.plan?.result?.experiments?.length || 0) >= 4) {
+    showToast("实验台最多保留 4 个实验，请先归档或删除现有实验。", "error");
+    return;
+  }
+  const saved = updateProject((target) => {
+    if (destination === "creative") {
+      const production = syncCreativeProduction(target);
+      const sourceKey = `optimization:${runId}:${actionId}`;
+      if (!production.tasks.some((task) => task.sourceKey === sourceKey)) {
+        production.tasks.push(normalizeCreativeTask({
+          source: "analysis",
+          sourceKey,
+          platform: optimizationActionPlatform(target, action),
+          market: target.markets,
+          angle: action.title,
+          assetReference: "",
+          copy: "",
+          modificationNotes: action.action,
+          successMetric: action.successMetric,
+          aiRationale: action.evidence
+        }, {
+          makeId,
+          now: new Date().toISOString(),
+          defaultPlatform: target.platforms?.[0],
+          defaultMarket: target.markets
+        }));
+        syncCreativeProduction(target, production.tasks);
+      }
+    }
+    if (destination === "launch") {
+      const pack = target.launch.pack.result;
+      const id = `optimization-${actionId}`;
+      if (!pack.launch_checklist.some((item) => item.id === id)) {
+        pack.launch_checklist.push({
+          id,
+          category: "tracking",
+          item: action.action,
+          status: "needs_confirmation",
+          owner: action.owner || "优化师",
+          evidence: action.evidence
+        });
+        recalculateLaunchReadiness(pack, true);
+      }
+    }
+    if (destination === "experiments") {
+      const candidate = optimizationExperimentCandidate(target, action);
+      if (!target.experiments?.plan?.result) {
+        target.experiments = createExperiments({
+          plan: {
+            source: "operator",
+            model: "optimization-action",
+            generatedAt: new Date().toISOString(),
+            result: enrichExperimentPlan({
+              schema_version: "1.0",
+              title: `${target.name} · 实验账本`,
+              executive_summary: "由优化复盘动作生成实验候选；上线前仍需优化师确认唯一变量、样本和判定规则。",
+              learning_agenda: [action.title],
+              experiments: [candidate],
+              risks: ["候选实验不会修改真实广告账户；数据不足时保持不可计算。"]
+            })
+          }
+        });
+      } else {
+        const plan = target.experiments.plan.result;
+        if (!plan.experiments.some((item) => item.id === candidate.id)) {
+          plan.experiments.push(candidate);
+          if (!plan.learning_agenda.includes(action.title)) plan.learning_agenda.push(action.title);
+          target.experiments.plan.result = enrichExperimentPlan(plan);
+        }
+      }
+    }
+    target.optimizationHistory = updateOptimizationRunAction(
+      projectOptimizationHistory(target),
+      runId,
+      actionId,
+      {
+        status: action.status === "pending" ? "accepted" : action.status,
+        transferredTo: destination,
+        transferredAt: new Date().toISOString(),
+        resultNote: action.resultNote
+      }
+    );
+  });
+  if (!saved) return;
+  location.hash = destination;
+  render();
+  showToast(`已流转至${({ creative: "素材需求", launch: "上线执行", experiments: "实验台" })[destination]}`);
+}
+
+async function copyOptimizationReviewToFeishu() {
+  const run = projectOptimizationHistory(activeProject())[0];
+  if (!run?.actions?.length) {
+    showToast("当前没有可复制的优化动作", "error");
+    return;
+  }
+  const output = optimizationReviewFeishuTable(run.actions, { statusLabel: optimizationStatusText });
+  try {
+    if (navigator.clipboard?.write && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/html": new Blob([output.html], { type: "text/html" }),
+        "text/plain": new Blob([output.text], { type: "text/plain" })
+      })]);
+      showToast("本周期复盘表已复制，可直接粘贴到飞书云文档");
+      return;
+    }
+    await navigator.clipboard.writeText(output.text);
+    showToast("本周期复盘表文本已复制");
+  } catch (error) {
+    showToast(`复制失败：${error?.message || "请检查浏览器剪贴板权限"}`, "error");
   }
 }
 
@@ -3148,10 +3486,11 @@ function reportDocument(project) {
     ["ROAS", dataHasField(project, "revenue") ? formatMetric(summary.roas, "ratio") : "—"]
   ];
   const experimentRows = (project.experiments?.plan?.result?.experiments || []).map((item) => `<tr><td>${escapeHtml(item.name)}</td><td>${escapeHtml(experimentStatusText(item.status))}</td><td>${escapeHtml(feasibilityText(item.feasibility.status))}</td><td>${escapeHtml(experimentOutcomeText(item.result.outcome))}</td><td>${escapeHtml(item.result.learning || item.result.next_action || "等待结果")}</td></tr>`).join("");
+  const optimizationRows = (projectOptimizationHistory(project)[0]?.actions || []).map((item) => `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.successMetric)}</td><td>${escapeHtml(optimizationStatusText(item.status))}</td><td>${escapeHtml(item.resultNote || "待验证")}</td></tr>`).join("");
   const decisionRows = projectOptimizationHistory(project).slice(0, 5).map((run) => `<tr><td>${escapeHtml(dateTimeText(run.generatedAt))}</td><td>${escapeHtml(run.dataContext?.sourceFile || "未记录")}<br>${escapeHtml(optimizationPeriodText(run))}</td><td>${escapeHtml(optimizationStatusText(run.status))}</td><td>${escapeHtml(run.note || "待补充")}</td></tr>`).join("");
   return `<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><title>${escapeHtml(project.name)}投放报告</title><style>
   body{margin:0;background:#f3f4f6;color:#1b2430;font-family:Arial,"PingFang SC",sans-serif}main{width:1040px;margin:32px auto;padding:50px;background:#fff;box-sizing:border-box}.eyebrow{color:#e77436;font-size:11px;font-weight:700;letter-spacing:.12em}h1{font-size:34px;margin:8px 0 38px}h2{font-size:18px;margin:34px 0 14px}.meta{color:#77808b;font-size:12px}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.metric,.finding{border:1px solid #e5e8ec;border-radius:10px;padding:16px}.metric span{display:block;color:#77808b;font-size:11px}.metric strong{display:block;margin-top:9px;font-size:21px}.summary{border-left:3px solid #e77436;background:#fff1e8;padding:17px;line-height:1.7}.finding{margin-top:10px}.finding h3{margin:0 0 9px;font-size:15px}.finding p{font-size:12px;line-height:1.7;color:#5f6b79}.actions{width:100%;border-collapse:collapse}.actions th,.actions td{padding:11px;border-bottom:1px solid #e5e8ec;text-align:left;font-size:11px}.notice{margin-top:34px;color:#8c96a3;font-size:10px}@media print{body{background:#fff}main{width:auto;margin:0;padding:24px}}
-  </style></head><body><main><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h1>${escapeHtml(project.name)}<br>投放阶段复盘与下一步计划</h1><p class="meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))} · ${escapeHtml(project.markets)} · ${dateText(new Date().toISOString())}</p><h2>核心指标</h2><div class="metrics">${metricRows.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><h2>管理层摘要</h2><div class="summary">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。")}</div><h2>关键判断</h2>${result?.findings?.map((item) => `<section class="finding"><h3>${escapeHtml(item.title)}</h3><p><strong>证据：</strong>${escapeHtml(item.evidence)}</p><p><strong>判断：</strong>${escapeHtml(item.diagnosis)}</p><p><strong>动作：</strong>${escapeHtml(item.action)}</p><p><strong>验证：</strong>${escapeHtml(item.validation)}</p></section>`).join("") || "<p>暂无。</p>"}<h2>实验与学习</h2><table class="actions"><thead><tr><th>实验</th><th>状态</th><th>可行性</th><th>结果</th><th>学习</th></tr></thead><tbody>${experimentRows}</tbody></table><h2>下一步动作</h2><table class="actions"><thead><tr><th>动作</th><th>负责人</th><th>时间</th><th>成功指标</th></tr></thead><tbody>${result?.next_actions?.map((item) => `<tr><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.timing)}</td><td>${escapeHtml(item.success_metric)}</td></tr>`).join("") || ""}</tbody></table><h2>优化决策记录</h2><table class="actions"><thead><tr><th>诊断时间</th><th>数据与周期</th><th>状态</th><th>人工结论</th></tr></thead><tbody>${decisionRows || "<tr><td colspan=\"4\">暂无记录</td></tr>"}</tbody></table><p class="notice">数据来源：${escapeHtml(project.data?.fileName || "未导入")} · 数据质量：${escapeHtml(dataQualityText(project.data))} · 归因口径：${escapeHtml(project.attribution)} · ${project.isDemo ? "演示数据，不代表任何真实客户表现。" : "由 OpenAdOps 本地工作台生成。"}</p></main></body></html>`;
+  </style></head><body><main><p class="eyebrow">OVERSEAS APP UA · PERFORMANCE REVIEW</p><h1>${escapeHtml(project.name)}<br>投放阶段复盘与下一步计划</h1><p class="meta">${escapeHtml(project.industry)} App · ${escapeHtml(project.platforms.join(" / "))} · ${escapeHtml(project.markets)} · ${dateText(new Date().toISOString())}</p><h2>核心指标</h2><div class="metrics">${metricRows.map(([label, value]) => `<div class="metric"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><h2>管理层摘要</h2><div class="summary">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。")}</div><h2>关键判断</h2>${result?.findings?.map((item) => `<section class="finding"><h3>${escapeHtml(item.title)}</h3><p><strong>证据：</strong>${escapeHtml(item.evidence)}</p><p><strong>判断：</strong>${escapeHtml(item.diagnosis)}</p><p><strong>动作：</strong>${escapeHtml(item.action)}</p><p><strong>验证：</strong>${escapeHtml(item.validation)}</p></section>`).join("") || "<p>暂无。</p>"}<h2>实验与学习</h2><table class="actions"><thead><tr><th>实验</th><th>状态</th><th>可行性</th><th>结果</th><th>学习</th></tr></thead><tbody>${experimentRows}</tbody></table><h2>下一步动作</h2><table class="actions"><thead><tr><th>问题</th><th>动作</th><th>验证口径</th><th>状态</th><th>验证结论</th></tr></thead><tbody>${optimizationRows || "<tr><td colspan=\"5\">暂无动作</td></tr>"}</tbody></table><h2>优化决策记录</h2><table class="actions"><thead><tr><th>诊断时间</th><th>数据与周期</th><th>状态</th><th>人工结论</th></tr></thead><tbody>${decisionRows || "<tr><td colspan=\"4\">暂无记录</td></tr>"}</tbody></table><p class="notice">数据来源：${escapeHtml(project.data?.fileName || "未导入")} · 数据质量：${escapeHtml(dataQualityText(project.data))} · 归因口径：${escapeHtml(project.attribution)} · ${project.isDemo ? "演示数据，不代表任何真实客户表现。" : "由 OpenAdOps 本地工作台生成。"}</p></main></body></html>`;
 }
 
 function exportReport() {

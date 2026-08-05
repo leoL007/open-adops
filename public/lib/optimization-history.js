@@ -1,3 +1,8 @@
+import {
+  normalizeOptimizationActions,
+  updateOptimizationAction
+} from "./optimization-actions.js";
+
 export const OPTIMIZATION_RUN_STATUSES = ["pending", "accepted", "executing", "validated", "rejected"];
 
 function clone(value) {
@@ -53,8 +58,9 @@ export function buildOptimizationRun(record, data = {}, options = {}) {
     throw new Error("优化诊断结果不能为空");
   }
   const now = options.now || new Date().toISOString();
+  const id = text(options.id || record.id) || options.makeId?.() || `optimization-${Date.now()}`;
   return {
-    id: text(options.id || record.id) || options.makeId?.() || `optimization-${Date.now()}`,
+    id,
     generatedAt: text(record.generatedAt) || now,
     source: text(record.source) || "unknown",
     model: text(record.model),
@@ -66,7 +72,8 @@ export function buildOptimizationRun(record, data = {}, options = {}) {
     reviewedAt: text(record.reviewedAt),
     note: text(record.note),
     dataContext: dataContext(data),
-    result: clone(record.result)
+    result: clone(record.result),
+    actions: normalizeOptimizationActions(record.actions, record.result, { runId: id })
   };
 }
 
@@ -76,8 +83,9 @@ export function normalizeOptimizationHistory(history) {
   return history.flatMap((run) => {
     if (!run?.id || !run?.result || ids.has(run.id)) return [];
     ids.add(run.id);
+    const id = text(run.id);
     return [{
-      id: text(run.id),
+      id,
       generatedAt: text(run.generatedAt),
       source: text(run.source) || "unknown",
       model: text(run.model),
@@ -100,7 +108,8 @@ export function normalizeOptimizationHistory(history) {
         dateQuality: run.dataContext?.dateQuality,
         numericQuality: run.dataContext?.numericQuality
       }),
-      result: clone(run.result)
+      result: clone(run.result),
+      actions: normalizeOptimizationActions(run.actions, run.result, { runId: id })
     }];
   });
 }
@@ -125,4 +134,28 @@ export function updateOptimizationRun(history, runId, patch = {}, options = {}) 
         reviewedAt
       }
     : run);
+}
+
+function runStatusFromActions(actions = []) {
+  if (!actions.length) return "pending";
+  if (actions.every((action) => action.status === "rejected")) return "rejected";
+  if (actions.some((action) => action.status === "executing")) return "executing";
+  if (actions.some((action) => action.status === "accepted")) return "accepted";
+  if (actions.every((action) => ["validated", "rejected"].includes(action.status))) return "validated";
+  return "pending";
+}
+
+export function updateOptimizationRunAction(history, runId, actionId, patch = {}, options = {}) {
+  const runs = normalizeOptimizationHistory(history);
+  if (!runs.some((run) => run.id === runId)) throw new Error("找不到优化诊断记录");
+  return runs.map((run) => {
+    if (run.id !== runId) return run;
+    const actions = updateOptimizationAction(run.actions, actionId, patch, options);
+    return {
+      ...run,
+      actions,
+      status: runStatusFromActions(actions),
+      reviewedAt: options.now || new Date().toISOString()
+    };
+  });
 }

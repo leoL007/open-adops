@@ -4,7 +4,8 @@ import {
   appendOptimizationRun,
   buildOptimizationRun,
   normalizeOptimizationHistory,
-  updateOptimizationRun
+  updateOptimizationRun,
+  updateOptimizationRunAction
 } from "../public/lib/optimization-history.js";
 
 const record = {
@@ -51,6 +52,7 @@ test("buildOptimizationRun stores only an aggregate data snapshot", () => {
   assert.equal(run.dataContext.numericQuality.rawCells, undefined);
   assert.equal(run.dataContext.rawRows, undefined);
   assert.equal(run.status, "pending");
+  assert.deepEqual(run.actions, []);
 });
 
 test("appendOptimizationRun keeps the newest diagnosis first", () => {
@@ -84,4 +86,25 @@ test("normalizeOptimizationHistory drops malformed and duplicate entries", () =>
   assert.equal(normalized.length, 1);
   assert.equal(normalized[0].id, "run-1");
   assert.deepEqual(normalized[0].dataContext.numericQuality, { checkedFields: 5, invalidCells: 0, blankCells: 2 });
+});
+
+test("legacy diagnosis actions are derived and reviewed independently", () => {
+  const result = {
+    ...record.result,
+    findings: [{
+      title: "素材疲劳",
+      evidence: "CTR 下降",
+      action: "补充新 Hook",
+      validation: "观察 CTR 与 AF-CPI"
+    }],
+    next_actions: [{ action: "补素材", owner: "优化师", timing: "本周", success_metric: "AF-CPI" }]
+  };
+  const run = buildOptimizationRun({ ...record, result }, data, { id: "run-actions" });
+  assert.equal(run.actions.length, 1);
+  const updated = updateOptimizationRunAction([run], run.id, run.actions[0].id, {
+    status: "executing",
+    resultNote: "已交付设计"
+  }, { now: "2026-07-21T00:00:00.000Z" });
+  assert.equal(updated[0].status, "executing");
+  assert.equal(updated[0].actions[0].resultNote, "已交付设计");
 });

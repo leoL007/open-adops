@@ -170,10 +170,14 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 - [x] Match the design handoff with a compact reference / copy / modification / spec / quantity table.
 - [x] Keep execution plans downstream so they cannot overwrite creative requirements.
 
-## v0.7 — Evidence and collaboration
+## v0.7 — Evidence-backed optimization loop
 
 - [ ] Reusable strategy and creative-requirement templates by industry.
 - [x] Versioned optimization runs and decision history. *(shipped in v0.5.1)*
+- [x] Turn each diagnosis into an operator-owned action with independent status and validation notes.
+- [x] Transfer creative, tracking, and experiment actions into their actual downstream workspaces.
+- [x] Calculate before/after metric movement in code without claiming statistical significance or success.
+- [x] Copy reviewed optimization actions as a Feishu-ready table and include them in reports.
 - [ ] Shareable read-only report bundle.
 - [ ] Optional local database persistence.
 - [ ] Configurable KPI and validation rules.
