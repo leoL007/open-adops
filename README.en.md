@@ -87,6 +87,10 @@ Open the [live demo](https://leol007.github.io/open-adops/). Browser-only labele
 
 ### Run locally (full features)
 
+On macOS, double-click **`打开 OpenAdOps.command`** in the repository root. It checks Node.js and the local port, reuses an existing healthy OpenAdOps process, starts the local bridge when needed, and opens the browser automatically. Press `Control + C` in its terminal window to stop the service.
+
+Terminal startup remains available:
+
 ```bash
 git clone https://github.com/leoL007/open-adops.git
 cd open-adops
@@ -189,7 +193,7 @@ Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
 npm run check
 ```
 
-**144** automated tests cover intake, creative-requirement validation and Feishu table copying, launch execution, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, Codex CLI discovery, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
+**154** automated tests cover the macOS launcher, intake, creative-requirement validation and Feishu table copying, launch execution, experiment ledgers, per-action optimization review, period movement, optimization decision history, workspace backup and migration safety, AI request errors, Codex CLI discovery, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
 
 ## Current scope
 

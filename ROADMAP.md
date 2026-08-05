@@ -172,6 +172,7 @@ The roadmap is organized around one outcome: turn paid-media inputs into decisio
 
 ## v0.7 — Evidence-backed optimization loop
 
+- [x] Add a portable macOS one-click launcher with health and port checks.
 - [ ] Reusable strategy and creative-requirement templates by industry.
 - [x] Versioned optimization runs and decision history. *(shipped in v0.5.1)*
 - [x] Turn each diagnosis into an operator-owned action with independent status and validation notes.
