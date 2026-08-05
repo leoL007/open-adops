@@ -4,7 +4,7 @@
 
 ### From fragmented client input to defensible paid-media decisions
 
-OpenAdOps is a **local-first** AI workspace for overseas app growth operators. It turns client briefs, rough media notes, and Google Ads / Meta Ads / TikTok Ads / AppsFlyer data into a structured strategy draft, an execution plan, an experiment ledger, optimization judgments, and client-ready reports.
+OpenAdOps is a **local-first** AI workspace for overseas app growth operators. It turns client briefs, rough media notes, and Google Ads / Meta Ads / TikTok Ads / AppsFlyer data into a strategy draft, creative requirements, a launch execution checklist, an experiment ledger, optimization judgments, and client-ready reports.
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
@@ -19,7 +19,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 
 ## Current release (v0.6.0)
 
-- **End-to-end loop**: intake → strategy draft → optional build strategy → **creative requirements** → **execution plan** → **experiment ledger** → optimize → report
+- **End-to-end loop**: intake → strategy draft → optional build strategy → **creative requirements** → **launch execution** → **experiment ledger** → optimize → report
 - **Three AI modes**: local demo, Grok 4.5, and GPT 5.6 with task-aware local routing and schema validation
 - **Chinese-first UI** in the product (English docs keep clear English names)  
 - **Task-aware model routing**: lighter models for the operator preflight checklist / fast draft; stronger models for deep review and execution plans; automatic structure retry
@@ -60,7 +60,7 @@ OpenAdOps keeps one local project for the full loop:
 2. **Strategy draft** — fast draft or deep review of a working strategy  
 3. **Build strategy (optional)** — Campaign, Ad group, events, bids, placements, exclusions, asset counts, review rules, and Excel export
 4. **Creative requirements** — references, copy, modification notes, and delivery requirements for direct Feishu Docs handoff
-5. **Execution plan** — campaign blueprints, production briefs, measurement layers, launch checks, first 7 days
+5. **Launch execution** — confirmed settings, measurement layers, launch checks, and Day 0–7 actions
 6. **Experiment ledger** — now / next / later queue with thresholds, evidence, and learnings
 7. **Optimize** — CSV metrics by code, evidence-backed diagnosis, and operator adoption / execution / validation notes
 8. **Report** — management HTML and print / PDF with recent optimization decisions
@@ -72,7 +72,7 @@ OpenAdOps keeps one local project for the full loop:
 - **Evidence stays attached** to every claim  
 - **Unknowns stay visible** (confirmed / inferred / missing)  
 - **Learning periods do not require fake KPIs**: zero is not a target, and missing thresholds never become stop-loss or scale rules
-- **Execution output is handoff-ready** (names, events, bids, single variables, owners)  
+- **Launch execution does not rewrite strategy**; it reads confirmed media, event, bid, budget, and creative inputs
 - **Launch checks have owners**; blockers block “ready”  
 - **Inconclusive is valid** when sample thresholds are not met  
 - **Local-first**: browser storage; raw CSV rows are not sent to the model bridge  
@@ -117,7 +117,7 @@ Default routing (does not inherit a global ultra-high reasoning setting):
 | Strategy diagnosis | `gpt-5.6-terra` | medium |
 | Creative requirement suggestions | `gpt-5.6-terra` | medium |
 | Optimization diagnosis | `gpt-5.6-sol` | high |
-| Execution plan | `gpt-5.6-sol` | high |
+| Launch execution | `gpt-5.6-sol` | high |
 | Experiment ledger | `gpt-5.6-terra` | medium |
 
 Failed structure validation on Terra triggers one `gpt-5.6-sol + medium` retry. The UI distinguishes GPT-5.6 Terra / Sol, effort, timing, cancel, and sticky errors.
@@ -143,21 +143,20 @@ The Creative Requirements page mirrors the compact sheet an operator actually gi
 - Click **Copy Feishu table** and paste a five-column rich table directly into Feishu Docs; no long Markdown document is generated
 - Image and video files are not stored in browser storage; add thumbnails or attachments in Feishu after pasting
 
-## Execution plan
+## Launch execution
 
-Turns intake + strategy draft into an operator handoff:
+Provides the final internal control surface before launch:
 
-- Media roles and budget shares (no invented budgets)  
-- Campaign-ready naming, goals, events, geos, bidding, split logic  
-- Per-platform creative production briefs with one primary variable  
-- Media / MMP / business source-of-truth layers  
-- Launch checklist with status, owner, evidence (finance compliance gates included)  
-- Day 0–7 actions and decision rules  
-- Document / HTML export and local snapshots  
+- Read-only launch summary from confirmed upstream settings
+- Media / MMP / business source-of-truth layers
+- Launch checklist with status, owner, evidence (finance compliance gates included)
+- Day 0–7 actions and decision rules
+- Ready / conditional / blocked status without a percentage score
+- No duplicate media strategy, campaign blueprint, or creative brief
 
 ## Experiment ledger
 
-Builds a cross-platform test queue from execution-plan creative briefs:
+Builds a cross-platform test queue from confirmed creative requirements and launch measurement rules:
 
 - One primary variable; control / variant / primary metric / guardrails frozen first  
 - Native methods for Google App asset experiments, Meta A/B, TikTok Split Testing  

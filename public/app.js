@@ -116,7 +116,7 @@ const DEFAULT_CODEX_ROUTES = {
   analysis: { label: "投放数据诊断", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
   creativeRequirements: { label: "生成素材需求建议", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
   optimizeAnalysis: { label: "投放优化诊断", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
-  launchPack: { label: "生成投放执行方案", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
+  launchPack: { label: "生成上线执行清单", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
   experiments: { label: "生成实验账本", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] }
 };
 const DEFAULT_GROK_ROUTES = Object.fromEntries(
@@ -542,7 +542,7 @@ function runRecordLabel(record) {
 function displayRouteLabel(label) {
   return String(label || "正在生成")
     .replaceAll("Strategy v0", "策略初稿")
-    .replaceAll("Launch Pack", "投放执行方案")
+    .replaceAll("Launch Pack", "上线执行")
     .replaceAll("Experiment Ledger", "实验账本")
     .replaceAll("Mock ", "演示")
     .replaceAll("Codex ", "");
@@ -867,7 +867,7 @@ function renderIntakeResult(project) {
         ${questions.length ? `<div class="question-list">${questions.map((item, index) => `<article class="question-item"><span>${String(index + 1).padStart(2, "0")}</span><div><div class="question-top"><strong>${escapeHtml(item.question)}</strong><em class="${attr(item.priority)}">${item.priority === "required" ? "上线阻塞" : "可带假设"}</em></div><p>${escapeHtml(item.reason)}</p></div></article>`).join("")}</div>` : `<div class="success-note">投放前关键口径已覆盖，可由优化师复核后采用策略初稿。</div>`}
       </section>
       <section class="card strategy-v0-hero">
-        <div class="card-header"><div><h2>策略初稿</h2><p>带假设的前期策略草案，不等同于最终执行方案</p></div><span class="card-label">工作草案</span></div>
+        <div class="card-header"><div><h2>策略初稿</h2><p>带假设的前期策略草案，不等同于最终上线配置</p></div><span class="card-label">工作草案</span></div>
         <blockquote>${escapeHtml(draft.positioning)}</blockquote>
         <div class="assumption-list"><strong>工作假设</strong>${draft.working_assumptions.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div>
       </section>
@@ -943,7 +943,7 @@ function renderOverview(project) {
           <button type="button" class="stage-step ${hasIntake ? "complete" : ""}" data-step="00" data-go-route="intake"><h3>需求接收</h3><p>资料、投前清单与策略初稿</p></button>
           <button type="button" class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01" data-go-route="strategy"><h3>搭建策略</h3><p>可选 · Campaign / Ad group / Ad</p></button>
           <button type="button" class="stage-step ${hasCreative ? "complete" : ""}" data-step="02" data-go-route="creative"><h3>素材需求</h3><p>制作要求、参考与交付规格</p></button>
-          <button type="button" class="stage-step ${launchReady ? "complete" : ""}" data-step="03" data-go-route="launch"><h3>执行方案</h3><p>Campaign 与上线检查</p></button>
+          <button type="button" class="stage-step ${launchReady ? "complete" : ""}" data-step="03" data-go-route="launch"><h3>上线执行</h3><p>上线检查、监测与首周行动</p></button>
           <button type="button" class="stage-step ${hasExperiments ? "complete" : ""}" data-step="04" data-go-route="experiments"><h3>实验台</h3><p>样本门槛与学习</p></button>
           <button type="button" class="stage-step ${hasOptimize ? "complete" : ""}" data-step="05" data-go-route="optimize"><h3>投放优化</h3><p>数据诊断与动作</p></button>
         </div>
@@ -1052,7 +1052,7 @@ function renderStrategy(project) {
     : "";
   if (strategy.enabled !== true) {
     const message = strategy.enabled === false
-      ? "本项目已标记为无需单独搭建策略，可直接进入素材需求或执行方案。"
+      ? "本项目已标记为无需单独搭建策略，可直接进入素材需求或上线执行。"
       : "先判断项目是否需要给客户单独输出 Campaign、Ad group 与 Ad 搭建表。";
     return `${pageHeader("阶段 01 · 搭建策略", "搭建策略", "可选模块", actions)}
       ${buildStrategyModeControl(strategy)}
@@ -1171,7 +1171,18 @@ function launchPackRecord(project) {
 }
 
 function launchStatusText(status) {
-  return ({ ready: "可上线", conditional: "有条件就绪", blocked: "存在阻塞", needs_confirmation: "待确认", blocker: "阻塞项" })[status] || status;
+  return ({ ready: "可上线", conditional: "有条件上线", blocked: "暂不可上线", needs_confirmation: "待确认", blocker: "阻塞项" })[status] || status;
+}
+
+function launchGateCategoryText(category) {
+  return ({
+    strategy: "策略",
+    tracking: "追踪",
+    campaign: "搭建",
+    creative: "素材",
+    operations: "执行",
+    compliance: "合规"
+  })[category] || category;
 }
 
 function launchBudgetText(item) {
@@ -1180,79 +1191,74 @@ function launchBudgetText(item) {
   return formatMetric(item.budget_amount, "currency", item.currency);
 }
 
+function renderLaunchExecutionSummary(project) {
+  const strategy = normalizeBuildStrategy(project, { makeId });
+  const production = normalizeCreativeProduction(project, { makeId });
+  const bidding = strategy.campaign.bidStrategy
+    || [...new Set(strategy.adGroups.map((item) => item.bidding).filter(Boolean))].join(" / ")
+    || "待确认";
+  const buildStatus = strategy.enabled === false
+    ? "无需单独搭建策略"
+    : strategy.enabled === true
+      ? `${strategy.adGroups.length} 个 Ad group`
+      : "待确认";
+  const items = [
+    ["媒体", project.platforms.join(" / ") || "待确认"],
+    ["市场", project.markets || "待确认"],
+    ["搭建策略", buildStatus],
+    ["优化事件", strategy.campaign.primaryEvent || project.goal || "待确认"],
+    ["出价", bidding],
+    ["月预算", Number(project.budget) > 0 ? formatMetric(project.budget, "currency", project.currency) : "待确认"],
+    ["素材需求", production.tasks.length ? `${production.tasks.length} 条` : "待补充"],
+    ["归因口径", project.attribution || "待确认"]
+  ];
+  return `<section class="card"><div class="card-header"><div><h2>上线摘要</h2><p>只读取前面已经确认的配置，不重新生成策略</p></div><span class="card-label">上游结果</span></div><div class="launch-execution-summary">${items.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div></section>`;
+}
+
 function renderLaunchPackResult(project) {
   const record = launchPackRecord(project);
   const pack = record?.result;
   if (!pack) {
-    return `<section class="card launch-empty-card">
-      <div class="launch-empty-copy"><span class="card-label">需求 → 执行</span><h2>生成第一份投放执行方案</h2><p>生成 Campaign 蓝图、上线检查和首 7 天行动。</p></div>
-      <div class="launch-input-summary">
-        <div><span>行业</span><strong>${escapeHtml(project.industry || "待确认")}</strong></div>
-        <div><span>市场</span><strong>${escapeHtml(project.markets || "待确认")}</strong></div>
-        <div><span>媒体</span><strong>${escapeHtml(project.platforms.join(" · "))}</strong></div>
-        <div><span>预算</span><strong>${Number(project.budget) > 0 ? formatMetric(project.budget, "currency", project.currency) : "待确认"}</strong></div>
-      </div>
-    </section>`;
+    return `<div class="launch-pack-stack">
+      ${renderLaunchExecutionSummary(project)}
+      <section class="card launch-empty-card launch-checklist-empty"><div class="launch-empty-copy"><span class="card-label">策略 / 素材 → 上线</span><h2>生成第一份上线执行清单</h2><p>检查账户、归因、素材与合规阻塞，并生成 Day 0–7 操作规则。</p></div></section>
+    </div>`;
   }
 
   const readiness = pack.readiness;
-  const versions = project.launch?.versions || [];
+  const pendingItems = pack.launch_checklist.filter((item) => item.status !== "ready");
+  const readinessSummary = readiness.status === "blocked"
+    ? `存在 ${readiness.blockers.length} 个上线阻塞项，关闭前不得正式花费。`
+    : readiness.status === "conditional"
+      ? `当前没有硬阻塞，但仍有 ${pendingItems.length} 项需要人工确认。`
+      : "所有上线检查项均已确认，正式花费前仍需负责人最终复核。";
   const sourceLabel = runRecordLabel(record);
   const statusOptions = (current) => ["ready", "needs_confirmation", "blocker"].map((status) => `<option value="${status}" ${status === current ? "selected" : ""}>${launchStatusText(status)}</option>`).join("");
   return `<div class="launch-pack-stack">
     <section class="launch-readiness ${attr(readiness.status)}">
-      <div class="readiness-score"><strong>${readiness.score}</strong><span>/ 100</span></div>
-      <div class="readiness-copy"><span class="card-label">${escapeHtml(sourceLabel)} · ${dateText(record.generatedAt)}</span><h2>${escapeHtml(launchStatusText(readiness.status))}</h2><p>${escapeHtml(pack.executive_summary)}</p></div>
-      <div class="readiness-blockers"><span>阻塞项</span><strong>${readiness.blockers.length}</strong><small>${readiness.blockers.length ? escapeHtml(readiness.blockers[0]) : "没有硬阻塞项"}</small></div>
+      <div class="readiness-state"><span>上线状态</span><strong>${escapeHtml(launchStatusText(readiness.status))}</strong></div>
+      <div class="readiness-copy"><span class="card-label">${escapeHtml(sourceLabel)} · ${dateText(record.generatedAt)}</span><h2>上线执行清单</h2><p>${escapeHtml(readinessSummary)}</p></div>
+      <div class="readiness-blockers"><span>待处理</span><strong>${pendingItems.length}</strong><small>${pendingItems.length ? escapeHtml(pendingItems[0].item) : "当前没有未关闭检查项"}</small></div>
     </section>
 
-    ${pack.assumptions.length ? `<section class="assumption-banner"><strong>当前假设</strong><div>${pack.assumptions.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div></section>` : ""}
-
-    <section class="card">
-      <div class="card-header"><div><h2>媒体分工与预算</h2><p>预算缺失时保持为空；预算不足时主动收敛媒体</p></div><span class="card-label">MEDIA PLAN</span></div>
-      <div class="table-wrap"><table class="launch-media-table"><thead><tr><th>媒体</th><th>角色</th><th>Campaign 类型</th><th>占比</th><th>月预算</th><th>前置条件</th></tr></thead><tbody>${pack.media_plan.map((item) => `<tr class="${Number(item.allocation_percent) === 0 ? "muted-row" : ""}"><td><strong>${escapeHtml(item.platform)}</strong><small>${escapeHtml(item.objective)}</small></td><td>${escapeHtml(item.role)}<small>${escapeHtml(item.rationale)}</small></td><td>${escapeHtml(item.campaign_type)}</td><td>${item.allocation_percent === null ? "—" : `${item.allocation_percent}%`}</td><td>${escapeHtml(launchBudgetText(item))}</td><td>${item.prerequisites.map((value) => `<span class="mini-tag">${escapeHtml(value)}</span>`).join("")}</td></tr>`).join("")}</tbody></table></div>
-    </section>
-
-    <section class="card">
-      <div class="card-header"><div><h2>Campaign 蓝图</h2></div><span class="badge launch-count">${pack.campaigns.length} CAMPAIGNS</span></div>
-      <div class="campaign-blueprint-grid">${pack.campaigns.map((item) => `<article class="campaign-blueprint"><div class="campaign-code"><span>${escapeHtml(item.platform)}</span><strong>${escapeHtml(item.campaign_name)}</strong></div><div class="campaign-facts"><div><span>优化事件</span><strong>${escapeHtml(item.optimization_event)}</strong></div><div><span>市场</span><strong>${escapeHtml(item.geo)}</strong></div><div><span>出价</span><strong>${escapeHtml(item.bidding)}</strong></div><div><span>预算</span><strong>${escapeHtml(item.budget_note)}</strong></div></div><div class="campaign-lists"><div><span>结构逻辑</span>${item.ad_group_logic.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div><div><span>受众与排除</span>${item.audience_notes.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div></div></article>`).join("")}</div>
-    </section>
-
-    <section class="card">
-      <div class="card-header"><div><h2>素材生产简报</h2><p>每张卡片只有一个主要测试变量，并预先写明成功指标</p></div><span class="badge launch-count">${pack.creative_briefs.length} 条</span></div>
-      <div class="launch-creative-grid">${pack.creative_briefs.map((item) => `<article class="launch-creative-card"><div class="creative-card-top"><span>${escapeHtml(item.platform)}</span><em>${item.variants} 个版本</em></div><h3>${escapeHtml(item.angle)}</h3><blockquote>${escapeHtml(item.hook)}</blockquote><p><strong>假设：</strong>${escapeHtml(item.hypothesis)}</p><dl><div><dt>格式</dt><dd>${escapeHtml(item.format)}</dd></div><div><dt>单变量</dt><dd>${escapeHtml(item.test_variable)}</dd></div><div><dt>成功指标</dt><dd>${escapeHtml(item.success_metric)}</dd></div></dl><div class="production-notes">${item.production_notes.map((value) => `<span>${escapeHtml(value)}</span>`).join("")}</div><div class="compliance-note">${item.compliance_notes.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}</div></article>`).join("")}</div>
-    </section>
+    ${renderLaunchExecutionSummary(project)}
 
     <div class="grid launch-measurement-grid">
-      <section class="card"><div class="card-header"><div><h2>监测与归因</h2><p>媒体反馈、MMP 和业务真相分层使用</p></div><span class="card-label">监测口径</span></div><div class="measurement-hero"><span>最终口径</span><strong>${escapeHtml(pack.measurement.source_of_truth)}</strong></div>${renderStrategyList("主要与辅助事件", [pack.measurement.primary_event, ...pack.measurement.supporting_events])}${renderStrategyList("归因规则", pack.measurement.attribution_rules)}${renderStrategyList("追踪检查", pack.measurement.tracking_checklist)}</section>
-      <section class="card"><div class="card-header"><div><h2>首 7 天行动</h2></div><span class="card-label">第 0–7 天</span></div><div class="launch-week">${pack.first_7_days.map((item) => `<article><span>${escapeHtml(item.period)}</span><div>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<strong>${escapeHtml(item.decision_rule)}</strong></div></article>`).join("")}</div></section>
+      <section class="card"><div class="card-header"><div><h2>监测与归因</h2><p>媒体反馈、MMP 和业务结果分层使用</p></div><span class="card-label">监测口径</span></div><div class="measurement-hero"><span>最终口径</span><strong>${escapeHtml(pack.measurement.source_of_truth)}</strong></div>${renderStrategyList("主要与辅助事件", [pack.measurement.primary_event, ...pack.measurement.supporting_events])}${renderStrategyList("归因规则", pack.measurement.attribution_rules)}${renderStrategyList("追踪检查", pack.measurement.tracking_checklist)}</section>
+      <section class="card"><div class="card-header"><div><h2>Day 0–7 行动</h2></div><span class="card-label">上线首周</span></div><div class="launch-week">${pack.first_7_days.map((item) => `<article><span>${escapeHtml(item.period)}</span><div>${item.actions.map((value) => `<p>${escapeHtml(value)}</p>`).join("")}<strong>${escapeHtml(item.decision_rule)}</strong></div></article>`).join("")}</div></section>
     </div>
 
     <section class="card">
-      <div class="card-header"><div><h2>上线检查项</h2><p>你可以人工更新状态；阻塞项会自动反映到顶部就绪度</p></div><span class="card-label">负责人 × 证据</span></div>
-      <div class="table-wrap"><table class="launch-gate-table"><thead><tr><th>类别</th><th>检查项</th><th>状态</th><th>负责人</th><th>证据 / 缺口</th></tr></thead><tbody>${pack.launch_checklist.map((item) => `<tr><td><span class="gate-category">${escapeHtml(item.category)}</span></td><td><strong>${escapeHtml(item.item)}</strong></td><td><select class="gate-status ${attr(item.status)}" data-launch-status="${attr(item.id)}">${statusOptions(item.status)}</select></td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.evidence)}</td></tr>`).join("")}</tbody></table></div>
-    </section>
-
-    <div class="grid grid-2">
-      <section class="card"><div class="card-header"><div><h2>内部待确认</h2></div><span class="badge question-badge">${pack.open_questions.length}</span></div>${pack.open_questions.length ? `<ol class="launch-question-list">${pack.open_questions.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ol>` : `<div class="success-note">当前没有未处理的内部事项。</div>`}</section>
-      <section class="card"><div class="card-header"><div><h2>风险说明</h2><p>不把 AI 草案伪装成正式客户结论</p></div><span class="card-label">RISK REGISTER</span></div><div class="launch-risk-list">${pack.risks.map((item) => `<p>${escapeHtml(item)}</p>`).join("")}</div></section>
-    </div>
-
-    <section class="card version-card">
-      <div class="card-header"><div><h2>投放执行方案版本</h2><p>在发送客户或开始搭建前保存快照</p></div><button class="button button-secondary button-small" data-save-launch-version>保存当前版本</button></div>
-      ${versions.length ? `<div class="version-list">${versions.map((version) => `<div class="version-row"><div><strong>${escapeHtml(version.name)}</strong><span>${dateText(version.savedAt)}</span></div><button class="button button-ghost button-small" data-restore-launch-version="${attr(version.id)}">恢复</button></div>`).join("")}</div>` : `<p class="muted">还没有保存投放执行方案快照。</p>`}
+      <div class="card-header"><div><h2>上线检查</h2><p>人工更新状态；任何阻塞项未关闭时不得正式花费</p></div><span class="card-label">负责人 × 证据</span></div>
+      <div class="table-wrap"><table class="launch-gate-table"><thead><tr><th>类别</th><th>检查项</th><th>状态</th><th>负责人</th><th>证据 / 缺口</th></tr></thead><tbody>${pack.launch_checklist.map((item) => `<tr><td><span class="gate-category">${escapeHtml(launchGateCategoryText(item.category))}</span></td><td><strong>${escapeHtml(item.item)}</strong></td><td><select class="gate-status ${attr(item.status)}" data-launch-status="${attr(item.id)}">${statusOptions(item.status)}</select></td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.evidence)}</td></tr>`).join("")}</tbody></table></div>
     </section>
   </div>`;
 }
 
 function renderLaunch(project) {
-  const record = launchPackRecord(project);
-  const actions = record?.result
-    ? `<button class="button button-ghost" data-export-launch-pack>导出文档</button><button class="button button-ghost" data-export-launch-html>导出网页</button><button class="button button-secondary" data-save-launch-version>保存版本</button>`
-    : "";
   const mode = isLiveAiMode() ? routeDetail("launchPack") : "本地演示 · 不耗额度";
-  return `${pageHeader("阶段 03 · 执行方案", "投放执行方案", "", actions)}
-    <section class="card launch-runbar mb-16"><div><strong>本页主操作</strong><span>${escapeHtml(mode)} · 只生成计划，不改广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : isLiveAiMode() ? "生成执行方案" : "生成演示执行方案"}</button></section>
+  return `${pageHeader("阶段 03 · 上线执行", "上线执行", "", "")}
+    <section class="card launch-runbar mb-16"><div><strong>生成上线检查与首周动作</strong><span>${escapeHtml(mode)} · 不改广告账户</span></div><button class="button button-primary" data-run-launch-pack ${aiBusy ? "disabled" : ""}>${aiBusy ? "正在生成…" : isLiveAiMode() ? "生成上线清单" : "生成演示清单"}</button></section>
     ${renderLaunchPackResult(project)}`;
 }
 
@@ -1377,7 +1383,7 @@ function renderExperimentPlanResult(project) {
   const plan = record?.result;
   if (!plan) {
     return `<section class="card experiment-empty">
-      <div><span class="card-label">执行方案 → 学习沉淀</span><h2>建立第一份实验账本</h2><p>生成实验队列、样本门槛和结果记录模板。</p></div>
+      <div><span class="card-label">上线执行 → 学习沉淀</span><h2>建立第一份实验账本</h2><p>生成实验队列、样本门槛和结果记录模板。</p></div>
       <div class="launch-input-summary">
         <div><span>素材简报</span><strong>${project.launch?.pack?.result?.creative_briefs?.length || project.creativePlan?.length || 0}</strong></div>
         <div><span>已有数据</span><strong>${project.data?.metrics ? `${project.data.metrics.period?.activeDays || "—"} 天` : "未导入"}</strong></div>
@@ -2377,7 +2383,7 @@ function recalculateLaunchReadiness(pack, updateSummary = false) {
     blockers
   };
   if (updateSummary) {
-    pack.executive_summary = `上线检查项已由优化师更新：当前就绪度 ${pack.readiness.score}%，${blockers.length ? `存在 ${blockers.length} 个阻塞项，正式花费前必须关闭。` : pack.readiness.status === "conditional" ? "没有硬阻塞项，但仍有待确认事项。" : "所有检查项已标记为可上线，仍建议由项目负责人做最终复核。"}`;
+    pack.executive_summary = `上线检查项已由优化师更新：${blockers.length ? `存在 ${blockers.length} 个阻塞项，正式花费前必须关闭。` : pack.readiness.status === "conditional" ? "没有硬阻塞项，但仍有待确认事项。" : "所有检查项已标记为可上线，正式花费前仍需项目负责人最终复核。"}`;
   }
 }
 
@@ -2386,7 +2392,7 @@ async function runLaunchPack() {
   const project = activeProject();
   const projectId = project.id;
   if (!project.intake?.analysis?.result && !project.strategy?.objective) {
-    showToast("建议先整理客户资料或完善策略初稿，再生成投放执行方案。", "error");
+    showToast("建议先整理客户资料或完善策略初稿，再生成上线执行清单。", "error");
     return;
   }
   aiBusy = true;
@@ -2418,7 +2424,7 @@ async function runLaunchPack() {
       target.launch.checklist = Object.fromEntries(payload.result.launch_checklist.map((item) => [item.id, item.status === "ready"]));
     });
     if (!saved) throw new Error("当前项目已变化或本地保存失败，结果未写入");
-    showToast(completionMessage("投放执行方案已生成", payload));
+    showToast(completionMessage("上线执行清单已生成", payload));
   } catch (error) {
     handleAiFailure(error);
   } finally {
@@ -2434,7 +2440,7 @@ async function runExperimentPlan() {
   const projectId = project.id;
   const launchPack = project.launch?.pack?.result || null;
   if (!launchPack) {
-    showToast("请先生成投放执行方案；实验账本会从执行方案中建立测试口径。", "error");
+    showToast("请先生成上线执行清单；实验账本会从已确认素材与上线口径建立测试计划。", "error");
     return;
   }
   aiBusy = true;

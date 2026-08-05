@@ -119,7 +119,7 @@ function checklist(project, intakeResult, activePlatforms) {
   const items = [
     { id: "strategy-market", category: "strategy", item: "市场、语言与商店可用范围已冻结", status: marketKnown ? "ready" : "blocker", owner: "项目负责人", evidence: marketKnown ? text(project.markets) : "需要客户确认正式投放国家与语言" },
     { id: "strategy-budget", category: "strategy", item: "总预算与媒体上限已批准", status: budgetKnown ? "ready" : "blocker", owner: "客户 / 项目负责人", evidence: budgetKnown ? `${project.currency || "USD"} ${Number(project.budget).toLocaleString("en-US")} / 月` : "预算缺失，不能确定媒体数量与学习可行性" },
-    { id: "tracking-events", category: "tracking", item: "MMP、媒体事件与业务事件映射已测试", status: attributionKnown ? "needs_confirmation" : "blocker", owner: "数据 / 投放", evidence: attributionKnown ? `主归因候选：${project.attribution}，仍需测试事件回传` : "归因来源未确认" },
+    { id: "tracking-events", category: "tracking", item: "完成 MMP、媒体事件与业务事件映射测试", status: attributionKnown ? "needs_confirmation" : "blocker", owner: "数据 / 投放", evidence: attributionKnown ? `主归因候选：${project.attribution}，仍需测试事件回传` : "归因来源未确认" },
     { id: "campaign-blueprint", category: "campaign", item: "Campaign 命名、目标、出价和预算说明已冻结", status: activePlatforms.length ? "ready" : "blocker", owner: "投放", evidence: activePlatforms.length ? `${activePlatforms.length} 个媒体进入首轮搭建` : "没有可执行媒体" },
     { id: "creative-supply", category: "creative", item: "首批素材数量、格式、语言和交付日期已确认", status: creativeKnown ? "ready" : "needs_confirmation", owner: "素材 / 客户", evidence: creativeKnown ? "已存在客户素材说明或项目素材计划" : "素材产能未确认" },
     { id: "operations-timeline", category: "operations", item: "上线时间、审核缓冲和首周值班人已确认", status: timelineKnown ? "ready" : "needs_confirmation", owner: "项目负责人", evidence: timelineKnown ? briefField(intakeResult, "timeline")?.value || "已确认" : "上线时间与负责人待确认" }
@@ -227,8 +227,8 @@ export function buildMockLaunchPack(project = {}, intakeResult = null) {
 
   return {
     schema_version: "1.0",
-    title: `${project.name || "未命名项目"} · 投放执行方案 v0`,
-    executive_summary: `【演示】已将当前资料、策略初稿和项目设置转化为投放执行方案。首轮建议启用 ${activePlatforms.join("、") || "待确认媒体"}；当前就绪度 ${score}%，${blockers.length ? `仍有 ${blockers.length} 个上线阻塞项。` : "没有硬阻塞项，但仍需负责人复核。"}`,
+    title: `${project.name || "未命名项目"} · 上线执行清单`,
+    executive_summary: `【演示】已基于当前资料生成上线检查、监测口径和 Day 0–7 行动。${blockers.length ? `仍有 ${blockers.length} 个上线阻塞项。` : "没有硬阻塞项，但仍需负责人最终复核。"}`,
     readiness: { score, status: blockers.length ? "blocked" : launchChecklist.some((item) => item.status === "needs_confirmation") ? "conditional" : "ready", blockers },
     assumptions: [
       ...(!budget ? ["预算尚未确认，所有媒体金额保持为空。"] : []),

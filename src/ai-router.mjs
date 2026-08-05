@@ -63,7 +63,7 @@ const DEFAULT_ROUTES = {
   },
   launchPack: {
     key: "launchPack",
-    label: "生成投放执行方案",
+    label: "生成上线执行清单",
     modelTier: "deep",
     model: "gpt-5.6-sol",
     effort: "high",

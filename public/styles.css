@@ -2728,6 +2728,11 @@ tbody tr:hover td {
   line-height: 1.8;
 }
 
+.launch-checklist-empty {
+  grid-template-columns: 1fr;
+  min-height: 210px;
+}
+
 .launch-input-summary {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2759,6 +2764,38 @@ tbody tr:hover td {
   margin-top: 9px;
   font-size: 14px;
   line-height: 1.5;
+}
+
+.launch-execution-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--line);
+}
+
+.launch-execution-summary div {
+  min-height: 82px;
+  padding: 15px;
+  background: #fff;
+}
+
+.launch-execution-summary span,
+.readiness-state span {
+  display: block;
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.launch-execution-summary strong {
+  display: block;
+  margin-top: 7px;
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .launch-readiness {
@@ -2798,6 +2835,20 @@ tbody tr:hover td {
 .readiness-score span {
   color: var(--muted);
   font-size: 12px;
+}
+
+.readiness-state {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.readiness-state strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 18px;
+  line-height: 1.4;
 }
 
 .readiness-copy h2 {
@@ -4179,6 +4230,10 @@ tbody tr:hover td {
   .experiment-rule-grid,
   .decision-rule-strip {
     grid-template-columns: 1fr;
+  }
+
+  .launch-execution-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .experiment-lane.later {
