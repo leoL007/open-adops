@@ -25,6 +25,7 @@ import { parseRequestUrl } from "./src/request-url.mjs";
 import { parseGrokCliOutput } from "./src/grok-cli-output.mjs";
 import { formatServerStartupError } from "./src/server-startup-error.mjs";
 import { resolveStaticFile, shouldSendStaticBody } from "./src/static-request.mjs";
+import { detectCodexCli } from "./src/codex-cli.mjs";
 
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(APP_ROOT, "public");
@@ -34,7 +35,8 @@ const LAUNCH_PACK_SCHEMA_PATH = path.join(APP_ROOT, "schemas", "launch-pack.sche
 const EXPERIMENT_SCHEMA_PATH = path.join(APP_ROOT, "schemas", "experiment-plan.schema.json");
 const CREATIVE_REQUIREMENTS_SCHEMA_PATH = path.join(APP_ROOT, "schemas", "creative-requirements.schema.json");
 const PORT = Number(process.env.PORT || 4173);
-const CODEX_BIN = process.env.CODEX_BIN || "codex";
+const CODEX_CLI = detectCodexCli();
+const CODEX_BIN = CODEX_CLI.command;
 const GROK_BIN = process.env.GROK_BIN || process.env.OPENADOPS_GROK_BIN || "grok";
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 let activeAiJob = null;
@@ -367,6 +369,10 @@ function activeJobPayload() {
 
 function runCodexStructured({ prompt, schemaPath, validate, jobName, route, job, transform = (value) => value }) {
   return new Promise((resolve, reject) => {
+    if (!CODEX_CLI.available) {
+      reject(aiError(CODEX_CLI.error, "START_FAILED"));
+      return;
+    }
     const outputPath = path.join(tmpdir(), `openadops-${jobName}-${randomUUID()}.json`);
     const args = ["exec", "--ephemeral", "--sandbox", "read-only", "--color", "never"];
     args.push("--model", route.model);
@@ -410,7 +416,7 @@ function runCodexStructured({ prompt, schemaPath, validate, jobName, route, job,
     child.stderr.on("data", (chunk) => {
       stderr = (stderr + chunk.toString()).slice(-20000);
     });
-    child.on("error", (error) => finish(aiError(`无法启动 Codex CLI：${error.message}`, "START_FAILED")));
+    child.on("error", (error) => finish(aiError(`无法启动 Codex CLI（${CODEX_CLI.source}）：${error.message}。请重启 OpenAdOps 以重新检测 CLI。`, "START_FAILED")));
     child.on("close", async (code, signal) => {
       if (settled) return;
       if (job.cancelRequested) {
@@ -934,6 +940,14 @@ const server = http.createServer(async (request, response) => {
       defaultLiveProvider: "grok",
       routes: publicGrokRoutes(),
       codexRoutes: publicAiRoutes(),
+      providers: {
+        codex: {
+          available: CODEX_CLI.available,
+          version: CODEX_CLI.version,
+          source: CODEX_CLI.source,
+          error: CODEX_CLI.error
+        }
+      },
       aiBusy: Boolean(activeAiJob),
       activeJob: activeJobPayload()
     });
@@ -985,7 +999,10 @@ server.on("error", (error) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`OpenAdOps v${APP_VERSION}: http://127.0.0.1:${PORT}`);
-  console.log("AI routing: Grok 4.5 high via local Grok CLI · Codex path retained for later · mock without model usage");
+  console.log("AI routing: Grok 4.5 high via local Grok CLI · GPT 5.6 via local Codex CLI · mock without model usage");
+  console.log(CODEX_CLI.available
+    ? `Codex CLI: ${CODEX_CLI.version} · ${CODEX_CLI.source}`
+    : `Codex CLI unavailable: ${CODEX_CLI.error}`);
 });
 
 export {

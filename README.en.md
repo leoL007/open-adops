@@ -95,6 +95,8 @@ npm start
 
 Open `http://127.0.0.1:4173`. No `npm install` — Node built-ins only.
 
+OpenAdOps automatically discovers Codex CLI through `CODEX_BIN`, PATH, the ChatGPT app bundle, and the Codex plugin directory. Use `CODEX_BIN="/absolute/path/to/codex" npm start` only when you need an explicit override.
+
 ```bash
 npm run check
 ```
@@ -187,7 +189,7 @@ Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
 npm run check
 ```
 
-**139** automated tests cover intake, creative-requirement validation and Feishu table copying, execution plans, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
+**144** automated tests cover intake, creative-requirement validation and Feishu table copying, launch execution, experiment ledgers, optimization decision history, workspace backup and migration safety, AI request errors, Codex CLI discovery, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
 
 ## Current scope
 

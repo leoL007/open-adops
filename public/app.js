@@ -128,6 +128,7 @@ const DEFAULT_GROK_ROUTES = Object.fromEntries(
 let codexRoutes = { ...DEFAULT_CODEX_ROUTES };
 let grokRoutes = { ...DEFAULT_GROK_ROUTES };
 let aiRoutes = { ...DEFAULT_GROK_ROUTES };
+let runtimeProviders = {};
 
 const BRIEF_FIELD_META = Object.fromEntries(INTAKE_BRIEF_FIELDS.map(([key, label]) => [key, { label, multiline: ["audience", "creative_supply", "compliance", "constraints"].includes(key) }]));
 
@@ -627,6 +628,10 @@ async function loadAiRuntime() {
     else if (payload.routes && !payload.defaultLiveProvider) {
       // Older servers only returned Codex routes under `routes`.
       codexRoutes = labelize(DEFAULT_CODEX_ROUTES, payload.routes);
+    }
+    runtimeProviders = payload.providers && typeof payload.providers === "object" ? payload.providers : {};
+    if (state.aiMode === "codex" && runtimeProviders.codex?.available === false) {
+      showPersistentError(runtimeProviders.codex.error || "本机未检测到 Codex CLI，请重启 OpenAdOps 后重试。");
     }
     applyRoutesForMode();
   } catch {
@@ -1632,11 +1637,14 @@ function refreshShell(project) {
   document.querySelectorAll("[data-ai-mode]").forEach((button) => {
     const active = button.dataset.aiMode === state.aiMode;
     const liveMode = isLiveProviderMode(button.dataset.aiMode);
+    const unavailable = !isStaticDemo && runtimeProviders[button.dataset.aiMode]?.available === false;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", active ? "true" : "false");
-    button.disabled = aiBusy || (isStaticDemo && liveMode);
+    button.disabled = aiBusy || (isStaticDemo && liveMode) || unavailable;
     if (isStaticDemo && liveMode) {
       button.title = "请在本地启动后使用 Grok 4.5 / GPT 5.6";
+    } else if (unavailable) {
+      button.title = runtimeProviders[button.dataset.aiMode]?.error || "本机未检测到对应 CLI";
     } else {
       button.removeAttribute("title");
     }
@@ -3172,6 +3180,10 @@ function setAiMode(mode) {
   if (aiBusy) return;
   if (isStaticDemo && isLiveProviderMode(mode)) {
     showToast("在线演示只能使用本地演示模式，请本机 npm start 后使用 Grok 4.5 / GPT 5.6。", "error");
+    return;
+  }
+  if (runtimeProviders[mode]?.available === false) {
+    showPersistentError(runtimeProviders[mode].error || "本机未检测到对应 CLI，请重启 OpenAdOps 后重试。");
     return;
   }
   const nextState = { ...state, aiMode: normalizeAiMode(mode, { staticDemo: isStaticDemo }) };

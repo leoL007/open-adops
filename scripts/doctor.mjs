@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { detectCodexCli } from "../src/codex-cli.mjs";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const checks = [];
@@ -28,11 +29,11 @@ check(
     : "not found — optional; use 本地演示, or install/login grok on this machine"
 );
 
-const codex = spawnSync(process.env.CODEX_BIN || "codex", ["--version"], { encoding: "utf8", shell: false });
+const codex = detectCodexCli();
 check(
   "Codex CLI (optional · GPT-5.6 mode)",
-  codex.status === 0,
-  codex.status === 0 ? codex.stdout.trim() : "not found — optional"
+  codex.available,
+  codex.available ? `${codex.version} · ${codex.source}` : codex.error
 );
 
 console.log("OpenAdOps doctor\n");

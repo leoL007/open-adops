@@ -24,6 +24,8 @@ All notable changes to OpenAdOps are documented here.
 ### Fixed
 
 - 素材规格或数量未知时允许保持空白，AI 不再为了满足 Schema 编造默认值。
+- Codex CLI 不再只依赖启动终端的 PATH：服务会自动检查 `CODEX_BIN`、PATH、ChatGPT App、Codex 插件目录和常见安装目录，避免应用更新后出现 `spawn codex ENOENT`。
+- 健康检查与 Doctor 会显示实际识别到的 Codex CLI 版本和来源；未找到时提前禁用 GPT 5.6，并提供可执行的重启提示。
 
 ## [0.6.0] - 2026-08-04
 
