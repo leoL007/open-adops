@@ -9,7 +9,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.6.0-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Release](https://img.shields.io/badge/Release-v0.6.1-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
 [简体中文](./README.md) · [English](./README.en.md) · [Product](./PRODUCT.md) · [Roadmap](./ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
 
@@ -17,7 +17,7 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 
 ![OpenAdOps overview](./assets/openadops-overview.jpg)
 
-## Current release (v0.6.0)
+## Current release (v0.6.1)
 
 - **End-to-end loop**: intake → strategy draft → optional build strategy → **creative requirements** → **launch execution** → **experiment ledger** → optimize → report
 - **Three AI modes**: local demo, Grok 4.5, and GPT 5.6 with task-aware local routing and schema validation

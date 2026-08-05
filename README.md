@@ -9,7 +9,7 @@ OpenAdOps 是面向海外广告优化师的**本地优先** AI 投放工作台�
 [![Live Demo](https://img.shields.io/badge/Live_Demo-在线演示-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
 [![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.6.0-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Release](https://img.shields.io/badge/Release-v0.6.1-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
 
 [简体中文](./README.md) · [English](./README.en.md) · [产品定义](./PRODUCT.md) · [路线图](./ROADMAP.md) · [参与贡献](./CONTRIBUTING.md)
 
@@ -17,7 +17,7 @@ OpenAdOps 是面向海外广告优化师的**本地优先** AI 投放工作台�
 
 ![OpenAdOps 项目总览](./assets/openadops-overview.jpg)
 
-## 当前版本（v0.6.0）
+## 当前版本（v0.6.1）
 
 - **完整主链路**：需求接收 → 策略初稿 → 可选搭建策略 → **素材需求** → **上线执行** → **实验账本** → 投放优化 → 报告输出
 - **三档 AI 模式**：本地演示、Grok 4.5 与 GPT 5.6；本机 Bridge 按任务路由并校验结构化结果

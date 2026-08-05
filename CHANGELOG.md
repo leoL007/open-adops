@@ -4,6 +4,8 @@ All notable changes to OpenAdOps are documented here.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-05
+
 ### Changed
 
 - 素材需求页改为设计交付表：每条只保留素材参考、文案、修改要求、规格和数量，媒体与市场使用项目级信息。
