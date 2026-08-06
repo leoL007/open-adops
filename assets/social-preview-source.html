@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OpenAdOps Social Preview</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; }
+      body {
+        font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: #f7f8fa;
+        background:
+          radial-gradient(circle at 19% 18%, rgba(231, 116, 54, 0.14), transparent 28%),
+          linear-gradient(135deg, #10151b 0%, #151b23 58%, #0d1117 100%);
+      }
+      .canvas {
+        position: relative;
+        width: 1280px;
+        height: 640px;
+        padding: 58px 0 54px 64px;
+        overflow: hidden;
+      }
+      .canvas::after {
+        content: "";
+        position: absolute;
+        left: 190px;
+        bottom: -290px;
+        width: 560px;
+        height: 560px;
+        border: 1px solid rgba(231, 116, 54, 0.2);
+        border-radius: 50%;
+        box-shadow: 0 0 0 42px rgba(231, 116, 54, 0.05), 0 0 0 84px rgba(231, 116, 54, 0.035);
+      }
+      .brand {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 56px;
+        height: 56px;
+        border-radius: 15px;
+        color: #fff;
+        font-size: 23px;
+        font-weight: 800;
+        background: linear-gradient(145deg, #f18a4d, #d85e20);
+        box-shadow: 0 12px 28px rgba(231, 116, 54, 0.26);
+      }
+      .brand strong { font-size: 32px; letter-spacing: -0.04em; }
+      .copy {
+        position: relative;
+        z-index: 2;
+        width: 455px;
+        margin-top: 56px;
+      }
+      h1 {
+        margin: 0;
+        max-width: 450px;
+        font-size: 52px;
+        line-height: 1.08;
+        letter-spacing: -0.055em;
+      }
+      h1 span { color: #f07b3b; }
+      .sub {
+        margin: 24px 0 0;
+        max-width: 390px;
+        color: #b8c0cb;
+        font-size: 21px;
+        line-height: 1.5;
+      }
+      .tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 28px;
+      }
+      .tag {
+        padding: 7px 11px;
+        border: 1px solid rgba(255, 255, 255, 0.11);
+        border-radius: 999px;
+        color: #d8dde4;
+        font-size: 12px;
+        background: rgba(255, 255, 255, 0.045);
+      }
+      .product {
+        position: absolute;
+        z-index: 3;
+        top: 70px;
+        left: 548px;
+        width: 790px;
+        height: 500px;
+        padding: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 28px 64px rgba(0, 0, 0, 0.38);
+        transform: rotate(-1deg);
+      }
+      .product img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: left top;
+        border-radius: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="canvas">
+      <div class="brand"><span class="mark">OA</span><strong>OpenAdOps</strong></div>
+      <section class="copy">
+        <h1>From scattered inputs to <span>defensible ad decisions.</span></h1>
+        <p class="sub">A local-first AI workspace for paid-media operators.</p>
+        <div class="tags">
+          <span class="tag">Google Ads</span><span class="tag">Meta Ads</span><span class="tag">TikTok Ads</span><span class="tag">AppsFlyer</span><span class="tag">Codex</span>
+        </div>
+      </section>
+      <figure class="product"><img src="./screenshots/overview.png" alt="OpenAdOps workspace" /></figure>
+    </main>
+  </body>
+</html>

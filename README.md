@@ -2,96 +2,102 @@
 
 # OpenAdOps
 
-### 从客户碎片信息，到有证据、可执行、可验证的投放决策
+### 本地优先的海外广告投放工作台
 
-OpenAdOps 是面向海外广告优化师的**本地优先** AI 投放工作台：把客户资料、零散投放意见，以及 Google Ads、Meta Ads、TikTok Ads、AppsFlyer 数据，整理成策略初稿、素材需求、上线执行清单、优化判断与客户报告。
+把客户 Offer、投放要求与媒体数据，整理成**素材需求、上线清单、优化动作和客户报告**。
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-在线演示-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
-[![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.6.1-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![在线演示](https://img.shields.io/badge/在线演示-打开工作台-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
+[![本地完整版](https://img.shields.io/badge/本地完整版-安装说明-1B2430?style=for-the-badge)](./docs/INSTALL.md)
+[![最新版本](https://img.shields.io/badge/最新版本-查看_Release-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases/latest)
+
+[![Tests](https://github.com/leoL007/open-adops/actions/workflows/test.yml/badge.svg)](https://github.com/leoL007/open-adops/actions/workflows/test.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/leoL007/open-adops?display_name=tag)](https://github.com/leoL007/open-adops/releases)
+[![License](https://img.shields.io/github/license/leoL007/open-adops)](./LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-17845C)](https://nodejs.org/)
 
 [简体中文](./README.md) · [English](./README.en.md) · [产品定义](./PRODUCT.md) · [路线图](./ROADMAP.md) · [参与贡献](./CONTRIBUTING.md)
 
 </div>
 
-![OpenAdOps 项目总览](./assets/openadops-overview.jpg)
+![OpenAdOps 项目总览](./assets/screenshots/overview.png)
 
-## 当前版本（v0.6.1）
-
-- **完整主链路**：需求接收 → 策略初稿 → 可选搭建策略 → **素材需求** → **上线执行** → 投放优化 → 报告输出
-- **三档 AI 模式**：本地演示、Grok 4.5 与 GPT 5.6；本机 Bridge 按任务路由并校验结构化结果
-- **中文界面优先**：按钮、状态、生成提示与产品模块名统一中文；行业词保留英文（如 Google Ads、CPI、ROAS、CSV）
-- **任务级智能路由**：投放前策略清单与快速策略用轻量模型；深度复核与上线执行用更强模型；结构校验失败可自动复核
-- **目标按需配置**：媒体 CPI、AF-CPI、CPA、ROAS 可独立添加或删除，并区分「仅观察 / 测试阈值 / 正式目标」；学习期无需填写假 KPI
-- **搭建策略按需启用**：不需要单独策略的项目可以直接跳过；需要时按 Campaign / Ad group / Ad 录入参数并导出 Excel
-- **代码算数、AI 做判断**：指标与周期变化由确定性代码计算，避免「看起来很专业」的假精度
-- **工作区备份**：顶栏可「导出当前 / 导出全部 / 导入备份」JSON，换机或清浏览器可恢复
-- **模型信息一致**：所有生成入口、状态与结果统一显示 Terra / Sol 和推理档，不再重复或隐藏模型名
-- **优化诊断使用 Sol**：投放优化单独使用 Sol 高推理；策略与素材判断继续使用 Terra 中档
-- **素材需求可交接**：按真实设计需求单整理参考、文案、修改备注与数量需求；AI 提出候选补充，确认后可直接复制为飞书表格
-- **映射模板可复用**：常用媒体 / AppsFlyer 报表映射可保存到工作区，相同表头自动套用，并随完整工作区备份迁移
-- **周期对比可追溯**：选择两个不重叠日期区间，由代码计算花费、安装、CPI、CPA、ROAS 的同口径变化
-- **优化决策有历史**：每次诊断保留当时的数据区间、聚合指标、模型建议与人工复核状态，可在报告中追溯
-- **优化动作能闭环**：把诊断拆成逐条动作，分别确认、执行和验证；素材与归因类动作可流转到对应工作区
-- **Codex 失败可诊断**：区分退出码与终止信号，隐藏无关 Skill 日志，并按任务缩小 Skill 加载范围
-- **本地运行更可靠**：工作区迁移失败保住已读取项目；AI 取消、服务离线和异常响应都有明确状态
-- **旧进程可识别**：页面与本机 Bridge 版本不一致时提示重启；4173 端口被占用时给出直接处理方式
-- **本地路由更稳健**：畸形 Host 或非法请求地址不会拖垮整个工作台服务
-- **日期口径可审计**：不存在的日历日期不进入周期与对比；受影响行仍保留在总计并明确提示
-- **坏表不静默通过**：重复表头或未闭合引号在读取阶段直接报错，不生成残缺指标
-- **零值不冒充效率**：零分母的 CPI / CPA / CTR 等显示为不可计算，真实 0 与缺失证据严格分开
-- **演示也不编 KPI**：只有已配置 AF-CPI 阈值时才使用倍数暂停规则；仅观察与缺失目标保持学习期表述
-- **异常数值不静默归零**：已映射列里的 `N/A`、`--` 等内容会阻止导入并按字段提示；空白值单独计数
-- **数据质量可追溯**：空白数值与无效日期持续显示在优化页、报告和对应的优化诊断历史中
-- **导入完整性更严格**：错列 CSV、损坏千分位、尾随字符日期和畸形备份在进入项目之前被明确拒绝
-- **归因指标不串线**：AF 安装已映射但为 0 时，CVR 与 D1 留存不会借用媒体安装作为分母或分子
+> GitHub Pages 是不调用模型的 Mock 演示。完整能力在本机运行，并使用操作者自己的 Codex 或 Grok 登录。
 
 ## 为什么需要 OpenAdOps
 
-投放工作通常散落在媒体后台、Excel、截图、群聊和临时文档里。通用聊天可以写字，却很难：
+海外投放工作通常散落在媒体后台、Excel、截图、群聊和临时文档里。通用 AI 可以生成文字，却很难持续保存项目上下文、守住指标口径，并把建议变成可追溯的动作。
 
-- 持续保存项目上下文  
-- 分清「客户已确认 / AI 推断 / 资料缺失」  
-- 保证 CPI、AF-CPI、CPA、ROAS 等计算口径正确
+| 真实问题 | OpenAdOps 的处理方式 |
+| --- | --- |
+| 客户资料零散，缺失信息容易被脑补 | 区分已确认、推断与缺失，不编造预算和 KPI |
+| 素材需求、上线准备和优化记录彼此割裂 | 在同一项目里串起从接收到报告的工作流 |
+| CPI、AF-CPI、CPA、ROAS 容易混算 | 由确定性代码计算，AI 只负责判断与建议 |
+| AI 建议难以落地和复盘 | 每条动作由优化师确认、执行、验证或拒绝 |
 
-OpenAdOps 把一条完整链路放进同一个本地项目：
+## 一条真实的投放工作流
 
-1. **需求接收**：粘贴客户资料与投放意见，整理结构化简报与优化师投放前策略清单
-2. **策略初稿**：生成带假设的前期策略（可快速生成，也可深度复核）  
-3. **搭建策略（可选）**：记录 Campaign、Ad group、事件、出价、版位、排除、素材数量与复盘口径，导出 Excel
-4. **素材需求**：继承上游资料，由 AI 提示制作边界与候选需求，优化师确认后复制到飞书云文档
-5. **上线执行**：汇总已确认配置，检查账户、归因、素材和合规阻塞，生成 Day 0–7 动作
-6. **投放优化**：导入 CSV，代码算 KPI，再基于证据生成诊断；逐条确认动作、流转任务并记录前后周期验证结论
-7. **报告输出**：管理层 / 客户可读的 HTML 与打印 / PDF，包含最近优化动作、状态与验证记录
+```text
+需求接收 → 搭建策略（可选）→ 素材需求 → 上线执行 → 投放优化 → 报告输出
+```
 
-## 和普通 AI 对话有什么不同
+| 阶段 | 交付物 |
+| --- | --- |
+| **需求接收** | 结构化项目 Brief 与优化师投放前清单 |
+| **搭建策略（可选）** | Campaign / Ad group / Ad 参数与 Excel |
+| **素材需求** | 给设计团队的参考、文案、修改备注与数量需求 |
+| **上线执行** | 上线状态、归因口径、检查项和 Day 0–7 动作 |
+| **投放优化** | 同口径 KPI、周期对比、诊断与逐条优化动作 |
+| **报告输出** | 管理层 / 客户可读的 HTML、打印与 PDF |
 
-- **代码负责计算**：CSV 指标、周期对比与相对变化
-- **AI 负责判断**：策略、诊断、素材测试、下一步动作，且输出受 JSON Schema 约束  
-- **证据跟着结论走**：证据、诊断、动作、置信度、验证方式分开呈现  
-- **未知信息不偷偷补全**：已确认 / 推断 / 缺失状态可见  
-- **学习期不强填 KPI**：可以只选衡量指标并留空阈值；0 不会被当成目标，未确认阈值不会进入止损或扩量规则
-- **上线执行不重做策略**：只读取前面已确认的媒体、事件、出价、预算和素材需求
-- **上线检查项有责任人**：存在阻塞项时不会显示「可上线」  
-- **无结论也是结论**：达不到样本门槛记为「无明确结论」，不包装成赢家  
-- **本地优先**：项目在浏览器本地；原始 CSV 明细不送进 AI；粘贴资料仅在你主动运行时提交给本机模型  
-- **失败不编造**：模型失败会明确报错，而不是假装成功  
-- **无账号也能体验**：[GitHub Pages 本地演示](https://leol007.github.io/open-adops/) 不依赖 Codex 或 API Key  
+## 看看实际工作台
+
+| AI 素材建议 | 上线执行 |
+| --- | --- |
+| ![AI 素材建议](./assets/screenshots/creative-requirements.png) | ![上线执行](./assets/screenshots/launch-execution.png) |
+
+### 投放优化
+
+![投放优化](./assets/screenshots/optimization.png)
+
+## 它和普通 AI 对话有什么不同
+
+- **代码算数**：花费、安装、AF 安装、CPI、AF-CPI、CPA、ROAS 与周期变化由代码计算。
+- **AI 做判断**：策略、素材边界、上线风险和优化建议受 JSON Schema 约束。
+- **优化师做决定**：AI 候选不会自动覆盖正式内容，每条动作都需要人工复核。
+- **证据跟着结论走**：数据区间、聚合指标、模型、判断、状态和验证结论可以追溯。
+- **未知信息保持未知**：学习期可以只观察指标，不要求填写假目标。
+- **失败不伪装成功**：模型退出、超时、结构错误与服务离线都有明确状态。
+
+## 本地优先，不共享账号
+
+```text
+浏览器工作台  →  本机 OpenAdOps Bridge  →  使用者自己的 Codex / Grok CLI
+  项目数据              结构校验                     模型判断
+```
+
+- 项目保存在当前浏览器；支持导出和恢复工作区备份。
+- 原始 CSV 明细仅在当前页面解析，项目只保存聚合指标。
+- OpenAdOps 不附带、不上传，也不共享 Codex 登录文件或 API Key。
+- 不连接、不修改真实广告账户；上线与优化动作始终由人工执行。
 
 ## 60 秒开始
 
-### 在线体验（仅演示）
+### 在线体验
 
-打开 [在线演示](https://leol007.github.io/open-adops/)。纯浏览器运行，使用明确标注的演示数据；**不能**调用本机模型。
+打开 [GitHub Pages 演示](https://leol007.github.io/open-adops/)。无需账号、不耗模型额度，但不能调用本机模型。
 
-### 本地运行（完整能力）
+### 本地完整版
 
-macOS 可直接在 Finder 双击仓库根目录的 **「打开 OpenAdOps.command」**。启动器会检查环境、避免重复启动，并在服务就绪后自动打开工作台；运行期间按 `Control + C` 即可停止。
+1. 打开 [Releases](https://github.com/leoL007/open-adops/releases) 并下载完整项目。
+2. 确认电脑已安装 Node.js 20+ 和 Codex CLI。
+3. 首次使用运行 `codex login`，登录自己的 ChatGPT / Codex 账号。
+4. macOS 双击 `打开 OpenAdOps.command`；Windows 双击 `OpenAdOps.cmd`。
+5. 启动器检查环境后会自动打开 `http://127.0.0.1:4173`。
 
-Windows 可双击根目录的 **`OpenAdOps.cmd`**。首次使用会检查 Codex CLI，并引导使用者登录自己的 ChatGPT / Codex 账号。完整步骤见 [本地完整版安装说明](docs/INSTALL.md)。
+完整步骤与故障排查见 [本地完整版安装说明](./docs/INSTALL.md)。
 
-也可以继续使用终端启动：
+<details>
+<summary><strong>开发者：使用终端启动</strong></summary>
 
 ```bash
 git clone https://github.com/leoL007/open-adops.git
@@ -99,111 +105,72 @@ cd open-adops
 npm start
 ```
 
-浏览器打开：`http://127.0.0.1:4173`  
+OpenAdOps 只使用 Node.js 原生模块，无需 `npm install`。
 
-只需 Node.js 原生模块，**不需要** `npm install`。
+</details>
 
-OpenAdOps 会自动从 `CODEX_BIN`、PATH、ChatGPT App 和 Codex 插件目录寻找 Codex CLI；应用更新导致 PATH 变化时，无需手动改代码。仍可用 `CODEX_BIN="/绝对路径/codex" npm start` 强制指定。
-
-完整检查：
-
-```bash
-npm run check
-```
-
-## 分析模式
+## AI 模式
 
 | 界面名称 | 要求 | 作用 |
 | --- | --- | --- |
-| **本地演示** | 无 | 确定性演示结果，不耗模型额度 |
-| **Grok 4.5** | 本机已安装并登录 Grok CLI | 经本地 Node Bridge 调用 `grok`，统一使用 Grok 4.5 高推理 |
-| **GPT 5.6** | 本机已登录 Codex CLI | 经本地 Node Bridge 调用 `codex exec`，按任务选择 Terra / Sol 与推理档 |
+| **本地演示** | 无 | 确定性 Mock，不耗模型额度 |
+| **Grok 4.5** | 已安装并登录 Grok CLI | 本机 Bridge 调用 Grok 4.5 高推理 |
+| **GPT 5.6** | 已登录 Codex CLI | 按任务选择 Terra / Sol 与推理档 |
 
-任务级默认路由（不会继承全局 Codex 的超高推理配置）：
+<details>
+<summary><strong>查看 GPT 5.6 任务路由</strong></summary>
 
 | 任务 | 默认模型 | 推理档 |
 | --- | --- | --- |
-| 生成投放前策略清单 | `gpt-5.6-terra` | 低 |
-| 快速生成策略初稿 | `gpt-5.6-terra` | 中 |
-| 深度复核策略初稿 | `gpt-5.6-sol` | 高 |
-| 策略判断 | `gpt-5.6-terra` | 中 |
-| 生成素材需求建议 | `gpt-5.6-terra` | 中 |
+| 投放前策略清单 | `gpt-5.6-terra` | 低 |
+| 快速策略与素材建议 | `gpt-5.6-terra` | 中 |
+| 深度策略复核 | `gpt-5.6-sol` | 高 |
 | 投放优化诊断 | `gpt-5.6-sol` | 高 |
-| 生成上线执行清单 | `gpt-5.6-sol` | 高 |
+| 上线执行清单 | `gpt-5.6-sol` | 高 |
 
-Terra 输出若未过结构校验，会自动用 `gpt-5.6-sol + 中` 复核一次。界面会区分 GPT-5.6 Terra / Sol、推理档、耗时与预计区间，并支持取消；失败原因会常驻提示。
+Terra 输出未通过结构校验时，会使用 Sol 中档自动复核一次。界面显示实际模型、推理档、耗时与失败原因。
 
-仅覆盖 OpenAdOps 路由、不改 Codex 全局配置：
+</details>
 
-```bash
-OPENADOPS_TERRA_MODEL=gpt-5.6-terra OPENADOPS_DEEP_MODEL=gpt-5.6-sol npm start
-```
+## 数据输入与指标边界
 
-兼容旧变量：`OPENADOPS_MODEL`、`OPENADOPS_REASONING_EFFORT`、`OPENADOPS_TIMEOUT_MS`（设置后可能覆盖全部任务，请谨慎）。
+CSV 必须包含 **Spend（花费）**，并至少有 **Media Installs（媒体安装）** 或 **AF Installs（AF 安装）** 之一。
 
-可选安装兼容的 Ads Skill（如 [Claude Ads](https://github.com/AgriciDaniel/claude-ads)）增强分析；不安装也可使用本地演示模式。
+- 自动识别常见中英文字段，可手动修正并保存映射模板。
+- 媒体安装与 AF 安装分开映射，避免 CPI 与 AF-CPI 假一致。
+- 无效数字、错列 CSV、非法日期与损坏备份会在进入项目之前被拒绝。
+- 零分母的效率指标保持“不可计算”，不会显示成假 0。
+- 两个不重叠周期可比较花费、安装、CPI、CPA 与 ROAS 的同口径变化。
 
-## 素材需求
+演示数据：[openadops-demo.csv](./public/data/openadops-demo.csv)
 
-在「素材需求」页，把上游资料整理成与设计团队日常表格一致的制作需求：
+## 当前边界
 
-- 媒体与市场使用项目级信息，不在每条素材里重复填写
-- 每条只记录素材参考、文案、修改备注和数量需求
-- 素材参考由优化师手动填写；当前 AI 不负责寻找视频或素材，因此 AI 建议中的该字段始终留空
-- 共性制作边界集中写在默认折叠的「给设计的统一要求」，仅作为全局备注，不会占用飞书表格的素材行
-- 点击页头「AI 生成素材建议」后，在右侧抽屉填写补充重点、查看风险并采纳建议行
-- AI 候选需由优化师逐条采纳；上线执行不会反向覆盖正式素材需求
-- 点击「复制飞书表格」后直接粘贴到飞书云文档；输出是 5 列富文本表格，不是长篇 Markdown 文档
-- 图片和视频文件不写入浏览器存储，可在飞书表格中继续补充缩略图或附件
+- 支持 CSV；XLSX 请先导出为 CSV。
+- 支持粘贴文字资料；暂不提供 OCR 和通用文档解析。
+- 项目保存在浏览器；暂不提供多人实时协作。
+- 素材参考由优化师填写；AI 暂不负责搜索视频或竞品素材。
+- 聚焦 Google Ads、Meta Ads、TikTok Ads 与 AppsFlyer 的 App UA 工作流。
+- 归因窗口、事件定义与利润口径仍需优化师人工确认。
 
-## 上线执行
-
-在「上线执行」页汇总上游已确认内容，只处理投放前最后一道检查：
-
-- 上线摘要：媒体、市场、搭建状态、优化事件、出价、预算、素材需求和归因口径
-- 媒体反馈 / MMP 归因 / 业务后台三层口径
-- 上线检查项：状态、负责人、证据；金融场景含合规前置
-- Day 0、Day 1–3、Day 4–7 行动与决策规则
-- 状态只显示可上线 / 有条件上线 / 暂不可上线，不展示百分制假精确
-- 不再重复展示媒体策略、Campaign 蓝图或素材简报
-
-## CSV 输入
-
-必须包含 **Spend（花费）**，并至少有 **Media Installs（媒体安装）** 或 **AF Installs（AF 安装）** 之一。
-
-| 维度字段 | 指标字段 |
-| --- | --- |
-| Date, Platform, Country, Campaign, Ad group / Ad set, Creative, Conversion Event | Spend, Impressions, Clicks, Media Installs, AF Installs, Conversions, Revenue, D1 Retained |
-
-- 自动识别常见中英文字段别名，计算前可手工改映射  
-- 当前映射可保存为工作区模板；再次导入相同表头时自动套用，部分匹配时明确显示匹配数
-- **媒体安装与 AF 安装分开映射**：仅有 AF 列时不会误当成媒体安装，避免 CPI 与 AF-CPI 假一致  
-- 已映射数值列会先做质量检查；非法非空值阻止导入，空白值按 0 计入并明确提示数量
-- 映射日期后可比较对比期与本期；两个区间必须独立，原始行不写入项目，只保存聚合结果
-- 演示数据：[openadops-demo.csv](./public/data/openadops-demo.csv)  
-
-## 验证
+## 质量与验证
 
 ```bash
 npm run check
 ```
 
-当前 **158** 项自动化测试覆盖：macOS / Windows 简易启动器、需求接收、素材需求校验与飞书表格复制、上线执行、逐条优化动作、前后周期变化、优化决策历史、工作区备份与迁移保护、AI 请求错误、Codex CLI 跨平台自动发现、运行时版本校验、启动错误、请求地址解析、日历日期校验、CSV 行宽与数值质量、数据质量状态、预算占比、不可计算指标、Mock KPI 边界、静态服务边界、CSV 映射模板、周期对比、模型路由与标识、可选绩效目标、金融合规阻塞、小预算收敛、样本计算、转化事件身份、媒体别名合并、缺失数据保护、AF/媒体安装映射、媒体 CPI 与 AF-CPI、聚合与 Schema 校验。旧实验数据兼容逻辑仍有确定性测试覆盖；测试**不会**调用真实模型。
-
-## 当前范围
-
-- 直接导入 CSV；XLSX 请先导出为 CSV  
-- 需求接收支持粘贴文本；暂无 OCR / 文档解析  
-- 项目保存在当前浏览器；暂无多人同步  
-- 只生成策略、计划与建议，**不**连接或修改真实广告账户  
-- 聚焦 Google / Meta / TikTok + AppsFlyer 的 App UA 工作流  
-- 归因窗口、事件定义、利润口径仍需优化师确认  
-
-更多文档：[PRODUCT.md](./PRODUCT.md) · [产品参考](./docs/BENCHMARKS.md) · [实验方法](./docs/EXPERIMENTS.md) · [验收案例](./docs/USER_CASES.md) · [决策记录](./docs/DECISIONS.md) · [发布规范](./docs/RELEASING.md)
+当前有 **158 项确定性测试**，覆盖跨平台启动器、模型路由、Schema、素材需求、上线执行、CSV 质量、指标计算、周期对比、优化动作、备份与迁移。测试不会调用真实模型。
 
 ## 项目状态
 
-OpenAdOps 仍是早期公开版本。欢迎查看 [路线图](./ROADMAP.md)、提交 [功能建议](https://github.com/leoL007/open-adops/issues/new?template=feature_request.yml)，或贡献媒体 / 数据适配。
+OpenAdOps 仍处于早期公开阶段。欢迎：
+
+- 查看 [Roadmap](./ROADMAP.md)
+- 提交 [功能建议](https://github.com/leoL007/open-adops/issues/new?template=feature_request.yml)
+- 阅读 [产品定义](./PRODUCT.md) 与 [决策记录](./docs/DECISIONS.md)
+- 贡献媒体适配、字段映射或真实工作流反馈
+
+如果这个项目对你的投放工作有帮助，欢迎点一个 **Star**。
 
 ## License
 

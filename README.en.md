@@ -2,95 +2,102 @@
 
 # OpenAdOps
 
-### From fragmented client input to defensible paid-media decisions
+### A local-first paid-media operations workspace
 
-OpenAdOps is a **local-first** AI workspace for overseas app growth operators. It turns client briefs, rough media notes, and Google Ads / Meta Ads / TikTok Ads / AppsFlyer data into a strategy draft, creative requirements, a launch execution checklist, optimization judgments, and client-ready reports.
+Turn client offers, media requirements, and performance data into **creative requirements, launch checks, optimization actions, and client-ready reports**.
 
-[![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
-[![Node 20+](https://img.shields.io/badge/Node-20%2B-17845C?style=for-the-badge)](https://nodejs.org/)
-[![Release](https://img.shields.io/badge/Release-v0.6.1-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases)
+[![Live demo](https://img.shields.io/badge/Live_demo-Open_workspace-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
+[![Local edition](https://img.shields.io/badge/Local_edition-Install_guide-1B2430?style=for-the-badge)](./docs/INSTALL.md)
+[![Latest release](https://img.shields.io/badge/Latest_release-View_Releases-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases/latest)
+
+[![Tests](https://github.com/leoL007/open-adops/actions/workflows/test.yml/badge.svg)](https://github.com/leoL007/open-adops/actions/workflows/test.yml)
+[![GitHub Release](https://img.shields.io/github/v/release/leoL007/open-adops?display_name=tag)](https://github.com/leoL007/open-adops/releases)
+[![License](https://img.shields.io/github/license/leoL007/open-adops)](./LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-20%2B-17845C)](https://nodejs.org/)
 
 [简体中文](./README.md) · [English](./README.en.md) · [Product](./PRODUCT.md) · [Roadmap](./ROADMAP.md) · [Contributing](./CONTRIBUTING.md)
 
 </div>
 
-![OpenAdOps overview](./assets/openadops-overview.jpg)
+![OpenAdOps overview](./assets/screenshots/overview.png)
 
-## Current release (v0.6.1)
-
-- **End-to-end loop**: intake → strategy draft → optional build strategy → **creative requirements** → **launch execution** → optimize → report
-- **Three AI modes**: local demo, Grok 4.5, and GPT 5.6 with task-aware local routing and schema validation
-- **Chinese-first UI** in the product (English docs keep clear English names)  
-- **Task-aware model routing**: lighter models for the operator preflight checklist / fast draft; stronger models for deep review and execution plans; automatic structure retry
-- **Optional performance targets**: add or remove Media CPI, AF-CPI, CPA, and ROAS independently; keep a metric observation-only during learning instead of inventing a threshold
-- **Optional build strategy**: skip it when a project needs no separate build sheet, or capture Campaign / Ad group / Ad parameters and export a real Excel workbook
-- **Code does the math**: KPI and period movement are deterministic
-- **Workspace backup**: export current project or full workspace as JSON; import with merge or replace  
-- **Consistent model identity**: all generation surfaces show the actual Terra / Sol variant and reasoning effort
-- **Sol for optimization diagnosis**: optimization uses Sol high while strategy and creative judgments stay on Terra medium
-- **Operator-owned creative requirements**: the handoff mirrors a real design request table; AI proposes optional additions and the confirmed rows copy directly into Feishu Docs
-- **Reusable mapping profiles**: save common media / AppsFlyer mappings at workspace level, auto-apply exact header matches, and carry them in full-workspace backups
-- **Traceable period comparison**: compare two non-overlapping ranges with deterministic changes for spend, installs, CPI, CPA, and ROAS
-- **Optimization decision history**: preserve every diagnosis with its data range, aggregate evidence, model metadata, operator review state, and report trail
-- **Actionable Codex failures**: distinguish exit codes from termination signals, hide unrelated Skill logs, and limit Skill loading by task
-- **More reliable local runtime**: preserve readable projects when storage migration cannot write back, and give explicit states for cancellation, offline service, and invalid responses
-- **Stale-process guard**: warn when the page and local Bridge versions differ, with a concise action when port 4173 is already occupied
-- **Resilient local routing**: malformed Host or request targets no longer take down the workspace service
-- **Auditable date periods**: impossible calendar dates stay out of ranges and comparisons while affected rows remain explicit in aggregate totals
-- **Corrupt CSV rejection**: duplicate headers and unterminated quoted fields fail at import instead of producing partial metrics
-- **Zero is not fake efficiency**: CPI, CPA, and rate metrics with zero denominators stay unavailable while real zero outcomes remain zero
-- **Mock does not invent KPIs**: target-multiple pause rules appear only when an AF-CPI threshold is explicitly configured
-- **Invalid numbers never silently become zero**: `N/A`, `--`, and other non-empty invalid cells block import by field; blanks are counted separately
-- **Traceable data quality**: blank-number and invalid-date warnings remain visible in optimization, reports, and the matching diagnosis history
-- **Stricter import integrity**: row-width mismatches, broken numeric grouping, suffixed dates, and malformed backups fail before entering a project
-- **No attribution identity leakage**: mapped AF installs remain the AF basis even when the total is zero instead of borrowing media installs
+> GitHub Pages is a deterministic mock demo. The full workspace runs locally with the operator's own Codex or Grok sign-in.
 
 ## Why OpenAdOps
 
-Paid media work is usually scattered across ad UIs, spreadsheets, screenshots, and chat. A generic LLM can write prose, but it rarely:
+Paid-media work is usually scattered across ad platforms, spreadsheets, screenshots, chat, and temporary documents. Generic AI can write recommendations, but it rarely preserves project context, protects metric identity, and turns advice into reviewable actions.
 
-- keeps multi-step project context  
-- separates confirmed / inferred / missing facts  
-- keeps CPI, AF-CPI, CPA, and ROAS identities explicit
+| Real problem | OpenAdOps response |
+| --- | --- |
+| Fragmented input invites invented assumptions | Confirmed, inferred, and missing facts stay explicit |
+| Creative, launch, and optimization work live in separate documents | One local project carries the full operating chain |
+| CPI, AF-CPI, CPA, and ROAS are easy to mix | Deterministic code calculates; AI only judges |
+| AI recommendations disappear after the chat | Every action can be reviewed, executed, validated, or rejected |
 
-OpenAdOps keeps one local project for the full loop:
+## One practical operating flow
 
-1. **Intake** — paste client material and media notes; structure a brief and an operator-owned preflight strategy checklist
-2. **Strategy draft** — fast draft or deep review of a working strategy  
-3. **Build strategy (optional)** — Campaign, Ad group, events, bids, placements, exclusions, asset counts, review rules, and Excel export
-4. **Creative requirements** — references, copy, modification notes, and delivery requirements for direct Feishu Docs handoff
-5. **Launch execution** — confirmed settings, measurement layers, launch checks, and Day 0–7 actions
-6. **Optimize** — CSV metrics by code, evidence-backed diagnosis, and operator adoption / execution / validation notes
-7. **Report** — management HTML and print / PDF with recent optimization decisions
+```text
+Intake → Build strategy (optional) → Creative requirements → Launch execution → Optimization → Report
+```
 
-## What makes it different
+| Stage | Deliverable |
+| --- | --- |
+| **Intake** | Structured brief and operator-owned preflight checklist |
+| **Build strategy (optional)** | Campaign / Ad group / Ad settings and Excel export |
+| **Creative requirements** | References, copy, modification notes, and quantity for design |
+| **Launch execution** | Launch status, measurement layers, checks, and Day 0–7 actions |
+| **Optimization** | Consistent KPIs, period comparison, diagnosis, and action review |
+| **Report** | Management/client HTML, print, and PDF output |
 
-- **Code calculates.** Metrics, period comparison, relative change
-- **AI judges.** Schema-validated strategy, diagnosis, and next actions  
-- **Evidence stays attached** to every claim  
-- **Unknowns stay visible** (confirmed / inferred / missing)  
-- **Learning periods do not require fake KPIs**: zero is not a target, and missing thresholds never become stop-loss or scale rules
-- **Launch execution does not rewrite strategy**; it reads confirmed media, event, bid, budget, and creative inputs
-- **Launch checks have owners**; blockers block “ready”  
-- **Inconclusive is valid** when sample thresholds are not met  
-- **Local-first**: browser storage; raw CSV rows are not sent to the model bridge  
-- **Safe failure**: errors instead of fabricated success  
-- **Usable without an account**: [GitHub Pages mock demo](https://leol007.github.io/open-adops/)  
+## See the workspace
 
-## 60-second start
+| AI creative guidance | Launch execution |
+| --- | --- |
+| ![AI creative guidance](./assets/screenshots/creative-requirements.png) | ![Launch execution](./assets/screenshots/launch-execution.png) |
 
-### Browser demo (mock only)
+### Optimization
 
-Open the [live demo](https://leol007.github.io/open-adops/). Browser-only labeled demo data; **no** local model calls.
+![Optimization](./assets/screenshots/optimization.png)
 
-### Run locally (full features)
+## More than a generic AI chat
 
-On macOS, double-click **`打开 OpenAdOps.command`** in the repository root. It checks Node.js and the local port, reuses an existing healthy OpenAdOps process, starts the local bridge when needed, and opens the browser automatically. Press `Control + C` in its terminal window to stop the service.
+- **Code calculates** spend, installs, AF installs, CPI, AF-CPI, CPA, ROAS, and period movement.
+- **AI judges** strategy, creative boundaries, launch risk, and optimization actions through JSON Schema contracts.
+- **Operators decide** what enters the confirmed workspace; AI never silently overwrites approved content.
+- **Evidence stays attached** to ranges, aggregates, models, decisions, statuses, and validation notes.
+- **Unknowns stay unknown**; learning periods do not require invented thresholds.
+- **Failures stay visible**; exits, timeouts, invalid structures, and offline services never become fake success.
 
-On Windows, double-click **`OpenAdOps.cmd`** in the repository root. On first use it checks Codex CLI and guides the user through signing in with their own ChatGPT / Codex account. See the [local installation guide](docs/INSTALL.md) for the complete setup.
+## Local-first and account-safe
 
-Terminal startup remains available:
+```text
+Browser workspace  →  Local OpenAdOps Bridge  →  Operator-owned Codex / Grok CLI
+  project data             schema checks                  AI judgment
+```
+
+- Projects live in the current browser and can be exported as workspace backups.
+- Raw CSV rows are processed on the current page; only aggregates enter the project.
+- OpenAdOps does not bundle, upload, or share Codex credentials or API keys.
+- It does not connect to or modify live ad accounts; humans execute every action.
+
+## Start in 60 seconds
+
+### Browser demo
+
+Open the [GitHub Pages demo](https://leol007.github.io/open-adops/). No account or model usage; local model calls are unavailable.
+
+### Local full edition
+
+1. Open [Releases](https://github.com/leoL007/open-adops/releases) and download the complete project.
+2. Confirm Node.js 20+ and Codex CLI are installed.
+3. Run `codex login` once with your own ChatGPT / Codex account.
+4. On macOS, double-click `打开 OpenAdOps.command`; on Windows, double-click `OpenAdOps.cmd`.
+5. The launcher checks the environment and opens `http://127.0.0.1:4173`.
+
+See the [local installation guide](./docs/INSTALL.md) for complete setup and troubleshooting.
+
+<details>
+<summary><strong>Developers: start from a terminal</strong></summary>
 
 ```bash
 git clone https://github.com/leoL007/open-adops.git
@@ -98,106 +105,73 @@ cd open-adops
 npm start
 ```
 
-Open `http://127.0.0.1:4173`. No `npm install` — Node built-ins only.
+OpenAdOps uses Node.js built-ins only; no `npm install` is required.
 
-OpenAdOps automatically discovers Codex CLI through `CODEX_BIN`, PATH, the ChatGPT app bundle, and the Codex plugin directory. Use `CODEX_BIN="/absolute/path/to/codex" npm start` only when you need an explicit override.
+</details>
 
-```bash
-npm run check
-```
+## AI modes
 
-## Analysis modes
-
-| UI label | Requirements | Behavior |
+| UI label | Requirement | Behavior |
 | --- | --- | --- |
-| **Local demo** | None | Deterministic mock output; no model usage |
-| **Grok 4.5** | Installed and signed-in Grok CLI | Local Node bridge → `grok` with Grok 4.5 high reasoning |
-| **GPT 5.6** | Signed-in Codex CLI | Local Node bridge → `codex exec` with task-aware Terra / Sol routing |
+| **Local demo** | None | Deterministic mock with no model usage |
+| **Grok 4.5** | Signed-in Grok CLI | Local Bridge calls Grok 4.5 high reasoning |
+| **GPT 5.6** | Signed-in Codex CLI | Task-aware Terra / Sol routing |
 
-Default routing (does not inherit a global ultra-high reasoning setting):
+<details>
+<summary><strong>Show GPT 5.6 task routing</strong></summary>
 
 | Task | Default model | Effort |
 | --- | --- | --- |
-| Preflight strategy checklist | `gpt-5.6-terra` | low |
-| Fast strategy draft | `gpt-5.6-terra` | medium |
+| Preflight checklist | `gpt-5.6-terra` | low |
+| Fast strategy and creative guidance | `gpt-5.6-terra` | medium |
 | Deep strategy review | `gpt-5.6-sol` | high |
-| Strategy diagnosis | `gpt-5.6-terra` | medium |
-| Creative requirement suggestions | `gpt-5.6-terra` | medium |
 | Optimization diagnosis | `gpt-5.6-sol` | high |
 | Launch execution | `gpt-5.6-sol` | high |
 
-Failed structure validation on Terra triggers one `gpt-5.6-sol + medium` retry. The UI distinguishes GPT-5.6 Terra / Sol, effort, timing, cancel, and sticky errors.
+If Terra fails structural validation, OpenAdOps retries once with Sol medium. The UI exposes the actual model, effort, timing, and failure reason.
 
-```bash
-OPENADOPS_TERRA_MODEL=gpt-5.6-terra OPENADOPS_DEEP_MODEL=gpt-5.6-sol npm start
-```
+</details>
 
-Legacy overrides: `OPENADOPS_MODEL`, `OPENADOPS_REASONING_EFFORT`, `OPENADOPS_TIMEOUT_MS` (apply to all tasks — use carefully).
+## Data input and metric boundaries
 
-Optional Ads skills (e.g. [Claude Ads](https://github.com/AgriciDaniel/claude-ads)) can deepen analysis; mock mode works without them.
+CSV input requires **Spend** plus at least one of **Media Installs** or **AF Installs**.
 
-## Creative requirements
+- Common English/Chinese aliases are detected and editable mapping profiles are reusable.
+- Media installs and AF installs remain separate, preventing false CPI/AF-CPI equivalence.
+- Invalid numbers, broken row widths, illegal dates, and malformed backups fail before entering a project.
+- Efficiency metrics with zero denominators stay unavailable instead of becoming fake zero.
+- Two non-overlapping periods can be compared on consistent spend, install, CPI, CPA, and ROAS identities.
 
-The Creative Requirements page mirrors the compact sheet an operator actually gives the design team:
+Demo data: [openadops-demo.csv](./public/data/openadops-demo.csv)
 
-- Use project-level media and market context instead of repeating it on every row
-- Keep each row to reference, copy, modification notes, and one combined delivery-requirement column
-- References are operator-owned. AI does not search for videos or assets, so adopted AI suggestions always leave this field blank
-- Keep shared production boundaries in the collapsed design-requirements field as workspace notes; they do not become a row in the copied Feishu table
-- Open **AI creative suggestions** only when needed to set an internal focus, review risks, and adopt optional rows
-- Adopt candidates explicitly; AI never overwrites the confirmed requirement table
-- Click **Copy Feishu table** and paste a five-column rich table directly into Feishu Docs; no long Markdown document is generated
-- Image and video files are not stored in browser storage; add thumbnails or attachments in Feishu after pasting
+## Current boundaries
 
-## Launch execution
+- CSV input; export XLSX to CSV first.
+- Paste-text intake; no general OCR/document parsing yet.
+- Browser-local projects; no real-time multi-user sync.
+- Creative references remain operator-owned; AI does not search for videos or competitor assets.
+- Focused on Google Ads, Meta Ads, TikTok Ads, and AppsFlyer App UA workflows.
+- Attribution windows, event definitions, and profit logic still require operator judgment.
 
-Provides the final internal control surface before launch:
-
-- Read-only launch summary from confirmed upstream settings
-- Media / MMP / business source-of-truth layers
-- Launch checklist with status, owner, evidence (finance compliance gates included)
-- Day 0–7 actions and decision rules
-- Ready / conditional / blocked status without a percentage score
-- No duplicate media strategy, campaign blueprint, or creative brief
-
-## CSV input
-
-Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
-
-| Dimensions | Metrics |
-| --- | --- |
-| Date, Platform, Country, Campaign, Ad group / Ad set, Creative, Conversion Event | Spend, Impressions, Clicks, Media Installs, AF Installs, Conversions, Revenue, D1 Retained |
-
-- Common EN/ZH aliases; user can correct mapping before calc  
-- Save the current mapping as a workspace profile; exact header matches auto-apply and partial matches show an explicit match count
-- **Media installs and AF installs stay separate** — an AF-only column is not bound to media installs  
-- Mapped numeric columns are quality-checked before calculation; invalid non-empty cells block import, while blanks treated as zero are explicitly counted
-- A mapped date enables previous-vs-current comparison; raw rows stay transient and only aggregate evidence is persisted
-- Demo file: [openadops-demo.csv](./public/data/openadops-demo.csv)  
-
-## Validation
+## Quality and validation
 
 ```bash
 npm run check
 ```
 
-**158** automated tests cover the macOS and Windows launchers, intake, creative-requirement validation and Feishu table copying, launch execution, per-action optimization review, period movement, optimization decision history, workspace backup and migration safety, AI request errors, cross-platform Codex CLI discovery, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Legacy experiment-data compatibility remains covered by deterministic tests. Tests never call a live model.
-
-## Current scope
-
-- CSV import (export XLSX to CSV first)  
-- Paste-text intake; no OCR yet  
-- Browser-local projects; no multi-user sync  
-- Planning and recommendations only — **no** live ad-account writes  
-- Google / Meta / TikTok + AppsFlyer app UA focus  
-- Attribution windows and profit definitions still need operator judgment  
-
-More: [PRODUCT.md](./PRODUCT.md) · [benchmarks](./docs/BENCHMARKS.md) · [user cases](./docs/USER_CASES.md) · [decisions](./docs/DECISIONS.md) · [releasing](./docs/RELEASING.md)
+**158 deterministic tests** cover cross-platform launchers, model routing, schemas, creative requirements, launch execution, CSV quality, metric calculation, period comparison, optimization actions, backup, and migration. Tests never call a live model.
 
 ## Project status
 
-Early public release. See the [roadmap](./ROADMAP.md), open a [feature request](https://github.com/leoL007/open-adops/issues/new?template=feature_request.yml), or contribute adapters.
+OpenAdOps is an early public release. You can:
+
+- review the [Roadmap](./ROADMAP.md)
+- open a [feature request](https://github.com/leoL007/open-adops/issues/new?template=feature_request.yml)
+- read the [Product definition](./PRODUCT.md) and [Decision log](./docs/DECISIONS.md)
+- contribute platform adapters, field mappings, or real workflow feedback
+
+If OpenAdOps is useful to your paid-media work, consider giving the repository a **Star**.
 
 ## License
 
-[MIT](./LICENSE). Independent open-source project; not affiliated with Google, Meta, TikTok, AppsFlyer, or OpenAI.
+[MIT](./LICENSE). OpenAdOps is independent and not affiliated with Google, Meta, TikTok, AppsFlyer, or OpenAI.

@@ -4,6 +4,11 @@ All notable changes to OpenAdOps are documented here.
 
 ## [Unreleased]
 
+### Changed
+
+- 重构 GitHub 项目首页：用最新真实界面替换过时截图，突出在线演示、本地完整版、核心工作流和安全边界，并将版本细节与模型路由下沉。
+- 更新 GitHub / Pages 社交预览图，统一 OpenAdOps 深色橙色视觉与当前产品模块命名。
+
 ### Added
 
 - macOS 新增可双击的「打开 OpenAdOps.command」：自动检查 Node.js 与端口、复用已运行服务、启动本地 Bridge 并打开浏览器。
