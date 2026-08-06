@@ -3,7 +3,7 @@
 set -u
 unsetopt BG_NICE
 
-PROJECT_DIR="${0:A:h}"
+SCRIPT_DIR="${0:A:h}"
 PORT="${PORT:-4173}"
 BASE_URL="http://127.0.0.1:${PORT}"
 HEALTH_URL="${OPENADOPS_HEALTH_URL:-${BASE_URL}/api/health}"
@@ -24,6 +24,26 @@ fail() {
   print -u2 "✗ $1"
   pause_after_error
   exit 1
+}
+
+is_project_dir() {
+  local candidate="$1"
+  [[ -n "$candidate" && -f "$candidate/package.json" && -f "$candidate/server.mjs" ]]
+}
+
+resolve_project_dir() {
+  local candidate
+  for candidate in \
+    "${OPENADOPS_HOME:-}" \
+    "$SCRIPT_DIR" \
+    "$HOME/Documents/Hypic/open-adops"
+  do
+    if is_project_dir "$candidate"; then
+      print -r -- "$candidate"
+      return 0
+    fi
+  done
+  return 1
 }
 
 health_response() {
@@ -50,8 +70,12 @@ port_is_occupied() {
   /usr/bin/nc -z 127.0.0.1 "$PORT" >/dev/null 2>&1
 }
 
+PROJECT_DIR="$(resolve_project_dir)" || fail "未找到完整的 OpenAdOps 仓库。请确认仓库位于 ~/Documents/Hypic/open-adops，或设置 OPENADOPS_HOME。"
+if [[ "$PROJECT_DIR" != "$SCRIPT_DIR" ]]; then
+  print "✓ 已定位 OpenAdOps 仓库：${PROJECT_DIR}"
+fi
+
 cd "$PROJECT_DIR" 2>/dev/null || fail "macOS 无法访问 OpenAdOps 目录。请在“系统设置 → 隐私与安全性”中允许终端访问文稿文件夹。"
-[[ -f package.json && -f server.mjs ]] || fail "启动器不在完整的 OpenAdOps 仓库中。"
 
 if is_openadops_running; then
   print "✓ OpenAdOps 已在运行，正在打开工作台…"

@@ -10,7 +10,9 @@ const launcher = readFileSync(launcherPath, "utf8");
 
 test("macOS launcher is portable, executable and reuses a healthy server", () => {
   assert.match(launcher, /^#!\/bin\/zsh/);
-  assert.match(launcher, /PROJECT_DIR="\$\{0:A:h\}"/);
+  assert.match(launcher, /SCRIPT_DIR="\$\{0:A:h\}"/);
+  assert.match(launcher, /OPENADOPS_HOME/);
+  assert.match(launcher, /\$HOME\/Documents\/Hypic\/open-adops/);
   assert.match(launcher, /api\/health/);
   assert.match(launcher, /"app":"OpenAdOps"/);
   assert.match(launcher, /npm start/);
