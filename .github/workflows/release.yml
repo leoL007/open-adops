@@ -19,8 +19,29 @@ jobs:
       - run: npm run check
         env:
           OPENADOPS_RELEASE_TAG: ${{ github.ref_name }}
+      - name: Build local full-version package
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          PACKAGE_DIR="dist/OpenAdOps-${TAG}"
+          mkdir -p "$PACKAGE_DIR/docs"
+          cp -R public schemas scripts src "$PACKAGE_DIR/"
+          cp docs/INSTALL.md "$PACKAGE_DIR/docs/"
+          cp package.json server.mjs LICENSE README.md README.en.md "$PACKAGE_DIR/"
+          cp "打开 OpenAdOps.command" OpenAdOps.cmd "$PACKAGE_DIR/"
+          chmod +x "$PACKAGE_DIR/打开 OpenAdOps.command"
+          cd dist
+          zip -qr "OpenAdOps-${TAG}-local.zip" "OpenAdOps-${TAG}"
+          sha256sum "OpenAdOps-${TAG}-local.zip" > "OpenAdOps-${TAG}-local.sha256"
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --verify-tag --generate-notes --title "OpenAdOps $TAG"
+        run: |
+          ASSET="dist/OpenAdOps-${TAG}-local.zip"
+          CHECKSUM="dist/OpenAdOps-${TAG}-local.sha256"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ASSET" "$CHECKSUM" --clobber
+          else
+            gh release create "$TAG" "$ASSET" "$CHECKSUM" --verify-tag --generate-notes --title "OpenAdOps $TAG"
+          fi

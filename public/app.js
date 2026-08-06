@@ -86,7 +86,7 @@ import { APP_VERSION } from "./version.js";
 const STORAGE_KEY = "openadops:v4";
 const PREVIOUS_STORAGE_KEYS = ["openadops:v3", "openadops:v2", "openadops:v1"];
 const LEGACY_STORAGE_KEY = "adpilot:mvp:v1";
-const ROUTES = new Set(["overview", "intake", "strategy", "creative", "launch", "experiments", "optimize", "report"]);
+const ROUTES = new Set(["overview", "intake", "strategy", "creative", "launch", "optimize", "report"]);
 const app = document.querySelector("#app");
 const projectSelect = document.querySelector("#projectSelect");
 const aiModeSelect = document.querySelector("#aiMode");
@@ -122,8 +122,7 @@ const DEFAULT_CODEX_ROUTES = {
   analysis: { label: "投放数据诊断", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
   creativeRequirements: { label: "生成素材需求建议", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
   optimizeAnalysis: { label: "投放优化诊断", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
-  launchPack: { label: "生成上线执行清单", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] },
-  experiments: { label: "生成实验账本", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] }
+  launchPack: { label: "生成上线执行清单", model: "gpt-5.6-sol", effort: "high", expectedSeconds: [120, 300] }
 };
 const DEFAULT_GROK_ROUTES = Object.fromEntries(
   Object.entries(DEFAULT_CODEX_ROUTES).map(([key, route]) => [
@@ -446,6 +445,7 @@ function activeProject() {
 
 function route() {
   const value = location.hash.replace(/^#/, "");
+  if (value === "experiments") return "optimize";
   return ROUTES.has(value) ? value : "overview";
 }
 
@@ -943,7 +943,6 @@ function renderOverview(project) {
   const hasCreative = Boolean(creativeTasks(project).length);
   const launchPack = project.launch?.pack?.result;
   const launchReady = Boolean(launchPack);
-  const hasExperiments = Boolean(project.experiments?.plan?.result?.experiments?.length);
   const hasOptimize = Boolean(project.data?.metrics && (project.ai?.optimize || project.ai?.strategy));
   return `${pageHeader("项目总览", project.name, "")}
     ${metricCards(project)}
@@ -955,8 +954,7 @@ function renderOverview(project) {
           <button type="button" class="stage-step ${hasStrategy ? "complete" : ""}" data-step="01" data-go-route="strategy"><h3>搭建策略</h3><p>可选 · Campaign / Ad group / Ad</p></button>
           <button type="button" class="stage-step ${hasCreative ? "complete" : ""}" data-step="02" data-go-route="creative"><h3>素材需求</h3><p>制作要求、参考与交付规格</p></button>
           <button type="button" class="stage-step ${launchReady ? "complete" : ""}" data-step="03" data-go-route="launch"><h3>上线执行</h3><p>上线检查、监测与首周行动</p></button>
-          <button type="button" class="stage-step ${hasExperiments ? "complete" : ""}" data-step="04" data-go-route="experiments"><h3>实验台</h3><p>样本门槛与学习</p></button>
-          <button type="button" class="stage-step ${hasOptimize ? "complete" : ""}" data-step="05" data-go-route="optimize"><h3>投放优化</h3><p>数据诊断与动作</p></button>
+          <button type="button" class="stage-step ${hasOptimize ? "complete" : ""}" data-step="04" data-go-route="optimize"><h3>投放优化</h3><p>数据诊断与动作</p></button>
         </div>
       </section>
       <aside class="card">
@@ -1143,7 +1141,7 @@ function creativeSuggestions(project, production) {
     <div class="card-header"><div><h2>可采纳需求</h2><p>只采纳有用的行，不会自动覆盖正式需求。</p></div><button type="button" class="button button-secondary button-small" data-adopt-all-creative>采纳全部</button></div>
     <div class="creative-suggestion-table"><div class="creative-suggestion-head"><span>素材参考</span><span>文案</span><span>修改要求</span><span>规格 / 数量</span><span></span></div>${suggestions.map((item) => {
       const isAdopted = adopted.has(`creative_requirement:${item.id}`);
-      return `<article class="creative-suggestion-row"><p class="creative-reference-placeholder">AI 暂不提供素材参考</p><p>${escapeHtml(item.copy || "—")}</p><p>${escapeHtml(item.modification_notes)}</p><p>${escapeHtml(item.format || "规格待定")} · ${item.quantity ?? "数量待定"}</p><button type="button" class="button ${isAdopted ? "button-ghost" : "button-secondary"} button-small" data-adopt-creative="${attr(item.id)}" ${isAdopted ? "disabled" : ""}>${isAdopted ? "已采纳" : "采纳"}</button></article>`;
+      return `<article class="creative-suggestion-row"><p class="creative-reference-placeholder">AI 暂不提供素材参考</p><p>${escapeHtml(item.copy || "—")}</p><p>${escapeHtml(item.modification_notes)}</p><p>${escapeHtml(item.format || "规格待定")} · ${item.quantity ?? "数量待定"}</p><span class="creative-suggestion-action"><button type="button" class="button ${isAdopted ? "button-ghost" : "button-secondary"} button-small" data-adopt-creative="${attr(item.id)}" ${isAdopted ? "disabled" : ""}>${isAdopted ? "已采纳" : "采纳"}</button></span></article>`;
     }).join("")}</div>
   </section>`;
 }
@@ -1567,8 +1565,7 @@ function optimizationActionCategoryText(category) {
 function optimizationActionTransferLabel(category) {
   return ({
     creative: "转为素材需求",
-    tracking: "加入上线检查",
-    experiment: "转为实验候选"
+    tracking: "加入上线检查"
   })[category] || "";
 }
 
@@ -1613,7 +1610,7 @@ function optimizationActionCard(project, run, action) {
       <label><span>验证口径</span><input data-optimization-action-field="successMetric" value="${attr(action.successMetric)}" /></label>
       <label class="optimization-action-result"><span>验证结论</span><textarea data-optimization-action-field="resultNote" placeholder="执行结果、是否有效及原因">${escapeHtml(action.resultNote)}</textarea></label>
     </div>
-    <footer><span>${action.transferredTo ? `已流转至${escapeHtml(({ creative: "素材需求", launch: "上线执行", experiments: "实验台" })[action.transferredTo] || action.transferredTo)}` : "AI 提建议，优化师决定是否执行"}</span><div>${transferLabel ? `<button class="button button-ghost button-small" type="button" data-transfer-optimization-action="${attr(action.id)}" data-transfer-run-id="${attr(run.id)}">${escapeHtml(transferLabel)}</button>` : ""}<button class="button button-secondary button-small" type="button" data-save-optimization-action="${attr(action.id)}" data-save-action-run-id="${attr(run.id)}">保存动作</button></div></footer>
+    <footer><span>${action.transferredTo === "experiments" ? "历史测试记录已保留" : action.transferredTo ? `已流转至${escapeHtml(({ creative: "素材需求", launch: "上线执行" })[action.transferredTo] || action.transferredTo)}` : "AI 提建议，优化师决定是否执行"}</span><div>${transferLabel ? `<button class="button button-ghost button-small" type="button" data-transfer-optimization-action="${attr(action.id)}" data-transfer-run-id="${attr(run.id)}">${escapeHtml(transferLabel)}</button>` : ""}<button class="button button-secondary button-small" type="button" data-save-optimization-action="${attr(action.id)}" data-save-action-run-id="${attr(run.id)}">保存动作</button></div></footer>
   </article>`;
 }
 
@@ -1674,7 +1671,7 @@ function optimizationDecisionTable(project, limit = 5) {
 }
 
 function renderOptimize(project) {
-  return `${pageHeader("阶段 05 · 投放优化", "投放优化", "上传 CSV，由代码计算指标，AI 基于证据判断。")}
+  return `${pageHeader("阶段 04 · 投放优化", "投放优化", "上传 CSV，由代码计算指标，AI 基于证据判断。")}
     <section class="card mb-16">
       <div class="card-header"><div><h2>数据导入</h2><p>V1 支持 CSV；原始明细仅在当前页面解析，项目只保存聚合指标</p></div>${project.data ? `<span class="badge" style="color:var(--success);background:var(--success-soft)">${escapeHtml(project.data.fileName)}</span>` : ""}</div>
       <div class="drop-zone"><strong>导入媒体 / AppsFlyer 报表</strong><span>支持带引号的 CSV；可手动调整字段映射</span><div class="upload-actions" style="justify-content:center"><label class="button button-secondary">选择 CSV<input id="csvInput" type="file" accept=".csv,text/csv" /></label><button class="button button-ghost" data-load-demo>载入演示 CSV</button></div></div>
@@ -1691,12 +1688,6 @@ function renderOptimize(project) {
 
 function latestAnalysis(project) {
   return project.ai?.optimize || project.ai?.strategy || project.ai?.creative || null;
-}
-
-function experimentLearningTable(project) {
-  const experiments = project.experiments?.plan?.result?.experiments || [];
-  if (!experiments.length) return `<p class="muted">还没有实验账本。</p>`;
-  return `<div class="table-wrap"><table><thead><tr><th>实验</th><th>状态</th><th>可行性</th><th>结果</th><th>学习 / 下一步</th></tr></thead><tbody>${experiments.map((item) => `<tr><td class="cell-wrap"><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.platform)} · ${escapeHtml(item.design.single_variable)}</small></td><td>${escapeHtml(experimentStatusText(item.status))}</td><td>${escapeHtml(feasibilityText(item.feasibility.status))}${item.feasibility.estimated_duration_days ? `<small>${item.feasibility.estimated_duration_days} 天</small>` : ""}</td><td>${escapeHtml(experimentOutcomeText(item.result.outcome))}${item.result.relative_change_percent === null ? "" : `<small>${item.result.relative_change_percent}%</small>`}</td><td class="cell-wrap">${escapeHtml(item.result.learning || item.result.next_action || "等待实验结果")}</td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function optimizationActionTable(project) {
@@ -1716,14 +1707,13 @@ function renderReport(project) {
       <section class="report-section"><h3>01 · 核心指标</h3>${metricCards(project)}</section>
       <section class="report-section"><h3>02 · 管理层摘要</h3><div class="summary-callout">${escapeHtml(result?.executive_summary || "尚未生成结构化分析。建议先在“投放优化”导入数据并运行分析。")}</div></section>
       <section class="report-section"><h3>03 · 关键判断</h3>${result ? result.findings.map((item) => `<article class="finding-card"><div class="finding-top"><h3>${escapeHtml(item.title)}</h3><span class="priority-badge ${attr(item.priority)}">${priorityText(item.priority)}</span></div><div class="finding-body"><div class="evidence-box"><span>证据</span><p>${escapeHtml(item.evidence)}</p></div><div class="action-box"><span>动作</span><p>${escapeHtml(item.action)}</p></div></div><p class="finding-diagnosis">${escapeHtml(item.diagnosis)} · 验证：${escapeHtml(item.validation)}</p></article>`).join("") : emptyState("还没有关键判断", "生成失败时不会写入假结果；请在其他阶段重新运行。", "optimize", "去优化页")}</section>
-      <section class="report-section"><h3>04 · 实验与学习</h3>${experimentLearningTable(project)}</section>
-      <section class="report-section"><h3>05 · 下一步动作</h3>${optimizationActionTable(project)}</section>
-      <section class="report-section"><h3>06 · 优化决策记录</h3>${optimizationDecisionTable(project)}</section>
-      <section class="report-section"><h3>07 · 口径说明</h3><div class="project-facts"><div class="fact-row"><span>数据来源</span><strong>${escapeHtml(project.data?.fileName || "未导入")}</strong></div><div class="fact-row"><span>数据质量</span><strong>${escapeHtml(dataQualityText(project.data))}</strong></div><div class="fact-row"><span>归因口径</span><strong>${escapeHtml(project.attribution)}</strong></div><div class="fact-row"><span>分析来源</span><strong>${record ? escapeHtml(runRecordLabel(record)) : "未运行"}</strong></div><div class="fact-row"><span>项目备注</span><strong>${escapeHtml(project.notes || "无")}</strong></div></div></section>
+      <section class="report-section"><h3>04 · 下一步动作</h3>${optimizationActionTable(project)}</section>
+      <section class="report-section"><h3>05 · 优化决策记录</h3>${optimizationDecisionTable(project)}</section>
+      <section class="report-section"><h3>06 · 口径说明</h3><div class="project-facts"><div class="fact-row"><span>数据来源</span><strong>${escapeHtml(project.data?.fileName || "未导入")}</strong></div><div class="fact-row"><span>数据质量</span><strong>${escapeHtml(dataQualityText(project.data))}</strong></div><div class="fact-row"><span>归因口径</span><strong>${escapeHtml(project.attribution)}</strong></div><div class="fact-row"><span>分析来源</span><strong>${record ? escapeHtml(runRecordLabel(record)) : "未运行"}</strong></div><div class="fact-row"><span>项目备注</span><strong>${escapeHtml(project.notes || "无")}</strong></div></div></section>
     </article>`;
 }
 
-const renderers = { overview: renderOverview, intake: renderIntake, strategy: renderStrategy, creative: renderCreative, launch: renderLaunch, experiments: renderExperiments, optimize: renderOptimize, report: renderReport };
+const renderers = { overview: renderOverview, intake: renderIntake, strategy: renderStrategy, creative: renderCreative, launch: renderLaunch, optimize: renderOptimize, report: renderReport };
 
 function refreshShell(project) {
   projectSelect.innerHTML = state.projects.map((item) => `<option value="${attr(item.id)}" ${item.id === project.id ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("");
@@ -2472,71 +2462,6 @@ function optimizationActionPlatform(project, action) {
   return project.platforms?.find((platform) => content.includes(platform.toLowerCase())) || project.platforms?.[0] || "Google Ads";
 }
 
-function optimizationExperimentCandidate(project, action) {
-  const metric = String(action.successMetric || "待确认主指标").trim() || "待确认主指标";
-  const costMetric = /cpi|cpa|af.?cpi|成本|花费/i.test(metric);
-  return {
-    id: `optimization-${action.id}`,
-    name: action.title,
-    platform: optimizationActionPlatform(project, action),
-    source: "analysis",
-    priority: "now",
-    status: "draft",
-    category: action.category === "tracking" ? "measurement" : action.category === "structure" ? "campaign_structure" : action.category === "bidding" || action.category === "budget" ? "bidding" : "creative",
-    hypothesis: {
-      change: action.action,
-      metric,
-      direction: costMetric ? "decrease" : "increase",
-      expected_lift_percent: null,
-      because: action.evidence
-    },
-    design: {
-      test_type: "平台原生实验或人工单变量拆分",
-      control: "当前已批准设置",
-      variant: action.action,
-      single_variable: "待优化师确认唯一变量",
-      primary_metric: metric,
-      metric_type: costMetric ? "cost" : "composite",
-      guardrail_metrics: ["花费与审核状态", "安装后质量或业务事件"],
-      control_percent: 50,
-      variant_percent: 50,
-      baseline_rate_percent: null,
-      mde_percent: null,
-      daily_eligible_units: null,
-      confidence_percent: 95,
-      power_percent: 80,
-      minimum_days: 7,
-      maximum_days: 28
-    },
-    feasibility: {
-      required_sample_per_variant: null,
-      estimated_duration_days: null,
-      status: "not_calculable",
-      rationale: "等待确定性计算。"
-    },
-    setup_steps: ["确认唯一变量、对照组、实验组和流量分配。", "补充主指标口径、护栏指标与停止条件后再上线。"],
-    stop_conditions: ["追踪、审核、市场或合规异常时立即停止。", "达到最短周期或样本门槛前不提前宣布胜负。"],
-    decision_rules: {
-      win: "达到预设判定门槛，主指标改善且护栏指标没有不可接受的恶化。",
-      lose: "达到判定门槛后主指标劣于对照组，或触发预设止损条件。",
-      inconclusive: "周期结束仍未达到样本门槛或结果不足以判断时，记录为无结论。"
-    },
-    owner: action.owner || "优化师",
-    result: {
-      outcome: "pending",
-      control_value: null,
-      variant_value: null,
-      relative_change_percent: null,
-      confidence_percent: null,
-      started_at: "",
-      ended_at: "",
-      learning: "",
-      next_action: "",
-      evidence: ""
-    }
-  };
-}
-
 function transferOptimizationAction(runId, actionId) {
   const project = activeProject();
   const run = projectOptimizationHistory(project).find((item) => item.id === runId);
@@ -2545,17 +2470,13 @@ function transferOptimizationAction(runId, actionId) {
     showToast("找不到需要流转的优化动作", "error");
     return;
   }
-  const destination = ({ creative: "creative", tracking: "launch", experiment: "experiments" })[action.category];
+  const destination = ({ creative: "creative", tracking: "launch" })[action.category];
   if (!destination) {
-    showToast("预算、出价和结构调整保留在动作清单中人工执行。", "error");
+    showToast("该动作保留在优化清单中，由优化师人工执行和验证。", "error");
     return;
   }
   if (destination === "launch" && !project.launch?.pack?.result) {
     showToast("请先在“上线执行”生成检查清单，再加入归因检查项。", "error");
-    return;
-  }
-  if (destination === "experiments" && (project.experiments?.plan?.result?.experiments?.length || 0) >= 4) {
-    showToast("实验台最多保留 4 个实验，请先归档或删除现有实验。", "error");
     return;
   }
   const saved = updateProject((target) => {
@@ -2598,33 +2519,6 @@ function transferOptimizationAction(runId, actionId) {
         recalculateLaunchReadiness(pack, true);
       }
     }
-    if (destination === "experiments") {
-      const candidate = optimizationExperimentCandidate(target, action);
-      if (!target.experiments?.plan?.result) {
-        target.experiments = createExperiments({
-          plan: {
-            source: "operator",
-            model: "optimization-action",
-            generatedAt: new Date().toISOString(),
-            result: enrichExperimentPlan({
-              schema_version: "1.0",
-              title: `${target.name} · 实验账本`,
-              executive_summary: "由优化复盘动作生成实验候选；上线前仍需优化师确认唯一变量、样本和判定规则。",
-              learning_agenda: [action.title],
-              experiments: [candidate],
-              risks: ["候选实验不会修改真实广告账户；数据不足时保持不可计算。"]
-            })
-          }
-        });
-      } else {
-        const plan = target.experiments.plan.result;
-        if (!plan.experiments.some((item) => item.id === candidate.id)) {
-          plan.experiments.push(candidate);
-          if (!plan.learning_agenda.includes(action.title)) plan.learning_agenda.push(action.title);
-          target.experiments.plan.result = enrichExperimentPlan(plan);
-        }
-      }
-    }
     target.optimizationHistory = updateOptimizationRunAction(
       projectOptimizationHistory(target),
       runId,
@@ -2640,7 +2534,7 @@ function transferOptimizationAction(runId, actionId) {
   if (!saved) return;
   location.hash = destination;
   render();
-  showToast(`已流转至${({ creative: "素材需求", launch: "上线执行", experiments: "实验台" })[destination]}`);
+  showToast(`已流转至${({ creative: "素材需求", launch: "上线执行" })[destination]}`);
 }
 
 async function copyOptimizationReviewToFeishu() {
@@ -3495,7 +3389,11 @@ function reportDocument(project) {
 
 function exportReport() {
   const project = activeProject();
-  const blob = new Blob([reportDocument(project)], { type: "text/html;charset=utf-8" });
+  const report = reportDocument(project).replace(
+    /<h2>实验与学习<\/h2><table class="actions">[\s\S]*?<\/table>/,
+    ""
+  );
+  const blob = new Blob([report], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;

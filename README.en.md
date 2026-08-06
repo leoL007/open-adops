@@ -4,7 +4,7 @@
 
 ### From fragmented client input to defensible paid-media decisions
 
-OpenAdOps is a **local-first** AI workspace for overseas app growth operators. It turns client briefs, rough media notes, and Google Ads / Meta Ads / TikTok Ads / AppsFlyer data into a strategy draft, creative requirements, a launch execution checklist, an experiment ledger, optimization judgments, and client-ready reports.
+OpenAdOps is a **local-first** AI workspace for overseas app growth operators. It turns client briefs, rough media notes, and Google Ads / Meta Ads / TikTok Ads / AppsFlyer data into a strategy draft, creative requirements, a launch execution checklist, optimization judgments, and client-ready reports.
 
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Try_in_Browser-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-1B2430?style=for-the-badge)](./LICENSE)
@@ -19,13 +19,13 @@ OpenAdOps is a **local-first** AI workspace for overseas app growth operators. I
 
 ## Current release (v0.6.1)
 
-- **End-to-end loop**: intake → strategy draft → optional build strategy → **creative requirements** → **launch execution** → **experiment ledger** → optimize → report
+- **End-to-end loop**: intake → strategy draft → optional build strategy → **creative requirements** → **launch execution** → optimize → report
 - **Three AI modes**: local demo, Grok 4.5, and GPT 5.6 with task-aware local routing and schema validation
 - **Chinese-first UI** in the product (English docs keep clear English names)  
 - **Task-aware model routing**: lighter models for the operator preflight checklist / fast draft; stronger models for deep review and execution plans; automatic structure retry
 - **Optional performance targets**: add or remove Media CPI, AF-CPI, CPA, and ROAS independently; keep a metric observation-only during learning instead of inventing a threshold
 - **Optional build strategy**: skip it when a project needs no separate build sheet, or capture Campaign / Ad group / Ad parameters and export a real Excel workbook
-- **Code does the math**: KPI and experiment sizing are deterministic  
+- **Code does the math**: KPI and period movement are deterministic
 - **Workspace backup**: export current project or full workspace as JSON; import with merge or replace  
 - **Consistent model identity**: all generation surfaces show the actual Terra / Sol variant and reasoning effort
 - **Sol for optimization diagnosis**: optimization uses Sol high while strategy and creative judgments stay on Terra medium
@@ -52,7 +52,7 @@ Paid media work is usually scattered across ad UIs, spreadsheets, screenshots, a
 
 - keeps multi-step project context  
 - separates confirmed / inferred / missing facts  
-- guarantees CPI vs AF-CPI and sample-size math  
+- keeps CPI, AF-CPI, CPA, and ROAS identities explicit
 
 OpenAdOps keeps one local project for the full loop:
 
@@ -61,13 +61,12 @@ OpenAdOps keeps one local project for the full loop:
 3. **Build strategy (optional)** — Campaign, Ad group, events, bids, placements, exclusions, asset counts, review rules, and Excel export
 4. **Creative requirements** — references, copy, modification notes, and delivery requirements for direct Feishu Docs handoff
 5. **Launch execution** — confirmed settings, measurement layers, launch checks, and Day 0–7 actions
-6. **Experiment ledger** — now / next / later queue with thresholds, evidence, and learnings
-7. **Optimize** — CSV metrics by code, evidence-backed diagnosis, and operator adoption / execution / validation notes
-8. **Report** — management HTML and print / PDF with recent optimization decisions
+6. **Optimize** — CSV metrics by code, evidence-backed diagnosis, and operator adoption / execution / validation notes
+7. **Report** — management HTML and print / PDF with recent optimization decisions
 
 ## What makes it different
 
-- **Code calculates.** Metrics, sample size, duration, relative change  
+- **Code calculates.** Metrics, period comparison, relative change
 - **AI judges.** Schema-validated strategy, diagnosis, and next actions  
 - **Evidence stays attached** to every claim  
 - **Unknowns stay visible** (confirmed / inferred / missing)  
@@ -88,6 +87,8 @@ Open the [live demo](https://leol007.github.io/open-adops/). Browser-only labele
 ### Run locally (full features)
 
 On macOS, double-click **`打开 OpenAdOps.command`** in the repository root. It checks Node.js and the local port, reuses an existing healthy OpenAdOps process, starts the local bridge when needed, and opens the browser automatically. Press `Control + C` in its terminal window to stop the service.
+
+On Windows, double-click **`OpenAdOps.cmd`** in the repository root. On first use it checks Codex CLI and guides the user through signing in with their own ChatGPT / Codex account. See the [local installation guide](docs/INSTALL.md) for the complete setup.
 
 Terminal startup remains available:
 
@@ -124,7 +125,6 @@ Default routing (does not inherit a global ultra-high reasoning setting):
 | Creative requirement suggestions | `gpt-5.6-terra` | medium |
 | Optimization diagnosis | `gpt-5.6-sol` | high |
 | Launch execution | `gpt-5.6-sol` | high |
-| Experiment ledger | `gpt-5.6-terra` | medium |
 
 Failed structure validation on Terra triggers one `gpt-5.6-sol + medium` retry. The UI distinguishes GPT-5.6 Terra / Sol, effort, timing, cancel, and sticky errors.
 
@@ -160,18 +160,6 @@ Provides the final internal control surface before launch:
 - Ready / conditional / blocked status without a percentage score
 - No duplicate media strategy, campaign blueprint, or creative brief
 
-## Experiment ledger
-
-Builds a cross-platform test queue from confirmed creative requirements and launch measurement rules:
-
-- One primary variable; control / variant / primary metric / guardrails frozen first  
-- Native methods for Google App asset experiments, Meta A/B, TikTok Split Testing  
-- Deterministic sizing for rate metrics; blank when baseline or traffic is missing  
-- Evidence, win / lose / inconclusive, learning, next action  
-- Exports and management-report rollup  
-
-See [experiment methods](./docs/EXPERIMENTS.md).
-
 ## CSV input
 
 Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
@@ -193,7 +181,7 @@ Requires **Spend** and at least one of **Media Installs** or **AF Installs**.
 npm run check
 ```
 
-**154** automated tests cover the macOS launcher, intake, creative-requirement validation and Feishu table copying, launch execution, experiment ledgers, per-action optimization review, period movement, optimization decision history, workspace backup and migration safety, AI request errors, Codex CLI discovery, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, experiment sizing, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Tests never call a live model.
+**158** automated tests cover the macOS and Windows launchers, intake, creative-requirement validation and Feishu table copying, launch execution, per-action optimization review, period movement, optimization decision history, workspace backup and migration safety, AI request errors, cross-platform Codex CLI discovery, runtime-version checks, startup failures, request-target parsing, calendar-date validation, CSV row width and numeric quality, data-quality state, budget shares, undefined metrics, Mock KPI boundaries, static-server boundaries, CSV mapping profiles, period comparison, model routing and labels, optional performance targets, finance blockers, small-budget focus, conversion-event identity, platform aliases, missing-data protection, AF/media install mapping, media CPI vs AF-CPI, aggregation, and schema validation. Legacy experiment-data compatibility remains covered by deterministic tests. Tests never call a live model.
 
 ## Current scope
 
@@ -204,7 +192,7 @@ npm run check
 - Google / Meta / TikTok + AppsFlyer app UA focus  
 - Attribution windows and profit definitions still need operator judgment  
 
-More: [PRODUCT.md](./PRODUCT.md) · [benchmarks](./docs/BENCHMARKS.md) · [experiments](./docs/EXPERIMENTS.md) · [user cases](./docs/USER_CASES.md) · [decisions](./docs/DECISIONS.md) · [releasing](./docs/RELEASING.md)
+More: [PRODUCT.md](./PRODUCT.md) · [benchmarks](./docs/BENCHMARKS.md) · [user cases](./docs/USER_CASES.md) · [decisions](./docs/DECISIONS.md) · [releasing](./docs/RELEASING.md)
 
 ## Project status
 

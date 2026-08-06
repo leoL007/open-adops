@@ -25,7 +25,7 @@ import { parseRequestUrl } from "./src/request-url.mjs";
 import { parseGrokCliOutput } from "./src/grok-cli-output.mjs";
 import { formatServerStartupError } from "./src/server-startup-error.mjs";
 import { resolveStaticFile, shouldSendStaticBody } from "./src/static-request.mjs";
-import { detectCodexCli } from "./src/codex-cli.mjs";
+import { codexCommandNeedsShell, detectCodexCli } from "./src/codex-cli.mjs";
 
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(APP_ROOT, "public");
@@ -381,7 +381,7 @@ function runCodexStructured({ prompt, schemaPath, validate, jobName, route, job,
     const child = spawn(CODEX_BIN, args, {
       cwd: APP_ROOT,
       env: { ...process.env, NO_COLOR: "1" },
-      shell: false,
+      shell: codexCommandNeedsShell(CODEX_BIN),
       stdio: ["pipe", "pipe", "pipe"]
     });
     let stdout = "";

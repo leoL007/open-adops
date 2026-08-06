@@ -1063,8 +1063,8 @@ select {
 .creative-suggestion-head,
 .creative-suggestion-row {
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) minmax(170px, 1.1fr) minmax(220px, 1.35fr) 120px 76px;
-  min-width: 760px;
+  grid-template-columns: minmax(150px, 1fr) minmax(170px, 1.1fr) minmax(220px, 1.35fr) 120px 92px;
+  min-width: 776px;
   align-items: center;
 }
 
@@ -1094,6 +1094,19 @@ select {
 
 .creative-suggestion-row p {
   font-size: 10px;
+}
+
+.creative-suggestion-action {
+  display: flex;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+}
+
+.creative-suggestion-action .button {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 10px;
 }
 
 .field input:focus,

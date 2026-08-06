@@ -17,13 +17,14 @@ OpenAdOps 使用 `MAJOR.MINOR.PATCH`：
 5. 推送分支并创建 Draft PR。
 6. GitHub Actions 通过后合并到 `main`。
 7. 在合并提交创建并推送 `vX.Y.Z` Tag。
-8. Release workflow 再次验证版本与测试，并创建 GitHub Release。
+8. Release workflow 再次验证版本与测试，创建 GitHub Release，并附加 `OpenAdOps-vX.Y.Z-local.zip` 与 SHA-256 校验文件。
 9. 验证 GitHub Pages 对应的部署提交。
 
 ## 回溯
 
 - 查看版本：GitHub 仓库右侧的 Releases / Tags。
-- 查看源码：打开指定 Release，下载自动生成的 ZIP 或 TAR。
+- 正式使用：打开指定 Release，下载 Assets 中的 `OpenAdOps-vX.Y.Z-local.zip`。
+- 查看源码：下载 GitHub 自动生成的 Source code ZIP 或 TAR。
 - 本地查看：`git switch --detach vX.Y.Z`。
 - 恢复旧版时创建新分支，不重写已有 Tag。
 
