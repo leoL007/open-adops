@@ -12,7 +12,7 @@ import { applyExperimentMetricContext, enrichExperimentPlan } from "./public/lib
 import { buildMockExperimentPlan } from "./public/lib/mock-experiment-plan.js";
 import { buildMockIntake } from "./public/lib/mock-intake.js";
 import { buildMockLaunchPack } from "./public/lib/mock-launch-pack.js";
-import { normalizeApiProvider, publicApiRoutes, resolveApiRoute } from "./public/lib/api-routes.js";
+import { normalizeApiPreferences, publicApiRoutes, resolveApiRoute } from "./public/lib/api-routes.js";
 import { performanceTargetsForAi } from "./public/lib/project-targets.js";
 import { APP_VERSION } from "./public/version.js";
 import { publicAiRoutes, publicGrokRoutes, resolveRouteForProvider } from "./src/ai-router.mjs";
@@ -391,13 +391,18 @@ const API_ROUTE_SCHEMAS = {
 
 function apiCredentialsFromRequest(request) {
   return {
-    provider: normalizeApiProvider(request.headers["x-openadops-provider"]),
+    ...normalizeApiPreferences({
+      protocol: request.headers["x-openadops-protocol"] || request.headers["x-openadops-provider"],
+      baseUrl: request.headers["x-openadops-base-url"],
+      model: request.headers["x-openadops-model"]
+    }),
     apiKey: String(request.headers["x-openadops-api-key"] || "")
   };
 }
 
-async function runApiStructured({ provider, apiKey, routeKey, prompt }) {
-  const route = resolveApiRoute(provider, routeKey);
+async function runApiStructured({ protocol, baseUrl, model, apiKey, routeKey, prompt }) {
+  const preferences = normalizeApiPreferences({ protocol, baseUrl, model });
+  const route = resolveApiRoute(preferences, routeKey);
   const validate = API_ROUTE_VALIDATORS[routeKey];
   if (!validate) throw new ApiProviderError("未知 API 任务。", { code: "UNKNOWN_ROUTE", status: 400 });
   const controller = new AbortController();
@@ -427,7 +432,14 @@ async function runApiStructured({ provider, apiKey, routeKey, prompt }) {
   try {
     const schemaText = await readFile(API_ROUTE_SCHEMAS[routeKey], "utf8");
     const structuredPrompt = `${String(prompt || "").trim()}\n\n必须严格符合以下 JSON Schema：\n${schemaText}`;
-    const output = await runApiProviderJson({ provider, apiKey, routeKey, prompt: structuredPrompt, signal: controller.signal });
+    const output = await runApiProviderJson({
+      ...preferences,
+      apiKey,
+      routeKey,
+      prompt: structuredPrompt,
+      allowPrivateHosts: true,
+      signal: controller.signal
+    });
     const validation = validate(output.result);
     if (!validation.valid) {
       throw new ApiProviderError(`结构校验失败：${validation.errors.join("；")}`, {
@@ -439,7 +451,7 @@ async function runApiStructured({ provider, apiKey, routeKey, prompt }) {
       result: output.result,
       meta: {
         source: "api",
-        provider,
+        provider: preferences.protocol,
         routeKey,
         label: route.label,
         model: route.model,
@@ -760,15 +772,18 @@ function runLiveExperimentPlan(payload, provider) {
 }
 
 async function handleApiProviderTest(request, response) {
-  const { provider, apiKey } = apiCredentialsFromRequest(request);
+  const credentials = apiCredentialsFromRequest(request);
   try {
-    const result = await testApiProvider({ provider, apiKey });
+    const result = await testApiProvider({ ...credentials, allowPrivateHosts: true });
     sendJson(response, 200, {
       ok: true,
       source: "api",
-      provider: result.provider,
+      protocol: result.protocol,
+      provider: result.protocol,
+      baseUrl: result.baseUrl,
+      model: result.model,
       modelCount: result.modelCount,
-      routes: publicApiRoutes(result.provider)
+      routes: publicApiRoutes(result)
     });
   } catch (error) {
     sendJson(response, Number(error.status) || 502, {
@@ -791,11 +806,10 @@ async function handleApiProviderGenerate(request, response) {
     sendJson(response, 400, { ok: false, code: "INVALID_JSON", error: error.message });
     return;
   }
-  const { provider, apiKey } = apiCredentialsFromRequest(request);
+  const credentials = apiCredentialsFromRequest(request);
   try {
     const { result, meta } = await runApiStructured({
-      provider,
-      apiKey,
+      ...credentials,
       routeKey: String(payload.routeKey || ""),
       prompt: payload.prompt
     });

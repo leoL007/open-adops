@@ -8,47 +8,93 @@ const ROUTE_BASE = {
   launchPack: { label: "生成上线执行清单", effort: "high", expectedSeconds: [60, 240], timeoutMs: 300000, tier: "deep" }
 };
 
-export const API_PROVIDERS = Object.freeze({
+export const API_PROTOCOLS = Object.freeze({
   openai: {
     key: "openai",
-    label: "OpenAI API",
-    routineModel: "gpt-5.6-terra",
-    deepModel: "gpt-5.6-sol"
+    label: "OpenAI 兼容",
+    defaultBaseUrl: "https://api.openai.com/v1",
+    defaultModel: "auto"
   },
-  xai: {
-    key: "xai",
-    label: "xAI API",
-    routineModel: "grok-4.5",
-    deepModel: "grok-4.5"
+  anthropic: {
+    key: "anthropic",
+    label: "Anthropic 兼容",
+    defaultBaseUrl: "https://api.anthropic.com/v1",
+    defaultModel: ""
   }
 });
 
-export function normalizeApiProvider(value) {
-  return Object.hasOwn(API_PROVIDERS, value) ? value : "openai";
+export function normalizeApiProtocol(value) {
+  if (value === "xai") return "openai";
+  return Object.hasOwn(API_PROTOCOLS, value) ? value : "openai";
 }
 
-export function resolveApiRoute(providerValue, routeKey) {
-  const base = ROUTE_BASE[routeKey];
-  if (!base) throw new Error(`未知 API 路由：${routeKey}`);
-  const provider = API_PROVIDERS[normalizeApiProvider(providerValue)];
+export function defaultApiPreferences(protocolValue = "openai") {
+  const protocol = normalizeApiProtocol(protocolValue);
+  const definition = API_PROTOCOLS[protocol];
   return {
-    key: routeKey,
-    label: base.label,
-    model: base.tier === "deep" ? provider.deepModel : provider.routineModel,
-    effort: provider.key === "xai" ? "high" : base.effort,
-    expectedSeconds: base.expectedSeconds,
-    timeoutMs: base.timeoutMs,
-    provider: provider.key,
-    providerLabel: provider.label
+    protocol,
+    baseUrl: definition.defaultBaseUrl,
+    model: definition.defaultModel
   };
 }
 
-export function publicApiRoutes(providerValue = "openai") {
+export function normalizeApiPreferences(value = {}) {
+  if (value?.provider === "xai") {
+    return {
+      protocol: "openai",
+      baseUrl: "https://api.x.ai/v1",
+      model: "grok-4.5"
+    };
+  }
+  const protocol = normalizeApiProtocol(value?.protocol || value?.provider);
+  const defaults = defaultApiPreferences(protocol);
+  return {
+    protocol,
+    baseUrl: String(value?.baseUrl || defaults.baseUrl).trim(),
+    model: String(value?.model ?? defaults.model).trim()
+  };
+}
+
+export function usesOfficialOpenAiRouting(value = {}) {
+  const preferences = normalizeApiPreferences(value);
+  return preferences.protocol === "openai"
+    && preferences.baseUrl.replace(/\/+$/, "") === API_PROTOCOLS.openai.defaultBaseUrl
+    && (!preferences.model || preferences.model.toLowerCase() === "auto");
+}
+
+export function resolveApiRoute(preferencesValue, routeKey) {
+  const base = ROUTE_BASE[routeKey];
+  if (!base) throw new Error(`未知 API 路由：${routeKey}`);
+  const preferences = normalizeApiPreferences(
+    typeof preferencesValue === "string" ? { protocol: preferencesValue } : preferencesValue
+  );
+  const automatic = usesOfficialOpenAiRouting(preferences);
+  const model = automatic
+    ? base.tier === "deep" ? "gpt-5.6-sol" : "gpt-5.6-terra"
+    : preferences.model;
+  return {
+    key: routeKey,
+    label: base.label,
+    model,
+    effort: base.effort,
+    expectedSeconds: base.expectedSeconds,
+    timeoutMs: base.timeoutMs,
+    protocol: preferences.protocol,
+    protocolLabel: API_PROTOCOLS[preferences.protocol].label,
+    automaticModelRouting: automatic
+  };
+}
+
+export function publicApiRoutes(preferencesValue = defaultApiPreferences()) {
   return Object.fromEntries(
-    Object.keys(ROUTE_BASE).map((routeKey) => [routeKey, resolveApiRoute(providerValue, routeKey)])
+    Object.keys(ROUTE_BASE).map((routeKey) => [routeKey, resolveApiRoute(preferencesValue, routeKey)])
   );
 }
 
-export function apiProviderLabel(providerValue) {
-  return API_PROVIDERS[normalizeApiProvider(providerValue)].label;
+export function apiProtocolLabel(protocolValue) {
+  return API_PROTOCOLS[normalizeApiProtocol(protocolValue)].label;
 }
+
+// Compatibility aliases for records created by v0.7.0.
+export const normalizeApiProvider = normalizeApiProtocol;
+export const apiProviderLabel = apiProtocolLabel;

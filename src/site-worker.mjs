@@ -1,5 +1,5 @@
 import { APP_VERSION } from "../public/version.js";
-import { publicApiRoutes, normalizeApiProvider } from "../public/lib/api-routes.js";
+import { normalizeApiPreferences, publicApiRoutes } from "../public/lib/api-routes.js";
 import { ApiProviderError, runApiProviderJson, testApiProvider } from "./api-provider.mjs";
 import { validateAnalysis } from "./analysis-validator.mjs";
 import { validateCreativeRequirements } from "./creative-requirements-validator.mjs";
@@ -67,26 +67,32 @@ async function jsonBody(request) {
 
 function credentials(request) {
   return {
-    provider: normalizeApiProvider(request.headers.get("x-openadops-provider")),
+    ...normalizeApiPreferences({
+      protocol: request.headers.get("x-openadops-protocol") || request.headers.get("x-openadops-provider"),
+      baseUrl: request.headers.get("x-openadops-base-url"),
+      model: request.headers.get("x-openadops-model")
+    }),
     apiKey: request.headers.get("x-openadops-api-key") || ""
   };
 }
 
 async function handleProviderTest(request) {
-  const { provider, apiKey } = credentials(request);
-  const result = await testApiProvider({ provider, apiKey });
+  const result = await testApiProvider(credentials(request));
   return jsonResponse({
     ok: true,
     source: "api",
-    provider: result.provider,
+    protocol: result.protocol,
+    provider: result.protocol,
+    baseUrl: result.baseUrl,
+    model: result.model,
     modelCount: result.modelCount,
-    routes: publicApiRoutes(result.provider)
+    routes: publicApiRoutes(result)
   });
 }
 
 async function handleProviderGenerate(request, env) {
   const startedAt = Date.now();
-  const { provider, apiKey } = credentials(request);
+  const apiConfig = credentials(request);
   const body = await jsonBody(request);
   const routeKey = String(body.routeKey || "");
   const validate = VALIDATORS[routeKey];
@@ -95,8 +101,7 @@ async function handleProviderGenerate(request, env) {
   if (!schemaResponse.ok) throw new ApiProviderError("无法加载任务结构定义。", { code: "SCHEMA_UNAVAILABLE", status: 500 });
   const structuredPrompt = `${String(body.prompt || "").trim()}\n\n必须严格符合以下 JSON Schema：\n${await schemaResponse.text()}`;
   const { result, route, requestId } = await runApiProviderJson({
-    provider,
-    apiKey,
+    ...apiConfig,
     routeKey,
     prompt: structuredPrompt
   });
@@ -110,7 +115,8 @@ async function handleProviderGenerate(request, env) {
   return jsonResponse({
     ok: true,
     source: "api",
-    provider,
+    provider: apiConfig.protocol,
+    protocol: apiConfig.protocol,
     routeKey,
     model: route.model,
     reasoningEffort: route.effort,

@@ -33,6 +33,21 @@ test("cloud worker rejects API connection tests without a key", async () => {
   assert.equal(payload.code, "API_KEY_MISSING");
 });
 
+test("cloud worker rejects localhost compatibility endpoints before forwarding a key", async () => {
+  const response = await worker.fetch(new Request("https://openadops.example/api/provider/test", {
+    method: "POST",
+    headers: {
+      "x-openadops-protocol": "openai",
+      "x-openadops-base-url": "http://127.0.0.1:3456/v1",
+      "x-openadops-model": "local-model",
+      "x-openadops-api-key": "session-only"
+    }
+  }), env);
+  const payload = await response.json();
+  assert.equal(response.status, 400);
+  assert.equal(payload.code, "BASE_URL_UNSAFE");
+});
+
 test("cloud worker adds security headers to static assets", async () => {
   const response = await worker.fetch(new Request("https://openadops.example/"), env);
   assert.match(response.headers.get("content-security-policy"), /connect-src 'self'/);
