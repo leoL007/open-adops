@@ -23,7 +23,12 @@ import {
   buildApiIntakePrompt,
   buildApiLaunchPackPrompt
 } from "./lib/api-prompts.js";
-import { apiProviderLabel, normalizeApiProvider, publicApiRoutes } from "./lib/api-routes.js";
+import {
+  apiProtocolLabel,
+  defaultApiPreferences,
+  normalizeApiPreferences,
+  publicApiRoutes
+} from "./lib/api-routes.js";
 import { buildMockAnalysis } from "./lib/mock-analysis.js";
 import { buildMockCreativeRequirements } from "./lib/mock-creative-requirements.js";
 import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
@@ -119,8 +124,13 @@ const aiErrorDismiss = document.querySelector("#aiErrorDismiss");
 const apiSettingsButton = document.querySelector("#apiSettingsButton");
 const apiDialog = document.querySelector("#apiDialog");
 const apiForm = document.querySelector("#apiForm");
-const apiProviderSelect = document.querySelector("#apiProvider");
+const apiProtocolInputs = [...document.querySelectorAll('input[name="protocol"]')];
 const apiKeyInput = document.querySelector("#apiKey");
+const apiKeyToggle = document.querySelector("#apiKeyToggle");
+const apiBaseUrlInput = document.querySelector("#apiBaseUrl");
+const apiModelInput = document.querySelector("#apiModel");
+const apiModelHelp = document.querySelector("#apiModelHelp");
+const apiClearButton = document.querySelector("#apiClearButton");
 const apiConnectionStatus = document.querySelector("#apiConnectionStatus");
 let importSession = null;
 let aiBusy = false;
@@ -130,7 +140,7 @@ let aiJobTimer = null;
 let aiJobTicks = 0;
 let runtimeKind = "unknown";
 let pendingApiActivation = false;
-let apiSession = { apiKey: "", provider: "openai", connected: false };
+let apiSession = { apiKey: "", ...defaultApiPreferences(), connected: false };
 const DEFAULT_CODEX_ROUTES = {
   intakeQuestions: { label: "生成投放前策略清单", model: "gpt-5.6-terra", effort: "low", expectedSeconds: [30, 90] },
   intakeStrategy: { label: "快速生成策略初稿", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
@@ -402,7 +412,7 @@ function initialState() {
   return {
     activeProjectId: demo.id,
     aiMode: "grok",
-    apiPreferences: { provider: "openai" },
+    apiPreferences: defaultApiPreferences(),
     mappingProfiles: [],
     projects: [demo]
   };
@@ -430,7 +440,7 @@ function normalizeStoredState(stored) {
       ? stored.activeProjectId
       : projects[0].id,
     aiMode: normalizeAiMode(stored.aiMode),
-    apiPreferences: { provider: normalizeApiProvider(stored.apiPreferences?.provider) },
+    apiPreferences: normalizeApiPreferences(stored.apiPreferences),
     mappingProfiles: normalizeMappingProfiles(stored.mappingProfiles),
     projects
   };
@@ -447,8 +457,8 @@ let state = stateLoadResult.state;
 const isStaticDemo = location.hostname.endsWith("github.io") || location.protocol === "file:";
 const isCliRuntime = location.hostname === "127.0.0.1" || location.hostname === "localhost";
 state.aiMode = normalizeAiMode(state.aiMode, { staticDemo: isStaticDemo, cliAllowed: isCliRuntime });
-apiSession.provider = normalizeApiProvider(state.apiPreferences?.provider);
-apiRoutes = publicApiRoutes(apiSession.provider);
+apiSession = { ...apiSession, ...normalizeApiPreferences(state.apiPreferences) };
+apiRoutes = publicApiRoutes(apiSession);
 
 function saveState(nextState = state) {
   try {
@@ -576,7 +586,7 @@ function runRecordLabel(record) {
   if (record.fallbackUsed) details.push("自动复核");
   if (record.source === "grok") return `本机 Grok · ${details.join(" · ")}`;
   if (record.source === "codex") return `本机 Codex · ${details.join(" · ")}`;
-  if (record.source === "api") return `${apiProviderLabel(record.provider)} · ${details.join(" · ")}`;
+  if (record.source === "api") return `${apiProtocolLabel(record.protocol || record.provider)} · ${details.join(" · ")}`;
   return details.join(" · ");
 }
 
@@ -598,7 +608,7 @@ function renderAiJobPanel() {
   const live = currentAiJob.live || {};
   aiJobPanel.hidden = false;
   aiJobLabel.textContent = displayRouteLabel(live.label || config.label || "正在生成");
-  const runtimeLabel = state.aiMode === "api" ? `${apiProviderLabel(apiSession.provider)} · 当前会话` : "本机 CLI";
+  const runtimeLabel = state.aiMode === "api" ? `${apiProtocolLabel(apiSession.protocol)} · 当前会话` : "本机 CLI";
   aiJobMeta.textContent = `${modelFullName(live.model || config.model)} · 推理：${effortLabel(live.effort || config.effort)}${live.fallbackUsed ? " · 结构校验后自动复核中" : ""} · ${runtimeLabel}`;
   aiJobElapsed.textContent = formatClock(Date.now() - currentAiJob.startedAt);
   aiJobExpected.textContent = expectedLabel(config.expectedSeconds);
@@ -1790,7 +1800,7 @@ function refreshShell(project) {
   if (apiSettingsButton) {
     apiSettingsButton.hidden = state.aiMode !== "api";
     apiSettingsButton.disabled = aiBusy;
-    apiSettingsButton.textContent = apiSession.connected ? `${apiProviderLabel(apiSession.provider)} · 已连接` : "API 设置";
+    apiSettingsButton.textContent = apiSession.connected ? `${apiProtocolLabel(apiSession.protocol)} · 已连接` : "API 设置";
   }
   newProjectButton.disabled = aiBusy;
   if (importWorkspaceButton) importWorkspaceButton.disabled = aiBusy;
@@ -2358,7 +2368,8 @@ function metricsForAi(project) {
 function aiRecordMeta(payload) {
   return {
     source: payload.source,
-    provider: payload.provider || "",
+    provider: payload.protocol || payload.provider || "",
+    protocol: payload.protocol || payload.provider || "",
     model: payload.model,
     reasoningEffort: payload.reasoningEffort || "",
     durationMs: Number(payload.durationMs || 0),
@@ -2376,12 +2387,44 @@ function completionMessage(label, payload) {
   return `${label} · ${details.join(" · ")}`;
 }
 
+function selectedApiProtocol() {
+  return apiProtocolInputs.find((input) => input.checked)?.value || "openai";
+}
+
+function renderApiProtocolFields({ reset = false } = {}) {
+  const protocol = selectedApiProtocol();
+  const defaults = defaultApiPreferences(protocol);
+  if (reset || !String(apiBaseUrlInput.value || "").trim()) {
+    apiBaseUrlInput.value = defaults.baseUrl;
+  }
+  if (reset) apiModelInput.value = defaults.model;
+  apiBaseUrlInput.placeholder = defaults.baseUrl;
+  if (protocol === "anthropic") {
+    apiModelInput.placeholder = "填写 Anthropic 兼容模型 ID";
+    apiModelHelp.textContent = "按服务商文档填写模型 ID，例如 Claude 或兼容网关配置的模型名。";
+  } else {
+    apiModelInput.placeholder = "auto 或服务商提供的模型 ID";
+    apiModelHelp.textContent = "OpenAI 官方地址填 auto 时按任务自动选择 Terra / Sol；其他服务请填写模型 ID。";
+  }
+}
+
 function openApiDialog({ activate = false } = {}) {
   pendingApiActivation = activate;
-  apiProviderSelect.value = normalizeApiProvider(state.apiPreferences?.provider || apiSession.provider);
+  const preferences = normalizeApiPreferences(state.apiPreferences || apiSession);
+  for (const input of apiProtocolInputs) input.checked = input.value === preferences.protocol;
+  apiBaseUrlInput.value = preferences.baseUrl;
+  apiModelInput.value = preferences.model;
   apiKeyInput.value = "";
-  apiConnectionStatus.textContent = "API Key 只用于当前页面会话，刷新后需要重新填写。";
+  apiKeyInput.type = "password";
+  apiKeyToggle.textContent = "显示";
+  apiKeyToggle.setAttribute("aria-label", "显示 API Key");
+  apiKeyInput.placeholder = apiSession.connected ? "已在当前会话连接；留空继续使用" : "仅本次会话使用";
+  apiConnectionStatus.textContent = apiSession.connected
+    ? `${apiProtocolLabel(apiSession.protocol)}已连接，可修改配置后重新测试。`
+    : "尚未测试连接。";
   apiConnectionStatus.className = "api-connection-status";
+  apiClearButton.hidden = !apiSession.connected;
+  renderApiProtocolFields();
   apiDialog.showModal();
   setTimeout(() => apiKeyInput.focus(), 0);
 }
@@ -2396,7 +2439,9 @@ function ensureAiModeReady() {
 function apiRequestHeaders() {
   return {
     "content-type": "application/json",
-    "x-openadops-provider": apiSession.provider,
+    "x-openadops-protocol": apiSession.protocol,
+    "x-openadops-base-url": apiSession.baseUrl,
+    "x-openadops-model": apiSession.model,
     "x-openadops-api-key": apiSession.apiKey
   };
 }
@@ -3554,6 +3599,25 @@ if (aiModeSelect) {
 }
 
 apiSettingsButton?.addEventListener("click", () => openApiDialog({ activate: state.aiMode !== "api" }));
+for (const input of apiProtocolInputs) {
+  input.addEventListener("change", () => renderApiProtocolFields({ reset: true }));
+}
+apiKeyToggle?.addEventListener("click", () => {
+  const reveal = apiKeyInput.type === "password";
+  apiKeyInput.type = reveal ? "text" : "password";
+  apiKeyToggle.textContent = reveal ? "隐藏" : "显示";
+  apiKeyToggle.setAttribute("aria-label", reveal ? "隐藏 API Key" : "显示 API Key");
+});
+apiClearButton?.addEventListener("click", () => {
+  apiSession = { apiKey: "", ...normalizeApiPreferences(state.apiPreferences), connected: false };
+  apiKeyInput.value = "";
+  apiKeyInput.placeholder = "仅本次会话使用";
+  apiClearButton.hidden = true;
+  apiConnectionStatus.textContent = "当前页面中的 API Key 已清除。";
+  apiConnectionStatus.className = "api-connection-status success";
+  render();
+  showToast("API Key 已从当前页面清除");
+});
 document.querySelectorAll("[data-close-api-dialog]").forEach((button) => {
   button.addEventListener("click", () => {
     pendingApiActivation = false;
@@ -3562,8 +3626,12 @@ document.querySelectorAll("[data-close-api-dialog]").forEach((button) => {
 });
 apiForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const provider = normalizeApiProvider(apiProviderSelect.value);
-  const key = String(apiKeyInput.value || "").trim();
+  const preferences = normalizeApiPreferences({
+    protocol: selectedApiProtocol(),
+    baseUrl: apiBaseUrlInput.value,
+    model: apiModelInput.value
+  });
+  const key = String(apiKeyInput.value || apiSession.apiKey || "").trim();
   const submitButton = apiForm.querySelector('button[type="submit"]');
   if (!key) {
     apiConnectionStatus.textContent = "请填写 API Key。";
@@ -3578,28 +3646,38 @@ apiForm?.addEventListener("submit", async (event) => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-openadops-provider": provider,
+        "x-openadops-protocol": preferences.protocol,
+        "x-openadops-base-url": preferences.baseUrl,
+        "x-openadops-model": preferences.model,
         "x-openadops-api-key": key
       },
       body: "{}"
     });
-    apiSession = { apiKey: key, provider, connected: true };
-    apiRoutes = payload.routes || publicApiRoutes(provider);
+    const connectedPreferences = normalizeApiPreferences({
+      protocol: payload.protocol || preferences.protocol,
+      baseUrl: payload.baseUrl || preferences.baseUrl,
+      model: payload.model ?? preferences.model
+    });
+    apiSession = { apiKey: key, ...connectedPreferences, connected: true };
+    apiRoutes = payload.routes || publicApiRoutes(connectedPreferences);
     const nextState = {
       ...state,
       aiMode: pendingApiActivation || state.aiMode === "api" ? "api" : state.aiMode,
-      apiPreferences: { provider }
+      apiPreferences: connectedPreferences
     };
     if (!commitState(nextState)) throw new Error("API 偏好未能保存");
     applyRoutesForMode(state.aiMode);
-    apiConnectionStatus.textContent = `${apiProviderLabel(provider)} 已连接；Key 只保留在当前页面。`;
+    apiBaseUrlInput.value = connectedPreferences.baseUrl;
+    apiModelInput.value = connectedPreferences.model;
+    apiConnectionStatus.textContent = `${apiProtocolLabel(connectedPreferences.protocol)}已连接 · ${connectedPreferences.model === "auto" ? "Terra / Sol 自动路由" : connectedPreferences.model}`;
     apiConnectionStatus.className = "api-connection-status success";
+    apiClearButton.hidden = false;
     pendingApiActivation = false;
     apiKeyInput.value = "";
     setTimeout(() => {
       apiDialog.close();
       render();
-      showToast(`${apiProviderLabel(provider)} 已连接`);
+      showToast(`${apiProtocolLabel(connectedPreferences.protocol)}已连接`);
     }, 250);
   } catch (error) {
     apiConnectionStatus.textContent = `连接失败：${error.message}`;

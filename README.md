@@ -22,7 +22,7 @@
 
 ![OpenAdOps 项目总览](./assets/screenshots/overview.png)
 
-> 在线工作台可连接使用者自己的 OpenAI 或 xAI API；本地完整版继续支持 Codex CLI 与 Grok CLI。GitHub Pages 仅保留为不调用模型的 Mock 演示。
+> 在线工作台支持 OpenAI 兼容与 Anthropic 兼容 API；本地完整版继续支持 Codex CLI 与 Grok CLI。GitHub Pages 仅保留为不调用模型的 Mock 演示。
 
 ## 为什么需要 OpenAdOps
 
@@ -72,14 +72,14 @@
 ## 两种运行方式，项目数据仍由你控制
 
 ```text
-在线：浏览器工作台 → OpenAdOps 同源代理 → 使用者自己的 OpenAI / xAI API
+在线：浏览器工作台 → OpenAdOps 同源代理 → 使用者自己的兼容 API
 本地：浏览器工作台 → 本机 OpenAdOps Bridge → 使用者自己的 Codex / Grok CLI
 ```
 
 - 项目保存在当前浏览器；支持导出和恢复工作区备份。
 - 原始 CSV 明细仅在当前页面解析，项目只保存聚合指标。
 - 在线模式的 API Key 只保存在当前页面内存，刷新即清除，不进入 localStorage、项目备份或 Git。
-- 在线请求会携带 Key 经过 OpenAdOps 同源代理，再转发到所选官方 API；建议使用独立项目 Key 并设置合理额度。
+- 在线请求会携带 Key 经过 OpenAdOps 同源代理，再转发到用户配置的 API 服务；只填写可信服务商地址，并建议使用独立项目 Key 与合理额度。
 - 本地版不上传或共享 Codex / Grok 登录文件，CLI 仍在使用者电脑上运行。
 - 不连接、不修改真实广告账户；上线与优化动作始终由人工执行。
 
@@ -88,7 +88,7 @@
 ### 在线完整版
 
 1. 打开 [OpenAdOps 在线工作台](https://openadops-workspace.leoliu-tech.chatgpt.site)。
-2. 选择 **API**，连接自己的 OpenAI API 或 xAI API。
+2. 选择 **API**，配置 OpenAI 兼容或 Anthropic 兼容服务。
 3. 测试连接后即可生成策略、素材建议、上线清单和优化诊断。
 
 不想使用 API 时，可以打开 [GitHub Pages Mock 演示](https://leol007.github.io/open-adops/) 查看完整流程，不产生模型费用。
@@ -121,7 +121,7 @@ OpenAdOps 只使用 Node.js 原生模块，无需 `npm install`。
 | 界面名称 | 要求 | 作用 |
 | --- | --- | --- |
 | **本地演示** | 无 | 确定性 Mock，不耗模型额度 |
-| **API** | 自己的 OpenAI 或 xAI API Key | 在线版可用；Key 仅保留在当前页面会话 |
+| **API** | OpenAI 兼容或 Anthropic 兼容 API | 可填写 Base URL 与模型；Key 仅保留在当前页面会话 |
 | **Grok CLI** | 本地版已安装并登录 Grok CLI | 本机 Bridge 调用 Grok 4.5 高推理 |
 | **Codex CLI** | 本地版已登录 Codex CLI | 按任务选择 Terra / Sol 与推理档 |
 
@@ -167,7 +167,7 @@ CSV 必须包含 **Spend（花费）**，并至少有 **Media Installs（媒体�
 npm run check
 ```
 
-当前有 **171 项确定性测试**，覆盖公网 API 代理、部署构建、跨平台启动器、模型路由、Schema、素材需求、上线执行、CSV 质量、指标计算、周期对比、优化动作、备份与迁移。测试不会调用真实模型。
+当前有 **177 项确定性测试**，覆盖两种 API 协议、公网代理安全、部署构建、跨平台启动器、模型路由、Schema、素材需求、上线执行、CSV 质量、指标计算、周期对比、优化动作、备份与迁移。测试不会调用真实模型。
 
 ## 项目状态
 

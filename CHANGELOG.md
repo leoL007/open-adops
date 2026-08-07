@@ -4,6 +4,23 @@ All notable changes to OpenAdOps are documented here.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-08-07
+
+### Added
+
+- API 设置统一为两种协议：OpenAI 兼容与 Anthropic 兼容；支持填写 Base URL 和模型 ID，并继续提供官方 OpenAI Terra / Sol 自动路由。
+- Anthropic 兼容模式使用 Messages 请求格式；OpenAI 兼容模式对自定义服务使用 Chat Completions，对官方 OpenAI 自动路由使用 Responses。
+- API Key 支持显示/隐藏和手动清除；协议、Base URL 与模型偏好可保存，Key 仍只保留在当前页面会话。
+
+### Changed
+
+- API 设置改为紧凑的纵向面板：协议卡片、Key、Base URL、模型、连接状态和安全提示形成单一路径，不再使用横向拥挤的服务商下拉框。
+- v0.7.0 的 xAI 配置自动迁移为 OpenAI 兼容格式，不影响已有浏览器工作区。
+
+### Security
+
+- 网站版只允许 HTTPS 公网 Base URL，并拒绝 localhost、IP 地址、内网域名、URL 凭证、查询参数和重定向；本地版仍允许连接本机 CCR 等兼容网关。
+
 ## [0.7.0] - 2026-08-07
 
 ### Added

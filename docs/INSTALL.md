@@ -2,7 +2,7 @@
 
 这是 OpenAdOps 的本地 CLI 版安装说明。每位使用者登录自己的 Codex 账号；项目数据保存在自己的浏览器中，仓库不会附带或共享任何账号凭证。
 
-不想安装本地环境时，可直接打开 [在线工作台](https://openadops-workspace.leoliu-tech.chatgpt.site)，连接自己的 OpenAI 或 xAI API。在线 Key 只保留在当前页面会话中，刷新后清除；不会写入项目、备份或 Git。
+不想安装本地环境时，可直接打开 [在线工作台](https://openadops-workspace.leoliu-tech.chatgpt.site)，连接 OpenAI 兼容或 Anthropic 兼容 API。在线 Key 只保留在当前页面会话中，刷新后清除；不会写入项目、备份或 Git。
 
 ## 使用前准备
 

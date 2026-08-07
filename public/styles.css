@@ -2784,27 +2784,150 @@ tbody tr:hover td {
 }
 
 .api-dialog {
-  width: min(720px, calc(100vw - 40px));
+  width: min(640px, calc(100vw - 32px));
+}
+
+.api-dialog form {
+  padding: 30px;
+}
+
+.api-dialog-intro {
+  margin: -8px 0 24px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.api-protocol-field {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.api-protocol-field legend {
+  margin-bottom: 9px;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.api-protocol-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.api-protocol-switch label {
+  display: block;
+  cursor: pointer;
+}
+
+.api-protocol-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.api-protocol-switch span {
+  display: grid;
+  gap: 4px;
+  min-height: 66px;
+  padding: 13px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fff;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+
+.api-protocol-switch strong {
+  color: var(--ink);
+  font-size: 11px;
+}
+
+.api-protocol-switch small {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.api-protocol-switch input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 3px rgba(238, 111, 48, 0.1);
+}
+
+.api-protocol-switch input:focus-visible + span {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.api-form-fields {
+  display: grid;
+  gap: 15px;
+  margin-top: 20px;
+}
+
+.api-form-fields .field {
+  gap: 7px;
+}
+
+.api-key-control {
+  position: relative;
+}
+
+.api-key-control input {
+  width: 100%;
+  padding-right: 64px;
+}
+
+.api-inline-button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  height: 30px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  color: var(--ink-soft);
+  background: var(--canvas);
+  font: inherit;
+  font-size: 9px;
+  font-weight: 750;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.api-field-help {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.55;
 }
 
 .api-security-note {
-  margin: 0 0 20px;
-  padding: 14px 16px;
-  border: 1px solid #f1d4c3;
+  display: grid;
+  gap: 5px;
+  margin-top: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
   border-radius: 10px;
-  color: var(--ink-soft);
-  background: var(--accent-soft);
-  font-size: 12px;
-  line-height: 1.65;
+  background: var(--canvas);
+  font-size: 9px;
+  line-height: 1.6;
 }
 
 .api-security-note strong {
-  color: var(--accent-deep);
+  color: var(--ink);
+}
+
+.api-security-note span {
+  color: var(--muted);
 }
 
 .api-connection-status {
   min-height: 20px;
-  margin: 14px 0 0;
+  margin: 12px 0 0;
   color: var(--muted);
   font-size: 11px;
   line-height: 1.5;
@@ -2816,6 +2939,10 @@ tbody tr:hover td {
 
 .api-connection-status.error {
   color: var(--danger);
+}
+
+.api-dialog-actions #apiClearButton {
+  margin-right: auto;
 }
 
 .dialog-header {
@@ -4268,6 +4395,31 @@ tbody tr:hover td {
 }
 
 @media (max-width: 900px) {
+  .api-dialog form {
+    padding: 22px 18px;
+  }
+
+  .api-protocol-switch {
+    grid-template-columns: 1fr;
+  }
+
+  .api-protocol-switch span {
+    min-height: 0;
+  }
+
+  .api-dialog-actions {
+    flex-wrap: wrap;
+  }
+
+  .api-dialog-actions #apiClearButton {
+    width: 100%;
+    margin-right: 0;
+  }
+
+  .api-dialog-actions .button-primary {
+    flex: 1;
+  }
+
   .app-shell {
     display: block;
   }

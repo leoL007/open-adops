@@ -22,7 +22,7 @@ Turn client offers, media requirements, and performance data into **creative req
 
 ![OpenAdOps overview](./assets/screenshots/overview.png)
 
-> The online workspace connects to the user's own OpenAI or xAI API. The local edition keeps Codex CLI and Grok CLI support. GitHub Pages remains a model-free mock demo.
+> The online workspace supports OpenAI-compatible and Anthropic-compatible APIs. The local edition keeps Codex CLI and Grok CLI support. GitHub Pages remains a model-free mock demo.
 
 ## Why OpenAdOps
 
@@ -72,14 +72,14 @@ Intake → Build strategy (optional) → Creative requirements → Launch execut
 ## Two runtimes, with operator-controlled project data
 
 ```text
-Online: Browser → OpenAdOps same-origin proxy → User-owned OpenAI / xAI API
+Online: Browser → OpenAdOps same-origin proxy → User-owned compatible API
 Local:  Browser → Local OpenAdOps Bridge → User-owned Codex / Grok CLI
 ```
 
 - Projects live in the current browser and can be exported as workspace backups.
 - Raw CSV rows are processed on the current page; only aggregates enter the project.
 - Online API keys live only in page memory, are cleared on refresh, and never enter localStorage, project backups, or Git.
-- Online requests carry the key through the OpenAdOps same-origin proxy to the selected official API. Use a dedicated project key with an appropriate spend limit.
+- Online requests carry the key through the OpenAdOps same-origin proxy to the configured API service. Use only trusted endpoints and a dedicated project key with an appropriate spend limit.
 - The local edition does not upload or share Codex or Grok sign-in files; both CLIs run on the user's machine.
 - It does not connect to or modify live ad accounts; humans execute every action.
 
@@ -88,7 +88,7 @@ Local:  Browser → Local OpenAdOps Bridge → User-owned Codex / Grok CLI
 ### Online full workspace
 
 1. Open the [OpenAdOps online workspace](https://openadops-workspace.leoliu-tech.chatgpt.site).
-2. Select **API** and connect your own OpenAI or xAI API.
+2. Select **API** and configure an OpenAI-compatible or Anthropic-compatible service.
 3. Test the connection, then generate strategy, creative guidance, launch checks, and optimization diagnosis.
 
 Use the [GitHub Pages mock](https://leol007.github.io/open-adops/) to inspect the full flow without a model or API cost.
@@ -121,7 +121,7 @@ OpenAdOps uses Node.js built-ins only; no `npm install` is required.
 | UI label | Requirement | Behavior |
 | --- | --- | --- |
 | **Local demo** | None | Deterministic mock with no model usage |
-| **API** | Your OpenAI or xAI API key | Available online; the key stays in the current page session |
+| **API** | OpenAI-compatible or Anthropic-compatible API | Configure a Base URL and model; the key stays in the current page session |
 | **Grok CLI** | Signed-in Grok CLI in the local edition | Local Bridge calls Grok 4.5 high reasoning |
 | **Codex CLI** | Signed-in Codex CLI in the local edition | Task-aware Terra / Sol routing |
 
@@ -167,7 +167,7 @@ Demo data: [openadops-demo.csv](./public/data/openadops-demo.csv)
 npm run check
 ```
 
-**171 deterministic tests** cover the hosted API proxy, deployment build, cross-platform launchers, model routing, schemas, creative requirements, launch execution, CSV quality, metric calculation, period comparison, optimization actions, backup, and migration. Tests never call a live model.
+**177 deterministic tests** cover both API protocols, hosted proxy safety, deployment build, cross-platform launchers, model routing, schemas, creative requirements, launch execution, CSV quality, metric calculation, period comparison, optimization actions, backup, and migration. Tests never call a live model.
 
 ## Project status
 
