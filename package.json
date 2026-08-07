@@ -3,13 +3,13 @@
   "version": "0.7.0",
   "private": true,
   "type": "module",
-  "description": "Local-first AI workspace for paid-media strategy, optimization, and reporting.",
+  "description": "API and local CLI workspace for paid-media strategy, optimization, and reporting.",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/leoL007/open-adops.git"
   },
-  "homepage": "https://leol007.github.io/open-adops/",
+  "homepage": "https://openadops-workspace.leoliu-tech.chatgpt.site",
   "keywords": [
     "paid-media",
     "ad-operations",

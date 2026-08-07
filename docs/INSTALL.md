@@ -1,6 +1,8 @@
 # OpenAdOps 本地完整版安装
 
-OpenAdOps 的正式使用方式是本地运行。每位使用者登录自己的 Codex 账号；项目数据保存在自己的浏览器中，仓库不会附带或共享任何账号凭证。
+这是 OpenAdOps 的本地 CLI 版安装说明。每位使用者登录自己的 Codex 账号；项目数据保存在自己的浏览器中，仓库不会附带或共享任何账号凭证。
+
+不想安装本地环境时，可直接打开 [在线工作台](https://openadops-workspace.leoliu-tech.chatgpt.site)，连接自己的 OpenAI 或 xAI API。在线 Key 只保留在当前页面会话中，刷新后清除；不会写入项目、备份或 Git。
 
 ## 使用前准备
 
@@ -62,5 +64,5 @@ npm run doctor
 
 - 不要把 `~/.codex/auth.json`、API Key 或其他登录文件提交到 GitHub 或发给同事。
 - 每位同事使用自己的 Codex 登录和模型额度。
-- GitHub Pages 只提供 Mock 演示，不会调用本机 Codex。
+- 在线工作台可使用自己的 API；GitHub Pages 仍只提供 Mock 演示；本机 CLI 只能由本地版调用。
 - 客户真实数据只保存在当前浏览器；换电脑或清除浏览器数据前，先导出工作区备份。

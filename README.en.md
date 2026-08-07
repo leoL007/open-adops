@@ -2,12 +2,13 @@
 
 # OpenAdOps
 
-### A local-first paid-media operations workspace
+### An API and local CLI paid-media operations workspace
 
 Turn client offers, media requirements, and performance data into **creative requirements, launch checks, optimization actions, and client-ready reports**.
 
-[![Live demo](https://img.shields.io/badge/Live_demo-Open_workspace-E77436?style=for-the-badge)](https://leol007.github.io/open-adops/)
+[![Online workspace](https://img.shields.io/badge/Online_workspace-Open_now-E77436?style=for-the-badge)](https://openadops-workspace.leoliu-tech.chatgpt.site)
 [![Local edition](https://img.shields.io/badge/Local_edition-Install_guide-1B2430?style=for-the-badge)](./docs/INSTALL.md)
+[![Mock demo](https://img.shields.io/badge/Mock_demo-GitHub_Pages-6B7280?style=for-the-badge)](https://leol007.github.io/open-adops/)
 [![Latest release](https://img.shields.io/badge/Latest_release-View_Releases-3D69A8?style=for-the-badge)](https://github.com/leoL007/open-adops/releases/latest)
 
 [![Tests](https://github.com/leoL007/open-adops/actions/workflows/test.yml/badge.svg)](https://github.com/leoL007/open-adops/actions/workflows/test.yml)
@@ -21,7 +22,7 @@ Turn client offers, media requirements, and performance data into **creative req
 
 ![OpenAdOps overview](./assets/screenshots/overview.png)
 
-> GitHub Pages is a deterministic mock demo. The full workspace runs locally with the operator's own Codex or Grok sign-in.
+> The online workspace connects to the user's own OpenAI or xAI API. The local edition keeps Codex CLI and Grok CLI support. GitHub Pages remains a model-free mock demo.
 
 ## Why OpenAdOps
 
@@ -68,23 +69,29 @@ Intake → Build strategy (optional) → Creative requirements → Launch execut
 - **Unknowns stay unknown**; learning periods do not require invented thresholds.
 - **Failures stay visible**; exits, timeouts, invalid structures, and offline services never become fake success.
 
-## Local-first and account-safe
+## Two runtimes, with operator-controlled project data
 
 ```text
-Browser workspace  →  Local OpenAdOps Bridge  →  Operator-owned Codex / Grok CLI
-  project data             schema checks                  AI judgment
+Online: Browser → OpenAdOps same-origin proxy → User-owned OpenAI / xAI API
+Local:  Browser → Local OpenAdOps Bridge → User-owned Codex / Grok CLI
 ```
 
 - Projects live in the current browser and can be exported as workspace backups.
 - Raw CSV rows are processed on the current page; only aggregates enter the project.
-- OpenAdOps does not bundle, upload, or share Codex credentials or API keys.
+- Online API keys live only in page memory, are cleared on refresh, and never enter localStorage, project backups, or Git.
+- Online requests carry the key through the OpenAdOps same-origin proxy to the selected official API. Use a dedicated project key with an appropriate spend limit.
+- The local edition does not upload or share Codex or Grok sign-in files; both CLIs run on the user's machine.
 - It does not connect to or modify live ad accounts; humans execute every action.
 
 ## Start in 60 seconds
 
-### Browser demo
+### Online full workspace
 
-Open the [GitHub Pages demo](https://leol007.github.io/open-adops/). No account or model usage; local model calls are unavailable.
+1. Open the [OpenAdOps online workspace](https://openadops-workspace.leoliu-tech.chatgpt.site).
+2. Select **API** and connect your own OpenAI or xAI API.
+3. Test the connection, then generate strategy, creative guidance, launch checks, and optimization diagnosis.
+
+Use the [GitHub Pages mock](https://leol007.github.io/open-adops/) to inspect the full flow without a model or API cost.
 
 ### Local full edition
 
@@ -114,8 +121,9 @@ OpenAdOps uses Node.js built-ins only; no `npm install` is required.
 | UI label | Requirement | Behavior |
 | --- | --- | --- |
 | **Local demo** | None | Deterministic mock with no model usage |
-| **Grok 4.5** | Signed-in Grok CLI | Local Bridge calls Grok 4.5 high reasoning |
-| **GPT 5.6** | Signed-in Codex CLI | Task-aware Terra / Sol routing |
+| **API** | Your OpenAI or xAI API key | Available online; the key stays in the current page session |
+| **Grok CLI** | Signed-in Grok CLI in the local edition | Local Bridge calls Grok 4.5 high reasoning |
+| **Codex CLI** | Signed-in Codex CLI in the local edition | Task-aware Terra / Sol routing |
 
 <details>
 <summary><strong>Show GPT 5.6 task routing</strong></summary>
@@ -159,7 +167,7 @@ Demo data: [openadops-demo.csv](./public/data/openadops-demo.csv)
 npm run check
 ```
 
-**158 deterministic tests** cover cross-platform launchers, model routing, schemas, creative requirements, launch execution, CSV quality, metric calculation, period comparison, optimization actions, backup, and migration. Tests never call a live model.
+**171 deterministic tests** cover the hosted API proxy, deployment build, cross-platform launchers, model routing, schemas, creative requirements, launch execution, CSV quality, metric calculation, period comparison, optimization actions, backup, and migration. Tests never call a live model.
 
 ## Project status
 
