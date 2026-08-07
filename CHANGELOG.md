@@ -4,6 +4,20 @@ All notable changes to OpenAdOps are documented here.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-07
+
+### Added
+
+- 新增公网 API 模式：支持用户在当前页面会话中连接自己的 OpenAI API 或 xAI API，OpenAI 继续按任务自动选择 Terra / Sol，xAI 使用 Grok 4.5。
+- 新增 API 连接测试、会话级 Key 清除、请求取消、供应商错误翻译和结构校验；API Key 不进入项目、工作区备份、localStorage 或 Git。
+- 新增 Cloudflare Worker 兼容的网站运行层，让同一套工作台可部署为带服务端 API 代理的正式网站。
+- 保留本地 Grok CLI / Codex CLI 双模式；公网运行时明确禁用 CLI，并引导使用 API 或本地完整版。
+
+### Security
+
+- 公网 API 代理只允许 OpenAI 与 xAI 官方 HTTPS 地址，拒绝用户自定义上游主机，避免服务端请求伪造。
+- 公网响应增加 CSP、禁止嵌入、权限限制与 `no-store`；模型 Key 仅作为当前请求凭证转发，不写日志或持久化。
+
 ### Changed
 
 - 重构 GitHub 项目首页：用最新真实界面替换过时截图，突出在线演示、本地完整版、核心工作流和安全边界，并将版本细节与模型路由下沉。

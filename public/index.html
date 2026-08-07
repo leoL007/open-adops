@@ -10,7 +10,7 @@
     <meta name="twitter:card" content="summary_large_image" />
     <title>OpenAdOps</title>
     <link rel="icon" href="./og.png" type="image/png" />
-    <link rel="stylesheet" href="./styles.css?v=0.5.12" />
+    <link rel="stylesheet" href="./styles.css?v=0.7.0" />
   </head>
   <body>
     <div class="app-shell">
@@ -49,17 +49,20 @@
             <span id="demoBadge" class="demo-badge" hidden>演示数据</span>
           </div>
           <div class="topbar-actions">
-            <span class="app-version" id="appVersion">v0.5.12</span>
-            <div class="mode-switch" role="group" aria-label="分析模式" title="本地演示不耗额度；Grok 4.5 用本机 Grok CLI；GPT 5.6 用本机 Codex">
+            <span class="app-version" id="appVersion">v0.7.0</span>
+            <div class="mode-switch" role="group" aria-label="分析模式" title="API 使用自己的 Key；CLI 模式只在本地版可用">
               <button type="button" class="mode-switch-btn" data-ai-mode="mock" id="modeMockBtn">本地演示</button>
-              <button type="button" class="mode-switch-btn" data-ai-mode="grok" id="modeGrokBtn">Grok 4.5</button>
-              <button type="button" class="mode-switch-btn" data-ai-mode="codex" id="modeCodexBtn">GPT 5.6</button>
+              <button type="button" class="mode-switch-btn" data-ai-mode="api" id="modeApiBtn">API</button>
+              <button type="button" class="mode-switch-btn" data-ai-mode="grok" id="modeGrokBtn">Grok CLI</button>
+              <button type="button" class="mode-switch-btn" data-ai-mode="codex" id="modeCodexBtn">Codex CLI</button>
             </div>
             <select id="aiMode" hidden aria-hidden="true">
               <option value="mock">本地演示</option>
-              <option value="grok">Grok 4.5</option>
-              <option value="codex">GPT 5.6</option>
+              <option value="api">API</option>
+              <option value="grok">Grok CLI</option>
+              <option value="codex">Codex CLI</option>
             </select>
+            <button class="button button-ghost button-small" id="apiSettingsButton" type="button" hidden>API 设置</button>
             <div class="backup-actions" title="项目保存在本机浏览器；请定期导出备份">
               <button class="button button-ghost button-small" id="exportProjectButton" type="button">导出当前</button>
               <button class="button button-ghost button-small" id="exportWorkspaceButton" type="button">导出全部</button>
@@ -157,7 +160,38 @@
       </form>
     </dialog>
 
+    <dialog id="apiDialog" class="dialog api-dialog">
+      <form id="apiForm">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">AI CONNECTION</p>
+            <h2>连接自己的 API</h2>
+          </div>
+          <button type="button" class="icon-button" data-close-api-dialog aria-label="关闭">×</button>
+        </div>
+        <p class="api-security-note"><strong>Key 不写入项目、备份或浏览器存储。</strong>它只保留在当前页面内存，并通过当前 OpenAdOps 服务转发给所选模型供应商。刷新页面后自动清除。</p>
+        <div class="form-grid two-columns">
+          <label class="field">
+            <span>API 服务</span>
+            <select id="apiProvider" name="provider">
+              <option value="openai">OpenAI API · Terra / Sol 自动路由</option>
+              <option value="xai">xAI API · Grok 4.5</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>API Key</span>
+            <input id="apiKey" name="apiKey" type="password" autocomplete="off" spellcheck="false" required placeholder="仅本次会话使用" />
+          </label>
+        </div>
+        <p id="apiConnectionStatus" class="api-connection-status">建议使用单独的项目 Key，并在供应商后台设置额度上限。</p>
+        <div class="dialog-actions">
+          <button type="button" class="button button-ghost" data-close-api-dialog>取消</button>
+          <button type="submit" class="button button-primary">测试连接并使用</button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="./app.js?v=0.5.12"></script>
+    <script type="module" src="./app.js?v=0.7.0"></script>
   </body>
 </html>

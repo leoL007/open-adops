@@ -17,6 +17,13 @@ import {
   experimentSizingInputError
 } from "./lib/experiments.js";
 import { isCancelledRequest, requestJson, runtimeVersionWarning } from "./lib/api-client.js";
+import {
+  buildApiAnalysisPrompt,
+  buildApiCreativeRequirementsPrompt,
+  buildApiIntakePrompt,
+  buildApiLaunchPackPrompt
+} from "./lib/api-prompts.js";
+import { apiProviderLabel, normalizeApiProvider, publicApiRoutes } from "./lib/api-routes.js";
 import { buildMockAnalysis } from "./lib/mock-analysis.js";
 import { buildMockCreativeRequirements } from "./lib/mock-creative-requirements.js";
 import { buildMockExperimentPlan } from "./lib/mock-experiment-plan.js";
@@ -109,12 +116,21 @@ const aiCancelButton = document.querySelector("#aiCancelButton");
 const aiErrorPanel = document.querySelector("#aiErrorPanel");
 const aiErrorMessage = document.querySelector("#aiErrorMessage");
 const aiErrorDismiss = document.querySelector("#aiErrorDismiss");
+const apiSettingsButton = document.querySelector("#apiSettingsButton");
+const apiDialog = document.querySelector("#apiDialog");
+const apiForm = document.querySelector("#apiForm");
+const apiProviderSelect = document.querySelector("#apiProvider");
+const apiKeyInput = document.querySelector("#apiKey");
+const apiConnectionStatus = document.querySelector("#apiConnectionStatus");
 let importSession = null;
 let aiBusy = false;
 let creativeAiPanelOpen = false;
 let currentAiJob = null;
 let aiJobTimer = null;
 let aiJobTicks = 0;
+let runtimeKind = "unknown";
+let pendingApiActivation = false;
+let apiSession = { apiKey: "", provider: "openai", connected: false };
 const DEFAULT_CODEX_ROUTES = {
   intakeQuestions: { label: "生成投放前策略清单", model: "gpt-5.6-terra", effort: "low", expectedSeconds: [30, 90] },
   intakeStrategy: { label: "快速生成策略初稿", model: "gpt-5.6-terra", effort: "medium", expectedSeconds: [60, 180] },
@@ -132,6 +148,7 @@ const DEFAULT_GROK_ROUTES = Object.fromEntries(
 );
 let codexRoutes = { ...DEFAULT_CODEX_ROUTES };
 let grokRoutes = { ...DEFAULT_GROK_ROUTES };
+let apiRoutes = publicApiRoutes("openai");
 let aiRoutes = { ...DEFAULT_GROK_ROUTES };
 let runtimeProviders = {};
 
@@ -361,23 +378,34 @@ function createDemoProject() {
   return project;
 }
 
-function normalizeAiMode(mode, { staticDemo = false } = {}) {
+function normalizeAiMode(mode, { staticDemo = false, cliAllowed = true } = {}) {
   if (staticDemo) return "mock";
-  if (mode === "codex" || mode === "grok") return mode;
+  if (mode === "api") return "api";
+  if (cliAllowed && (mode === "codex" || mode === "grok")) return mode;
   return "mock";
 }
 
 function isLiveAiMode(mode = state.aiMode) {
-  return mode === "grok" || mode === "codex";
+  return mode === "api" || mode === "grok" || mode === "codex";
 }
 
 function isLiveProviderMode(mode) {
+  return mode === "api" || mode === "grok" || mode === "codex";
+}
+
+function isCliProviderMode(mode) {
   return mode === "grok" || mode === "codex";
 }
 
 function initialState() {
   const demo = createDemoProject();
-  return { activeProjectId: demo.id, aiMode: "grok", mappingProfiles: [], projects: [demo] };
+  return {
+    activeProjectId: demo.id,
+    aiMode: "grok",
+    apiPreferences: { provider: "openai" },
+    mappingProfiles: [],
+    projects: [demo]
+  };
 }
 
 function normalizeStoredState(stored) {
@@ -402,6 +430,7 @@ function normalizeStoredState(stored) {
       ? stored.activeProjectId
       : projects[0].id,
     aiMode: normalizeAiMode(stored.aiMode),
+    apiPreferences: { provider: normalizeApiProvider(stored.apiPreferences?.provider) },
     mappingProfiles: normalizeMappingProfiles(stored.mappingProfiles),
     projects
   };
@@ -416,7 +445,10 @@ const stateLoadResult = loadWorkspaceState({
 });
 let state = stateLoadResult.state;
 const isStaticDemo = location.hostname.endsWith("github.io") || location.protocol === "file:";
-state.aiMode = normalizeAiMode(state.aiMode, { staticDemo: isStaticDemo });
+const isCliRuntime = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+state.aiMode = normalizeAiMode(state.aiMode, { staticDemo: isStaticDemo, cliAllowed: isCliRuntime });
+apiSession.provider = normalizeApiProvider(state.apiPreferences?.provider);
+apiRoutes = publicApiRoutes(apiSession.provider);
 
 function saveState(nextState = state) {
   try {
@@ -516,6 +548,7 @@ function expectedLabel(expectedSeconds = []) {
 function routesForMode(mode = state.aiMode) {
   if (mode === "codex") return codexRoutes;
   if (mode === "grok") return grokRoutes;
+  if (mode === "api") return apiRoutes;
   return aiRoutes;
 }
 
@@ -543,6 +576,7 @@ function runRecordLabel(record) {
   if (record.fallbackUsed) details.push("自动复核");
   if (record.source === "grok") return `本机 Grok · ${details.join(" · ")}`;
   if (record.source === "codex") return `本机 Codex · ${details.join(" · ")}`;
+  if (record.source === "api") return `${apiProviderLabel(record.provider)} · ${details.join(" · ")}`;
   return details.join(" · ");
 }
 
@@ -564,7 +598,8 @@ function renderAiJobPanel() {
   const live = currentAiJob.live || {};
   aiJobPanel.hidden = false;
   aiJobLabel.textContent = displayRouteLabel(live.label || config.label || "正在生成");
-  aiJobMeta.textContent = `${modelFullName(live.model || config.model)} · 推理：${effortLabel(live.effort || config.effort)}${live.fallbackUsed ? " · 结构校验后自动复核中" : ""} · 本机运行`;
+  const runtimeLabel = state.aiMode === "api" ? `${apiProviderLabel(apiSession.provider)} · 当前会话` : "本机 CLI";
+  aiJobMeta.textContent = `${modelFullName(live.model || config.model)} · 推理：${effortLabel(live.effort || config.effort)}${live.fallbackUsed ? " · 结构校验后自动复核中" : ""} · ${runtimeLabel}`;
   aiJobElapsed.textContent = formatClock(Date.now() - currentAiJob.startedAt);
   aiJobExpected.textContent = expectedLabel(config.expectedSeconds);
   aiCancelButton.disabled = currentAiJob.cancelling;
@@ -572,7 +607,7 @@ function renderAiJobPanel() {
 }
 
 async function syncActiveAiJob() {
-  if (!currentAiJob || isStaticDemo) return;
+  if (!currentAiJob || isStaticDemo || state.aiMode === "api") return;
   try {
     const payload = await requestJson("./api/health", { cache: "no-store" });
     if (payload.activeJob && currentAiJob) {
@@ -586,7 +621,12 @@ async function syncActiveAiJob() {
 
 function beginAiJob(routeKey) {
   clearPersistentError();
-  currentAiJob = { routeKey, startedAt: Date.now(), cancelling: false };
+  currentAiJob = {
+    routeKey,
+    startedAt: Date.now(),
+    cancelling: false,
+    abortController: state.aiMode === "api" ? new AbortController() : null
+  };
   aiJobTicks = 0;
   clearInterval(aiJobTimer);
   renderAiJobPanel();
@@ -618,6 +658,7 @@ async function loadAiRuntime() {
   if (isStaticDemo) return;
   try {
     const payload = await requestJson("./api/health", { cache: "no-store" });
+    runtimeKind = payload.runtime || (isCliRuntime ? "local" : "cloud");
     const versionWarning = runtimeVersionWarning(APP_VERSION, payload.version);
     if (versionWarning) showPersistentError(versionWarning);
     const labelize = (base, incoming) => {
@@ -649,6 +690,11 @@ async function cancelAiJob() {
   if (!currentAiJob || currentAiJob.cancelling) return;
   currentAiJob.cancelling = true;
   renderAiJobPanel();
+  if (state.aiMode === "api" && currentAiJob.abortController) {
+    currentAiJob.abortController.abort();
+    showToast("已取消当前 API 请求");
+    return;
+  }
   try {
     await requestJson("./api/cancel", { method: "POST" });
     showToast("已发送取消请求");
@@ -1724,19 +1770,28 @@ function refreshShell(project) {
   }
   document.querySelectorAll("[data-ai-mode]").forEach((button) => {
     const active = button.dataset.aiMode === state.aiMode;
-    const liveMode = isLiveProviderMode(button.dataset.aiMode);
-    const unavailable = !isStaticDemo && runtimeProviders[button.dataset.aiMode]?.available === false;
+    const mode = button.dataset.aiMode;
+    const liveMode = isLiveProviderMode(mode);
+    const cliUnavailable = isCliProviderMode(mode) && !isCliRuntime;
+    const unavailable = runtimeProviders[mode]?.available === false || cliUnavailable;
     button.classList.toggle("active", active);
     button.setAttribute("aria-pressed", active ? "true" : "false");
     button.disabled = aiBusy || (isStaticDemo && liveMode) || unavailable;
     if (isStaticDemo && liveMode) {
-      button.title = "请在本地启动后使用 Grok 4.5 / GPT 5.6";
+      button.title = "旧版 GitHub Pages 只保留演示，请打开新版 OpenAdOps 网站或下载本地版";
+    } else if (cliUnavailable) {
+      button.title = "CLI 只能在本地版运行；公网版请使用 API";
     } else if (unavailable) {
-      button.title = runtimeProviders[button.dataset.aiMode]?.error || "本机未检测到对应 CLI";
+      button.title = runtimeProviders[mode]?.error || "当前模式不可用";
     } else {
       button.removeAttribute("title");
     }
   });
+  if (apiSettingsButton) {
+    apiSettingsButton.hidden = state.aiMode !== "api";
+    apiSettingsButton.disabled = aiBusy;
+    apiSettingsButton.textContent = apiSession.connected ? `${apiProviderLabel(apiSession.provider)} · 已连接` : "API 设置";
+  }
   newProjectButton.disabled = aiBusy;
   if (importWorkspaceButton) importWorkspaceButton.disabled = aiBusy;
   demoBadge.hidden = !project.isDemo;
@@ -2303,6 +2358,7 @@ function metricsForAi(project) {
 function aiRecordMeta(payload) {
   return {
     source: payload.source,
+    provider: payload.provider || "",
     model: payload.model,
     reasoningEffort: payload.reasoningEffort || "",
     durationMs: Number(payload.durationMs || 0),
@@ -2312,7 +2368,7 @@ function aiRecordMeta(payload) {
 }
 
 function completionMessage(label, payload) {
-  if (payload.source !== "codex" && payload.source !== "grok") return label;
+  if (payload.source !== "codex" && payload.source !== "grok" && payload.source !== "api") return label;
   const details = [modelFullName(payload.model)];
   if (payload.reasoningEffort) details.push(`推理：${effortLabel(payload.reasoningEffort)}`);
   if (payload.durationMs) details.push(formatDuration(payload.durationMs));
@@ -2320,8 +2376,50 @@ function completionMessage(label, payload) {
   return `${label} · ${details.join(" · ")}`;
 }
 
+function openApiDialog({ activate = false } = {}) {
+  pendingApiActivation = activate;
+  apiProviderSelect.value = normalizeApiProvider(state.apiPreferences?.provider || apiSession.provider);
+  apiKeyInput.value = "";
+  apiConnectionStatus.textContent = "API Key 只用于当前页面会话，刷新后需要重新填写。";
+  apiConnectionStatus.className = "api-connection-status";
+  apiDialog.showModal();
+  setTimeout(() => apiKeyInput.focus(), 0);
+}
+
+function ensureAiModeReady() {
+  if (state.aiMode !== "api" || apiSession.connected && apiSession.apiKey) return true;
+  openApiDialog({ activate: true });
+  showToast("请先连接自己的 API", "error");
+  return false;
+}
+
+function apiRequestHeaders() {
+  return {
+    "content-type": "application/json",
+    "x-openadops-provider": apiSession.provider,
+    "x-openadops-api-key": apiSession.apiKey
+  };
+}
+
+async function requestAi(endpoint, { routeKey, prompt, payload }) {
+  if (state.aiMode === "api") {
+    return requestJson("./api/provider/generate", {
+      method: "POST",
+      headers: apiRequestHeaders(),
+      body: JSON.stringify({ routeKey, prompt }),
+      signal: currentAiJob?.abortController?.signal
+    });
+  }
+  return requestJson(endpoint, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+}
+
 async function runCreativeRequirements() {
   if (aiBusy) return;
+  if (!ensureAiModeReady()) return;
   const project = activeProject();
   const projectId = project.id;
   const production = normalizeCreativeProduction(project, { makeId });
@@ -2333,10 +2431,10 @@ async function runCreativeRequirements() {
     if (state.aiMode === "mock") {
       payload = { ok: true, source: "mock", model: "browser-local-mock", result: buildMockCreativeRequirements(project, production) };
     } else {
-      payload = await requestJson("./api/creative-requirements", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: state.aiMode, project, intake: project.intake || createIntake(), workspace: production })
+      payload = await requestAi("./api/creative-requirements", {
+        routeKey: "creativeRequirements",
+        prompt: buildApiCreativeRequirementsPrompt({ project, intake: project.intake || createIntake(), workspace: production }),
+        payload: { mode: state.aiMode, project, intake: project.intake || createIntake(), workspace: production }
       });
     }
     const saved = updateProjectById(projectId, (target) => {
@@ -2379,6 +2477,7 @@ function adoptCreativeSuggestions(ids = null) {
 
 async function runAnalysis(stage) {
   if (aiBusy) return;
+  if (!ensureAiModeReady()) return;
   const project = activeProject();
   const projectId = project.id;
   aiBusy = true;
@@ -2394,10 +2493,11 @@ async function runAnalysis(stage) {
         result: buildMockAnalysis(project, metricsForAi(project))
       };
     } else {
-      payload = await requestJson("./api/analyze", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: state.aiMode, stage, project, metrics: metricsForAi(project) })
+      const metrics = metricsForAi(project);
+      payload = await requestAi("./api/analyze", {
+        routeKey: stage === "optimize" ? "optimizeAnalysis" : "analysis",
+        prompt: buildApiAnalysisPrompt({ project, metrics, stage }),
+        payload: { mode: state.aiMode, stage, project, metrics }
       });
     }
     const saved = updateProjectById(projectId, (target) => {
@@ -2562,6 +2662,7 @@ async function copyOptimizationReviewToFeishu() {
 
 async function runIntake(action) {
   if (aiBusy) return;
+  if (!ensureAiModeReady()) return;
   const project = activeProject();
   const projectId = project.id;
   const intake = project.intake || createIntake();
@@ -2585,10 +2686,10 @@ async function runIntake(action) {
         result: buildMockIntake(project, intake, intent)
       };
     } else {
-      payload = await requestJson("./api/intake", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: state.aiMode, intent, profile, project, intake })
+      payload = await requestAi("./api/intake", {
+        routeKey,
+        prompt: buildApiIntakePrompt({ project, intake, intent }),
+        payload: { mode: state.aiMode, intent, profile, project, intake }
       });
     }
     const saved = updateProjectById(projectId, (target) => {
@@ -2629,6 +2730,7 @@ function recalculateLaunchReadiness(pack, updateSummary = false) {
 
 async function runLaunchPack() {
   if (aiBusy) return;
+  if (!ensureAiModeReady()) return;
   const project = activeProject();
   const projectId = project.id;
   if (!project.intake?.analysis?.result && !project.strategy?.objective) {
@@ -2648,10 +2750,10 @@ async function runLaunchPack() {
         result: buildMockLaunchPack(project, project.intake?.analysis?.result || null)
       };
     } else {
-      payload = await requestJson("./api/launch-pack", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ mode: state.aiMode, project, intake: project.intake || createIntake() })
+      payload = await requestAi("./api/launch-pack", {
+        routeKey: "launchPack",
+        prompt: buildApiLaunchPackPrompt({ project, intake: project.intake || createIntake() }),
+        payload: { mode: state.aiMode, project, intake: project.intake || createIntake() }
       });
     }
     const saved = updateProjectById(projectId, (target) => {
@@ -3416,14 +3518,25 @@ projectSelect.addEventListener("change", () => {
 function setAiMode(mode) {
   if (aiBusy) return;
   if (isStaticDemo && isLiveProviderMode(mode)) {
-    showToast("在线演示只能使用本地演示模式，请本机 npm start 后使用 Grok 4.5 / GPT 5.6。", "error");
+    showToast("旧版 GitHub Pages 只保留演示，请打开新版网站使用 API，或下载本地版使用 CLI。", "error");
+    return;
+  }
+  if (isCliProviderMode(mode) && !isCliRuntime) {
+    showPersistentError("公网版无法直接运行你电脑里的 CLI。请使用 API，或下载本地版后选择 Grok CLI / Codex CLI。");
+    return;
+  }
+  if (mode === "api" && (!apiSession.connected || !apiSession.apiKey)) {
+    openApiDialog({ activate: true });
     return;
   }
   if (runtimeProviders[mode]?.available === false) {
-    showPersistentError(runtimeProviders[mode].error || "本机未检测到对应 CLI，请重启 OpenAdOps 后重试。");
+    showPersistentError(runtimeProviders[mode].error || "当前模式不可用。");
     return;
   }
-  const nextState = { ...state, aiMode: normalizeAiMode(mode, { staticDemo: isStaticDemo }) };
+  const nextState = {
+    ...state,
+    aiMode: normalizeAiMode(mode, { staticDemo: isStaticDemo, cliAllowed: isCliRuntime })
+  };
   if (!commitState(nextState)) {
     render();
     return;
@@ -3439,6 +3552,62 @@ document.querySelectorAll("[data-ai-mode]").forEach((button) => {
 if (aiModeSelect) {
   aiModeSelect.addEventListener("change", () => setAiMode(aiModeSelect.value));
 }
+
+apiSettingsButton?.addEventListener("click", () => openApiDialog({ activate: state.aiMode !== "api" }));
+document.querySelectorAll("[data-close-api-dialog]").forEach((button) => {
+  button.addEventListener("click", () => {
+    pendingApiActivation = false;
+    apiDialog.close();
+  });
+});
+apiForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const provider = normalizeApiProvider(apiProviderSelect.value);
+  const key = String(apiKeyInput.value || "").trim();
+  const submitButton = apiForm.querySelector('button[type="submit"]');
+  if (!key) {
+    apiConnectionStatus.textContent = "请填写 API Key。";
+    apiConnectionStatus.className = "api-connection-status error";
+    return;
+  }
+  submitButton.disabled = true;
+  apiConnectionStatus.textContent = "正在测试连接…";
+  apiConnectionStatus.className = "api-connection-status";
+  try {
+    const payload = await requestJson("./api/provider/test", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-openadops-provider": provider,
+        "x-openadops-api-key": key
+      },
+      body: "{}"
+    });
+    apiSession = { apiKey: key, provider, connected: true };
+    apiRoutes = payload.routes || publicApiRoutes(provider);
+    const nextState = {
+      ...state,
+      aiMode: pendingApiActivation || state.aiMode === "api" ? "api" : state.aiMode,
+      apiPreferences: { provider }
+    };
+    if (!commitState(nextState)) throw new Error("API 偏好未能保存");
+    applyRoutesForMode(state.aiMode);
+    apiConnectionStatus.textContent = `${apiProviderLabel(provider)} 已连接；Key 只保留在当前页面。`;
+    apiConnectionStatus.className = "api-connection-status success";
+    pendingApiActivation = false;
+    apiKeyInput.value = "";
+    setTimeout(() => {
+      apiDialog.close();
+      render();
+      showToast(`${apiProviderLabel(provider)} 已连接`);
+    }, 250);
+  } catch (error) {
+    apiConnectionStatus.textContent = `连接失败：${error.message}`;
+    apiConnectionStatus.className = "api-connection-status error";
+  } finally {
+    submitButton.disabled = false;
+  }
+});
 
 newProjectButton.addEventListener("click", () => projectDialog.showModal());
 exportWorkspaceButton?.addEventListener("click", exportWorkspaceBackup);

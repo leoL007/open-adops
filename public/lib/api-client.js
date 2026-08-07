@@ -25,9 +25,12 @@ export async function requestJson(url, options = {}, { fetchImpl = globalThis.fe
   let response;
   try {
     response = await fetchImpl(url, options);
-  } catch {
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new OpenAdOpsApiError("已取消本次生成。", { code: "CANCELLED", status: 499 });
+    }
     throw new OpenAdOpsApiError(
-      "无法连接本机 OpenAdOps 服务，请确认 npm start 正在运行后重试。",
+      "无法连接 OpenAdOps 服务。使用本地版时请确认启动器仍在运行；使用网站版时请检查网络后重试。",
       { code: "NETWORK_ERROR" }
     );
   }
@@ -38,7 +41,7 @@ export async function requestJson(url, options = {}, { fetchImpl = globalThis.fe
     raw = await response.text();
   } catch {
     throw new OpenAdOpsApiError(
-      "本机服务响应读取失败，请重启 OpenAdOps 后重试。",
+      "OpenAdOps 服务响应读取失败，请稍后重试。",
       { code: "RESPONSE_READ_FAILED", status }
     );
   }
@@ -49,7 +52,7 @@ export async function requestJson(url, options = {}, { fetchImpl = globalThis.fe
       payload = JSON.parse(raw);
     } catch {
       throw new OpenAdOpsApiError(
-        "本机服务返回了无法识别的内容，请确认启动地址与端口正确。",
+        "OpenAdOps 服务返回了无法识别的内容，请刷新页面后重试。",
         { code: "INVALID_RESPONSE", status }
       );
     }
@@ -57,7 +60,7 @@ export async function requestJson(url, options = {}, { fetchImpl = globalThis.fe
 
   if (!response.ok || payload?.ok === false) {
     throw new OpenAdOpsApiError(
-      payload?.error || `本机服务请求失败（HTTP ${status || "未知"}）`,
+      payload?.error || `OpenAdOps 服务请求失败（HTTP ${status || "未知"}）`,
       {
         code: payload?.code || defaultHttpCode(status),
         status

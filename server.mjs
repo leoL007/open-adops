@@ -12,6 +12,7 @@ import { applyExperimentMetricContext, enrichExperimentPlan } from "./public/lib
 import { buildMockExperimentPlan } from "./public/lib/mock-experiment-plan.js";
 import { buildMockIntake } from "./public/lib/mock-intake.js";
 import { buildMockLaunchPack } from "./public/lib/mock-launch-pack.js";
+import { normalizeApiProvider, publicApiRoutes, resolveApiRoute } from "./public/lib/api-routes.js";
 import { performanceTargetsForAi } from "./public/lib/project-targets.js";
 import { APP_VERSION } from "./public/version.js";
 import { publicAiRoutes, publicGrokRoutes, resolveRouteForProvider } from "./src/ai-router.mjs";
@@ -26,6 +27,7 @@ import { parseGrokCliOutput } from "./src/grok-cli-output.mjs";
 import { formatServerStartupError } from "./src/server-startup-error.mjs";
 import { resolveStaticFile, shouldSendStaticBody } from "./src/static-request.mjs";
 import { codexCommandNeedsShell, detectCodexCli } from "./src/codex-cli.mjs";
+import { ApiProviderError, runApiProviderJson, testApiProvider } from "./src/api-provider.mjs";
 
 const APP_ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = path.join(APP_ROOT, "public");
@@ -367,6 +369,92 @@ function activeJobPayload() {
   };
 }
 
+const API_ROUTE_VALIDATORS = {
+  intakeQuestions: validateIntake,
+  intakeStrategy: validateIntake,
+  intakeDeep: validateIntake,
+  analysis: validateAnalysis,
+  optimizeAnalysis: validateAnalysis,
+  creativeRequirements: validateCreativeRequirements,
+  launchPack: validateLaunchPack
+};
+
+const API_ROUTE_SCHEMAS = {
+  intakeQuestions: INTAKE_SCHEMA_PATH,
+  intakeStrategy: INTAKE_SCHEMA_PATH,
+  intakeDeep: INTAKE_SCHEMA_PATH,
+  analysis: SCHEMA_PATH,
+  optimizeAnalysis: SCHEMA_PATH,
+  creativeRequirements: CREATIVE_REQUIREMENTS_SCHEMA_PATH,
+  launchPack: LAUNCH_PACK_SCHEMA_PATH
+};
+
+function apiCredentialsFromRequest(request) {
+  return {
+    provider: normalizeApiProvider(request.headers["x-openadops-provider"]),
+    apiKey: String(request.headers["x-openadops-api-key"] || "")
+  };
+}
+
+async function runApiStructured({ provider, apiKey, routeKey, prompt }) {
+  const route = resolveApiRoute(provider, routeKey);
+  const validate = API_ROUTE_VALIDATORS[routeKey];
+  if (!validate) throw new ApiProviderError("未知 API 任务。", { code: "UNKNOWN_ROUTE", status: 400 });
+  const controller = new AbortController();
+  const startedAt = Date.now();
+  const job = {
+    id: randomUUID(),
+    routeKey,
+    label: route.label,
+    model: route.model,
+    effort: route.effort,
+    timeoutMs: route.timeoutMs,
+    expectedSeconds: route.expectedSeconds,
+    startedAt: new Date(startedAt).toISOString(),
+    attempt: 1,
+    fallbackUsed: false,
+    status: "running",
+    cancelRequested: false,
+    provider: "api",
+    cancel: () => {
+      job.cancelRequested = true;
+      job.status = "cancelling";
+      controller.abort();
+    }
+  };
+  activeAiJob = job;
+  const timeout = setTimeout(() => controller.abort(), route.timeoutMs);
+  try {
+    const schemaText = await readFile(API_ROUTE_SCHEMAS[routeKey], "utf8");
+    const structuredPrompt = `${String(prompt || "").trim()}\n\n必须严格符合以下 JSON Schema：\n${schemaText}`;
+    const output = await runApiProviderJson({ provider, apiKey, routeKey, prompt: structuredPrompt, signal: controller.signal });
+    const validation = validate(output.result);
+    if (!validation.valid) {
+      throw new ApiProviderError(`结构校验失败：${validation.errors.join("；")}`, {
+        code: "STRUCTURE_ERROR",
+        status: 502
+      });
+    }
+    return {
+      result: output.result,
+      meta: {
+        source: "api",
+        provider,
+        routeKey,
+        label: route.label,
+        model: route.model,
+        reasoningEffort: route.effort,
+        durationMs: Date.now() - startedAt,
+        requestId: output.requestId,
+        fallbackUsed: false
+      }
+    };
+  } finally {
+    clearTimeout(timeout);
+    if (activeAiJob?.id === job.id) activeAiJob = null;
+  }
+}
+
 function runCodexStructured({ prompt, schemaPath, validate, jobName, route, job, transform = (value) => value }) {
   return new Promise((resolve, reject) => {
     if (!CODEX_CLI.available) {
@@ -671,6 +759,56 @@ function runLiveExperimentPlan(payload, provider) {
   });
 }
 
+async function handleApiProviderTest(request, response) {
+  const { provider, apiKey } = apiCredentialsFromRequest(request);
+  try {
+    const result = await testApiProvider({ provider, apiKey });
+    sendJson(response, 200, {
+      ok: true,
+      source: "api",
+      provider: result.provider,
+      modelCount: result.modelCount,
+      routes: publicApiRoutes(result.provider)
+    });
+  } catch (error) {
+    sendJson(response, Number(error.status) || 502, {
+      ok: false,
+      code: error.code || "API_PROVIDER_ERROR",
+      error: error.message
+    });
+  }
+}
+
+async function handleApiProviderGenerate(request, response) {
+  if (activeAiJob) {
+    sendJson(response, 409, { ok: false, code: "AI_BUSY", error: "已有一个 AI 任务在运行，请等待完成。" });
+    return;
+  }
+  let payload;
+  try {
+    payload = await readJsonBody(request);
+  } catch (error) {
+    sendJson(response, 400, { ok: false, code: "INVALID_JSON", error: error.message });
+    return;
+  }
+  const { provider, apiKey } = apiCredentialsFromRequest(request);
+  try {
+    const { result, meta } = await runApiStructured({
+      provider,
+      apiKey,
+      routeKey: String(payload.routeKey || ""),
+      prompt: payload.prompt
+    });
+    sendJson(response, 200, { ok: true, ...meta, result });
+  } catch (error) {
+    sendJson(response, Number(error.status) || (error.code === "CANCELLED" ? 499 : 502), {
+      ok: false,
+      code: error.code || "API_PROVIDER_ERROR",
+      error: error.message
+    });
+  }
+}
+
 async function handleAnalyze(request, response) {
   let payload;
   try {
@@ -936,11 +1074,15 @@ const server = http.createServer(async (request, response) => {
       ok: true,
       app: "OpenAdOps",
       version: APP_VERSION,
+      runtime: "local",
       routing: "task-aware",
       defaultLiveProvider: "grok",
       routes: publicGrokRoutes(),
       codexRoutes: publicAiRoutes(),
+      apiRoutes: publicApiRoutes("openai"),
       providers: {
+        api: { available: true },
+        grok: { available: true },
         codex: {
           available: CODEX_CLI.available,
           version: CODEX_CLI.version,
@@ -963,6 +1105,14 @@ const server = http.createServer(async (request, response) => {
     activeAiJob.status = "cancelling";
     activeAiJob.cancel?.();
     sendJson(response, 202, { ok: true, cancelled });
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/provider/test") {
+    await handleApiProviderTest(request, response);
+    return;
+  }
+  if (request.method === "POST" && url.pathname === "/api/provider/generate") {
+    await handleApiProviderGenerate(request, response);
     return;
   }
   if (request.method === "POST" && url.pathname === "/api/analyze") {

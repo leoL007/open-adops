@@ -380,7 +380,8 @@ select {
 }
 
 .mode-switch-btn[data-ai-mode="codex"].active,
-.mode-switch-btn[data-ai-mode="grok"].active {
+.mode-switch-btn[data-ai-mode="grok"].active,
+.mode-switch-btn[data-ai-mode="api"].active {
   color: var(--accent-deep);
 }
 
@@ -2780,6 +2781,41 @@ tbody tr:hover td {
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.api-dialog {
+  width: min(720px, calc(100vw - 40px));
+}
+
+.api-security-note {
+  margin: 0 0 20px;
+  padding: 14px 16px;
+  border: 1px solid #f1d4c3;
+  border-radius: 10px;
+  color: var(--ink-soft);
+  background: var(--accent-soft);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.api-security-note strong {
+  color: var(--accent-deep);
+}
+
+.api-connection-status {
+  min-height: 20px;
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.api-connection-status.success {
+  color: var(--success);
+}
+
+.api-connection-status.error {
+  color: var(--danger);
 }
 
 .dialog-header {

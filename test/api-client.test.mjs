@@ -83,9 +83,22 @@ test("network failures point to the local start command", async () => {
     }),
     (error) => {
       assert.equal(error.code, "NETWORK_ERROR");
-      assert.match(error.message, /npm start/);
+      assert.match(error.message, /OpenAdOps 服务/);
       return true;
     }
+  );
+});
+
+test("aborted browser requests keep a cancellation identity", async () => {
+  await assert.rejects(
+    requestJson("/api/analyze", {}, {
+      fetchImpl: async () => {
+        const error = new Error("aborted");
+        error.name = "AbortError";
+        throw error;
+      }
+    }),
+    (error) => error.code === "CANCELLED" && isCancelledRequest(error)
   );
 });
 
